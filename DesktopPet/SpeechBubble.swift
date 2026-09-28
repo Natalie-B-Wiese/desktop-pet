@@ -518,12 +518,12 @@ private struct BubbleTimerPage: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            BubbleTabs(selection: $mode, options: [(.timer, "Timer"), (.pomodoro, "Pomodoro"), (.stopwatch, "Stopwatch")])
+            BubbleTabs(selection: $mode, options: [(.timer, "Timer"), (.stopwatch, "Stopwatch"), (.pomodoro, "Pomodoro")])
 
             switch mode {
             case .timer: timerForm
-            case .pomodoro: pomodoroForm
             case .stopwatch: stopwatchForm
+            case .pomodoro: pomodoroForm
             }
 
             BubbleButton("Start", systemImage: "play.fill", action: start)
