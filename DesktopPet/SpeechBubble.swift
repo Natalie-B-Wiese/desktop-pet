@@ -9,25 +9,63 @@ final class BubbleLayout {
     var tailPointsUp = false
 }
 
-/// A small floating window above the pet's head that shows the timer.
+/// The "What would you like to do?" menu shown in the bubble when you click the cat.
+@Observable
+final class BubbleMenu {
+    enum Page { case main, timer }
+
+    /// `nil` when the menu is closed.
+    var page: Page? {
+        didSet { if page != oldValue { onChange?() } }
+    }
+
+    @ObservationIgnored var onChange: (() -> Void)?
+
+    var isOpen: Bool { page != nil }
+}
+
+/// What the menu buttons do. The menu closes itself before running any of these.
+struct BubbleActions {
+    var startTimer: (_ minutes: Int) -> Void
+    var customTimer: () -> Void
+    var stopTimer: () -> Void
+    var customize: () -> Void
+    var hide: () -> Void
+}
+
+/// A small floating window above the pet's head that shows the timer or the click menu.
 final class SpeechBubbleController {
+    let menu = BubbleMenu()
+
     private let timer: PetTimer
     private let layout = BubbleLayout()
     private let panel: NSPanel
-    private let container: ClickableContainer
-    private let hostingView: NSHostingView<BubbleView>
+    private let container: BubbleContainer
+    private let hostingView: FirstClickHostingView<BubbleView>
     private weak var pet: PetPanel?
     private var observers: [NSObjectProtocol] = []
+    private var outsideClickMonitor: Any?
 
     /// Space between the pet's head and the tip of the bubble's tail.
     private static let gap: CGFloat = 2
 
-    init(timer: PetTimer, pet: PetPanel) {
+    init(timer: PetTimer, pet: PetPanel, actions: BubbleActions) {
         self.timer = timer
         self.pet = pet
 
-        hostingView = NSHostingView(rootView: BubbleView(timer: timer, layout: layout))
-        container = ClickableContainer()
+        let menu = self.menu
+        let closingActions = BubbleActions(
+            startTimer: { minutes in menu.page = nil; actions.startTimer(minutes) },
+            customTimer: { menu.page = nil; actions.customTimer() },
+            stopTimer: { menu.page = nil; actions.stopTimer() },
+            customize: { menu.page = nil; actions.customize() },
+            hide: { menu.page = nil; actions.hide() }
+        )
+
+        hostingView = FirstClickHostingView(rootView: BubbleView(
+            timer: timer, layout: layout, menu: menu, actions: closingActions
+        ))
+        container = BubbleContainer()
         container.addSubview(hostingView)
 
         panel = NSPanel(
@@ -48,6 +86,7 @@ final class SpeechBubbleController {
         container.onClick = { [weak timer] in
             if timer?.state == .finished { timer?.stop() }
         }
+        menu.onChange = { [weak self] in self?.menuChanged() }
 
         for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
             observers.append(NotificationCenter.default.addObserver(
@@ -58,15 +97,23 @@ final class SpeechBubbleController {
 
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
+        if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
     }
 
-    /// Shows, hides or repositions the bubble to match the timer and the pet.
+    func toggleMenu() {
+        menu.page = menu.isOpen ? nil : .main
+    }
+
+    /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
-        guard let pet, pet.isVisible, timer.isActive else {
+        guard let pet, pet.isVisible, timer.isActive || menu.isOpen else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
             return
         }
+
+        // Menu buttons need real clicks; otherwise the whole bubble is one click target.
+        container.passesClicksToContent = menu.isOpen
 
         hostingView.layoutSubtreeIfNeeded()
         let size = hostingView.fittingSize
@@ -86,14 +133,29 @@ final class SpeechBubbleController {
         if panel.parent == nil { pet.addChildWindow(panel, ordered: .above) }
         panel.orderFront(nil)
     }
+
+    private func menuChanged() {
+        if menu.isOpen, outsideClickMonitor == nil {
+            // Clicking anywhere in another app closes the menu.
+            outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown]
+            ) { [weak self] _ in self?.menu.page = nil }
+        } else if !menu.isOpen, let monitor = outsideClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            outsideClickMonitor = nil
+        }
+        update()
+    }
 }
 
-/// Catches clicks anywhere on the bubble (SwiftUI content inside doesn't need its own gestures).
-private final class ClickableContainer: NSView {
+/// Either hands clicks to the SwiftUI buttons inside, or catches them all as one "click the bubble".
+private final class BubbleContainer: NSView {
     var onClick: (() -> Void)?
+    var passesClicksToContent = false
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        frame.contains(point) ? self : nil
+        if passesClicksToContent { return super.hitTest(point) }
+        return frame.contains(point) ? self : nil
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -103,9 +165,16 @@ private final class ClickableContainer: NSView {
     }
 }
 
+/// The bubble never becomes the active window, so its buttons must respond to the very first click.
+private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 struct BubbleView: View {
     let timer: PetTimer
     let layout: BubbleLayout
+    let menu: BubbleMenu
+    let actions: BubbleActions
 
     private static let tailHeight: CGFloat = 8
 
@@ -113,7 +182,7 @@ struct BubbleView: View {
         content
             .foregroundStyle(.black)
             .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.vertical, menu.isOpen ? 10 : 7)
             .frame(minWidth: 72)
             .padding(layout.tailPointsUp ? .top : .bottom, Self.tailHeight)
             .background {
@@ -127,10 +196,20 @@ struct BubbleView: View {
             }
             .padding(2) // room for the outline
             .fixedSize()
+            .environment(\.colorScheme, .light) // the bubble is always white, even in Dark Mode
     }
 
     @ViewBuilder
     private var content: some View {
+        switch menu.page {
+        case .main: mainMenu
+        case .timer: timerMenu
+        case nil: timerContent
+        }
+    }
+
+    @ViewBuilder
+    private var timerContent: some View {
         switch timer.state {
         case .running(let end):
             TimelineView(.periodic(from: .now, by: 0.25)) { context in
@@ -148,6 +227,103 @@ struct BubbleView: View {
         case .idle:
             EmptyView()
         }
+    }
+
+    private var mainMenu: some View {
+        VStack(spacing: 6) {
+            Text("What would you like to do?")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .padding(.bottom, 2)
+
+            BubbleButton("Start a timer", systemImage: "timer") { menu.page = .timer }
+
+            switch timer.state {
+            case .running(let end):
+                TimelineView(.periodic(from: .now, by: 0.25)) { context in
+                    BubbleButton(
+                        "Stop timer (\(PetTimer.format(end.timeIntervalSince(context.date))))",
+                        systemImage: "stop.circle",
+                        action: actions.stopTimer
+                    )
+                }
+            case .finished:
+                BubbleButton("Clear time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
+            case .idle:
+                EmptyView()
+            }
+
+            BubbleButton("Customize", systemImage: "paintpalette", action: actions.customize)
+            BubbleButton("Hide", systemImage: "eye.slash", action: actions.hide)
+            BubbleButton("Never mind", systemImage: "xmark", style: .quiet) { menu.page = nil }
+        }
+        .frame(width: 190)
+    }
+
+    private var timerMenu: some View {
+        VStack(spacing: 6) {
+            Text("How long?")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .padding(.bottom, 2)
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                ForEach(PetTimer.presetMinutes, id: \.self) { minutes in
+                    BubbleButton(minutes == 1 ? "1 min" : "\(minutes) min") { actions.startTimer(minutes) }
+                }
+            }
+
+            BubbleButton("Custom…", systemImage: "slider.horizontal.3", action: actions.customTimer)
+            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
+        }
+        .frame(width: 190)
+    }
+}
+
+/// A white, black-outlined button that matches the bubble.
+struct BubbleButton: View {
+    enum Style { case normal, quiet }
+
+    let title: String
+    let systemImage: String?
+    let style: Style
+    let action: () -> Void
+
+    init(_ title: String, systemImage: String? = nil, style: Style = .normal, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.style = style
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .frame(width: 16)
+                }
+                Text(title)
+                    .monospacedDigit()
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BubbleButtonStyle(style: style))
+    }
+}
+
+private struct BubbleButtonStyle: ButtonStyle {
+    let style: BubbleButton.Style
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 7)
+        configuration.label
+            .foregroundStyle(style == .quiet ? Color.black.opacity(0.6) : .black)
+            .background(shape.fill(configuration.isPressed ? Color.black.opacity(0.12) : .white))
+            .overlay(shape.stroke(Color.black.opacity(style == .quiet ? 0.25 : 1), lineWidth: 1.5))
     }
 }
 

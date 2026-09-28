@@ -33,7 +33,15 @@ final class AppController {
         let panel = PetPanel(image: PetRenderer.render(settings.palette), scale: CGFloat(settings.scale))
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
-        bubble = SpeechBubbleController(timer: timer, pet: panel)
+        let bubble = SpeechBubbleController(timer: timer, pet: panel, actions: BubbleActions(
+            startTimer: { [weak self] minutes in self?.startTimer(minutes: minutes) },
+            customTimer: { [weak self] in self?.showSetTimerWindow() },
+            stopTimer: { [weak self] in self?.timer.stop() },
+            customize: { [weak self] in self?.showCustomizeWindow() },
+            hide: { [weak self] in self?.setPetVisible(false) }
+        ))
+        panel.onClick = { [weak bubble] in bubble?.toggleMenu() }
+        self.bubble = bubble
 
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
         setPetVisible(wasVisible)
@@ -53,6 +61,7 @@ final class AppController {
         if visible {
             petPanel?.orderFrontRegardless()
         } else {
+            bubble?.menu.page = nil
             petPanel?.orderOut(nil)
         }
         bubble?.update()
@@ -164,6 +173,7 @@ final class AppController {
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
     /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer;
+    /// `--menu` or `--menu timer` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
@@ -174,6 +184,7 @@ final class AppController {
         if args.contains("--customize") { showCustomizeWindow() }
         if args.contains("--set-timer") { showSetTimerWindow() }
         if let seconds = value(after: "--timer").flatMap(TimeInterval.init) { startTimer(duration: seconds) }
+        if args.contains("--menu") { bubble?.menu.page = value(after: "--menu") == "timer" ? .timer : .main }
 
         if let path = value(after: "--snapshot") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

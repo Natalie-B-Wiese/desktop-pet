@@ -8,6 +8,12 @@ final class PetPanel: NSPanel {
         set { petView.menuProvider = newValue }
     }
 
+    /// Called on a plain click (press and release without dragging).
+    var onClick: (() -> Void)? {
+        get { petView.onClick }
+        set { petView.onClick = newValue }
+    }
+
     private let petView: PetView
     private(set) var scale: CGFloat
 
@@ -90,9 +96,17 @@ final class PetPanel: NSPanel {
     }
 }
 
-/// Draws the pet with crisp, unsmoothed pixels and lets you drag it around.
+/// Draws the pet with crisp, unsmoothed pixels. Drag to move it; click to open its menu.
 final class PetView: NSView {
     var menuProvider: (() -> NSMenu)?
+    var onClick: (() -> Void)?
+
+    /// How far the mouse must move before a press counts as a drag instead of a click.
+    private static let dragThreshold: CGFloat = 3
+
+    private var mouseDownLocation: NSPoint?
+    private var windowOriginAtMouseDown: NSPoint?
+    private var isDragging = false
 
     var image: NSImage? {
         didSet { needsDisplay = true }
@@ -107,7 +121,25 @@ final class PetView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
-        window?.performDrag(with: event)
+        mouseDownLocation = NSEvent.mouseLocation
+        windowOriginAtMouseDown = window?.frame.origin
+        isDragging = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = mouseDownLocation, let origin = windowOriginAtMouseDown else { return }
+        let now = NSEvent.mouseLocation
+        let dx = now.x - start.x, dy = now.y - start.y
+        if !isDragging && hypot(dx, dy) < Self.dragThreshold { return }
+        isDragging = true
+        window?.setFrameOrigin(NSPoint(x: origin.x + dx, y: origin.y + dy))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if !isDragging && mouseDownLocation != nil { onClick?() }
+        mouseDownLocation = nil
+        windowOriginAtMouseDown = nil
+        isDragging = false
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
