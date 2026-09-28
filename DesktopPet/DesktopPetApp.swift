@@ -28,15 +28,17 @@ struct MenuContent: View {
 
         Divider()
 
-        Menu("Start Timer") {
-            ForEach(PetTimer.presetMinutes, id: \.self) { minutes in
-                Button(AppController.presetTitle(minutes)) {
-                    controller.startTimer(minutes: minutes)
+        if !controller.timer.hasCountdown { // stop the current timer first
+            Menu("Start Timer") {
+                ForEach(PetTimer.presetMinutes, id: \.self) { minutes in
+                    Button(AppController.presetTitle(minutes)) {
+                        controller.startTimer(minutes: minutes)
+                    }
                 }
-            }
-            Divider()
-            Button("Custom…") {
-                controller.showSetTimerWindow()
+                Divider()
+                Button("Custom…") {
+                    controller.showSetTimerWindow()
+                }
             }
         }
 

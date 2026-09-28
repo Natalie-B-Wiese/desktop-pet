@@ -84,7 +84,7 @@ final class AppController {
         timerMenu.addItem(.separator())
         timerMenu.addItem(ClosureMenuItem("Custom…") { [weak self] in self?.showSetTimerWindow() })
         timerItem.submenu = timerMenu
-        menu.addItem(timerItem)
+        if !timer.hasCountdown { menu.addItem(timerItem) } // stop the current timer first
         if timer.hasCountdown {
             menu.addItem(ClosureMenuItem(timer.pauseTitle) { [weak self] in self?.timer.togglePause() })
         }

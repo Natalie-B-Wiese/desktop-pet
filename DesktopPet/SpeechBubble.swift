@@ -269,7 +269,10 @@ struct BubbleView: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .padding(.bottom, 2)
 
-            BubbleButton("Start a timer", systemImage: "timer") { menu.page = .timer }
+            // Hidden while a countdown exists, so it can't be overwritten by accident.
+            if !timer.hasCountdown {
+                BubbleButton("Start a timer", systemImage: "timer") { menu.page = .timer }
+            }
 
             switch timer.state {
             case .running(let end):
