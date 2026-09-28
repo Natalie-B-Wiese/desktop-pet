@@ -298,7 +298,7 @@ struct BubbleView: View {
                 // "Start a timer" is hidden meanwhile, so the countdown can't be overwritten by accident.
                 TimelineView(.periodic(from: .now, by: 0.25)) { _ in
                     BubbleButton(
-                        "\(timer.label ?? "Timer") (\(PetTimer.format(timer.remaining ?? 0)))",
+                        "Timer (\(PetTimer.format(timer.remaining ?? 0)))",
                         systemImage: timer.state.isPaused ? "pause.circle" : "timer"
                     ) { menu.page = .timerControls }
                 }
