@@ -12,7 +12,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls }
+    enum Page { case main, startTimer, timerControls, reminders, addReminder }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -31,6 +31,7 @@ struct BubbleActions {
     var togglePause: () -> Void
     var customize: () -> Void
     var hide: () -> Void
+    var openRemindersWindow: () -> Void
 }
 
 /// A small floating window above the pet's head that shows the timer or the click menu.
@@ -38,6 +39,7 @@ final class SpeechBubbleController {
     let menu = BubbleMenu()
 
     private let timer: PetTimer
+    private let reminders: ReminderStore
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     private let container: BubbleContainer
@@ -49,8 +51,9 @@ final class SpeechBubbleController {
     /// Space between the pet's head and the tip of the bubble's tail.
     private static let gap: CGFloat = 2
 
-    init(timer: PetTimer, settings: PetSettings, pet: PetPanel, actions: BubbleActions) {
+    init(timer: PetTimer, reminders: ReminderStore, settings: PetSettings, pet: PetPanel, actions: BubbleActions) {
         self.timer = timer
+        self.reminders = reminders
         self.pet = pet
 
         let menu = self.menu
@@ -59,11 +62,13 @@ final class SpeechBubbleController {
             stopTimer: { menu.page = nil; actions.stopTimer() },
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             customize: { menu.page = nil; actions.customize() },
-            hide: { menu.page = nil; actions.hide() }
+            hide: { menu.page = nil; actions.hide() },
+            openRemindersWindow: { menu.page = nil; actions.openRemindersWindow() }
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, settings: settings, layout: layout, menu: menu, actions: closingActions
+            timer: timer, reminders: reminders, settings: settings,
+            layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
         container.addSubview(hostingView)
@@ -83,10 +88,12 @@ final class SpeechBubbleController {
         panel.hidesOnDeactivate = false
         panel.contentView = container
 
-        // Clicking the bubble pauses/resumes a countdown, or closes "Time's up!".
-        container.onClick = { [weak timer] in
-            guard let timer else { return }
-            if timer.state == .finished {
+        // Clicking the bubble closes a due reminder or "Time's up!", or pauses/resumes a countdown.
+        container.onClick = { [weak timer, weak reminders] in
+            guard let timer, let reminders else { return }
+            if !reminders.due.isEmpty {
+                reminders.dismissFirstDue()
+            } else if timer.state == .finished {
                 timer.stop()
             } else if timer.hasCountdown {
                 timer.togglePause()
@@ -112,7 +119,7 @@ final class SpeechBubbleController {
 
     /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
-        guard let pet, pet.isVisible, timer.isActive || menu.isOpen else {
+        guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
             return
@@ -123,8 +130,8 @@ final class SpeechBubbleController {
 
         // Only pages with text fields may take the keyboard. The Start page grabs it right away
         // (you're about to type minutes); the Timer page only when you click its label box.
-        let allowsKeyboard = menu.page == .startTimer || menu.page == .timerControls
-        let grabsKeyboard = menu.page == .startTimer
+        let grabsKeyboard = menu.page == .startTimer || menu.page == .addReminder
+        let allowsKeyboard = grabsKeyboard || menu.page == .timerControls
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -203,6 +210,7 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 
 struct BubbleView: View {
     let timer: PetTimer
+    let reminders: ReminderStore
     let settings: PetSettings
     let layout: BubbleLayout
     let menu: BubbleMenu
@@ -238,7 +246,29 @@ struct BubbleView: View {
         case .startTimer: timerMenu
         // If the countdown ends while this page is open, fall back to the main menu.
         case .timerControls: if timer.hasCountdown { timerControlsMenu } else { mainMenu }
-        case nil: timerContent
+        case .reminders:
+            BubbleRemindersPage(
+                store: reminders,
+                onAdd: { menu.page = .addReminder },
+                onOpenWindow: actions.openRemindersWindow,
+                onBack: { menu.page = .main }
+            )
+            .frame(width: 190)
+        case .addReminder:
+            BubbleAddReminderPage(
+                store: reminders,
+                onAdded: { menu.page = .reminders },
+                onBack: { menu.page = .reminders },
+                onClose: { menu.page = nil }
+            )
+            .frame(width: 190)
+        case nil:
+            // A due reminder takes priority; the timer shows again once it's closed.
+            if let reminder = reminders.due.first {
+                BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1)
+            } else {
+                timerContent
+            }
         }
     }
 
@@ -314,6 +344,12 @@ struct BubbleView: View {
                 BubbleButton("Clear time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
                 BubbleButton("Start a timer", systemImage: "timer") { menu.page = .startTimer }
             }
+
+            let upcomingCount = reminders.upcoming.count
+            BubbleButton(
+                upcomingCount > 0 ? "Reminders (\(upcomingCount))" : "Reminders",
+                systemImage: "bell"
+            ) { menu.page = .reminders }
 
             BubbleButton("Customize", systemImage: "paintpalette", action: actions.customize)
             BubbleButton("Hide", systemImage: "eye.slash", action: actions.hide)

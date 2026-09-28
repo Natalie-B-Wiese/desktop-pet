@@ -65,6 +65,10 @@ struct MenuContent: View {
 
         Divider()
 
+        Button("Reminders…") {
+            controller.showRemindersWindow()
+        }
+
         Button("Customize…") {
             controller.showCustomizeWindow()
         }

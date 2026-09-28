@@ -10,6 +10,7 @@ final class AppController {
 
     let settings = PetSettings()
     let timer = PetTimer()
+    let reminders = ReminderStore()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -17,6 +18,7 @@ final class AppController {
     @ObservationIgnored private var bubble: SpeechBubbleController?
     @ObservationIgnored private var customizeWindow: NSWindow?
     @ObservationIgnored private var setTimerWindow: NSWindow?
+    @ObservationIgnored private var remindersWindow: NSWindow?
 
     private static let visibleKey = "petVisible"
 
@@ -27,24 +29,28 @@ final class AppController {
             petPanel?.setScale(CGFloat(settings.scale))
         }
         timer.onStateChange = { [weak self] in self?.timerStateChanged() }
+        reminders.onChange = { [weak self] in self?.remindersChanged() }
     }
 
     func start() {
         let panel = PetPanel(image: PetRenderer.render(settings.palette), scale: CGFloat(settings.scale))
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
-        let bubble = SpeechBubbleController(timer: timer, settings: settings, pet: panel, actions: BubbleActions(
+        let bubble = SpeechBubbleController(
+            timer: timer, reminders: reminders, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },
             customize: { [weak self] in self?.showCustomizeWindow() },
-            hide: { [weak self] in self?.setPetVisible(false) }
+            hide: { [weak self] in self?.setPetVisible(false) },
+            openRemindersWindow: { [weak self] in self?.showRemindersWindow() }
         ))
         panel.onClick = { [weak bubble] in bubble?.toggleMenu() }
         self.bubble = bubble
 
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
         setPetVisible(wasVisible)
+        remindersChanged() // show any reminders that came due while the app was closed
 
         handleTestingArguments()
     }
@@ -104,6 +110,7 @@ final class AppController {
             menu.addItem(ClosureMenuItem("Stop Timer") { [weak self] in self?.timer.stop() })
         }
         menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("Reminders…") { [weak self] in self?.showRemindersWindow() })
         menu.addItem(ClosureMenuItem("Customize…") { [weak self] in self?.showCustomizeWindow() })
         menu.addItem(ClosureMenuItem("Hide Pet") { [weak self] in self?.setPetVisible(false) })
         return menu
@@ -155,6 +162,32 @@ final class AppController {
         setTimerWindow?.makeKeyAndOrderFront(nil)
     }
 
+    // MARK: - Reminders
+
+    private func remindersChanged() {
+        // A due reminder needs the cat to be seen, so bring it back.
+        if !reminders.due.isEmpty && !isPetVisible {
+            setPetVisible(true)
+        } else {
+            bubble?.update()
+        }
+    }
+
+    func showRemindersWindow() {
+        if remindersWindow == nil {
+            let window = NSWindow(contentViewController: NSHostingController(
+                rootView: RemindersView(store: reminders)
+            ))
+            window.title = "Reminders"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            remindersWindow = window
+        }
+        NSApp.activate()
+        remindersWindow?.makeKeyAndOrderFront(nil)
+    }
+
     // MARK: - Customize
 
     func showCustomizeWindow() {
@@ -190,8 +223,8 @@ final class AppController {
     // MARK: - Testing
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
-    /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
-    /// `--menu [start|controls]` opens the cat's click menu (on that page);
+    /// `--customize`, `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
+    /// `--menu [start|controls|reminders|add-reminder]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
@@ -201,6 +234,7 @@ final class AppController {
 
         if args.contains("--customize") { showCustomizeWindow() }
         if args.contains("--set-timer") { showSetTimerWindow() }
+        if args.contains("--reminders") { showRemindersWindow() }
         if let seconds = value(after: "--timer").flatMap(TimeInterval.init) {
             startTimer(duration: seconds, label: value(after: "--label"))
         }
@@ -209,6 +243,8 @@ final class AppController {
             bubble?.menu.page = switch value(after: "--menu") {
             case "start": .startTimer
             case "controls": .timerControls
+            case "reminders": .reminders
+            case "add-reminder": .addReminder
             default: .main
             }
         }
