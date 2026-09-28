@@ -83,8 +83,14 @@ final class SpeechBubbleController {
         panel.hidesOnDeactivate = false
         panel.contentView = container
 
+        // Clicking the bubble pauses/resumes a countdown, or closes "Time's up!".
         container.onClick = { [weak timer] in
-            if timer?.state == .finished { timer?.stop() }
+            guard let timer else { return }
+            if timer.state == .finished {
+                timer.stop()
+            } else if timer.hasCountdown {
+                timer.togglePause()
+            }
         }
         menu.onChange = { [weak self] in self?.menuChanged() }
 
