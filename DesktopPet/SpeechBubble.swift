@@ -26,7 +26,7 @@ final class BubbleMenu {
 
 /// What the menu buttons do. The menu closes itself before running these, except pause/resume.
 struct BubbleActions {
-    var startTimer: (_ duration: TimeInterval) -> Void
+    var startTimer: (_ duration: TimeInterval, _ label: String?) -> Void
     var stopTimer: () -> Void
     var togglePause: () -> Void
     var customize: () -> Void
@@ -55,7 +55,7 @@ final class SpeechBubbleController {
 
         let menu = self.menu
         let closingActions = BubbleActions(
-            startTimer: { duration in menu.page = nil; actions.startTimer(duration) },
+            startTimer: { duration, label in menu.page = nil; actions.startTimer(duration, label) },
             stopTimer: { menu.page = nil; actions.stopTimer() },
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             customize: { menu.page = nil; actions.customize() },
@@ -240,20 +240,27 @@ struct BubbleView: View {
     private var timerContent: some View {
         switch timer.state {
         case .running(let end):
-            TimelineView(.periodic(from: .now, by: 0.25)) { context in
-                Text(PetTimer.format(end.timeIntervalSince(context.date)))
-                    .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+            VStack(spacing: 0) {
+                labelLine
+                TimelineView(.periodic(from: .now, by: 0.25)) { context in
+                    Text(PetTimer.format(end.timeIntervalSince(context.date)))
+                        .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                }
             }
         case .paused(let remaining):
-            HStack(spacing: 4) {
-                Image(systemName: "pause.fill")
-                    .font(.system(size: 11, weight: .bold))
-                Text(PetTimer.format(remaining))
-                    .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+            VStack(spacing: 0) {
+                labelLine
+                HStack(spacing: 4) {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 11, weight: .bold))
+                    Text(PetTimer.format(remaining))
+                        .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                }
             }
             .opacity(0.5)
         case .finished:
             VStack(spacing: 1) {
+                labelLine
                 Text("Time's up!")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                 Text("Click to close")
@@ -262,6 +269,18 @@ struct BubbleView: View {
             }
         case .idle:
             EmptyView()
+        }
+    }
+
+    /// The timer's label in small type, if it has one.
+    @ViewBuilder
+    private var labelLine: some View {
+        if let label = timer.label {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 160)
         }
     }
 
@@ -279,7 +298,7 @@ struct BubbleView: View {
                 // "Start a timer" is hidden meanwhile, so the countdown can't be overwritten by accident.
                 TimelineView(.periodic(from: .now, by: 0.25)) { _ in
                     BubbleButton(
-                        "Timer (\(PetTimer.format(timer.remaining ?? 0)))",
+                        "\(timer.label ?? "Timer") (\(PetTimer.format(timer.remaining ?? 0)))",
                         systemImage: timer.state.isPaused ? "pause.circle" : "timer"
                     ) { menu.page = .timerControls }
                 }
@@ -311,8 +330,10 @@ struct BubbleView: View {
 
     private var timerControlsMenu: some View {
         VStack(spacing: 6) {
-            Text("Timer")
+            Text(timer.label ?? "Timer")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .truncationMode(.tail)
             bigReadout
 
             // Redraws every quarter second so the greyed-out buttons stay current.
@@ -353,11 +374,12 @@ struct BubbleView: View {
 
 /// "How long?": type the minutes or nudge them, then Start.
 private struct BubbleTimerPage: View {
-    var onStart: (TimeInterval) -> Void
+    var onStart: (_ duration: TimeInterval, _ label: String?) -> Void
     var onBack: () -> Void
     var onClose: () -> Void
 
     @AppStorage(TimerDraft.minutesKey) private var minutes = TimerDraft.defaultMinutes
+    @State private var label = ""
     @FocusState private var minutesFocused: Bool
 
     private var duration: TimeInterval { TimeInterval(minutes * 60) }
@@ -378,6 +400,15 @@ private struct BubbleTimerPage: View {
                 }
             }
 
+            TextField("Label (optional)", text: TimerDraft.limited($label))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+                .onSubmit(start) // Return starts the timer
+
             BubbleButton("Start", systemImage: "play.fill", action: start)
                 .disabled(duration <= 0)
                 .opacity(duration <= 0 ? 0.4 : 1)
@@ -392,7 +423,7 @@ private struct BubbleTimerPage: View {
 
     private func start() {
         guard duration > 0 else { return }
-        onStart(duration)
+        onStart(duration, TimerDraft.cleanLabel(label))
     }
 
     private func field(_ unit: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
@@ -447,7 +478,7 @@ struct BubbleButton: View {
                 Text(title)
                     .monospacedDigit()
                     .lineLimit(1)
-                    .fixedSize()
+                    .truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
             .font(.system(size: 12, weight: .semibold, design: .rounded))

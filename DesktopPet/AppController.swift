@@ -34,7 +34,7 @@ final class AppController {
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
         let bubble = SpeechBubbleController(timer: timer, pet: panel, actions: BubbleActions(
-            startTimer: { [weak self] duration in self?.startTimer(duration: duration) },
+            startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },
             customize: { [weak self] in self?.showCustomizeWindow() },
@@ -122,8 +122,8 @@ final class AppController {
         startTimer(duration: TimeInterval(minutes * 60))
     }
 
-    func startTimer(duration: TimeInterval) {
-        timer.start(duration: duration)
+    func startTimer(duration: TimeInterval, label: String? = nil) {
+        timer.start(duration: duration, label: label)
     }
 
     private func timerStateChanged() {
@@ -138,9 +138,9 @@ final class AppController {
     func showSetTimerWindow() {
         if setTimerWindow == nil {
             let view = SetTimerView(
-                onStart: { [weak self] duration in
+                onStart: { [weak self] duration, label in
                     self?.setTimerWindow?.close()
-                    self?.startTimer(duration: duration)
+                    self?.startTimer(duration: duration, label: label)
                 },
                 onCancel: { [weak self] in self?.setTimerWindow?.close() }
             )
@@ -190,7 +190,7 @@ final class AppController {
     // MARK: - Testing
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
-    /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--pause` to pause it);
+    /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--menu [start|controls]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
@@ -201,7 +201,9 @@ final class AppController {
 
         if args.contains("--customize") { showCustomizeWindow() }
         if args.contains("--set-timer") { showSetTimerWindow() }
-        if let seconds = value(after: "--timer").flatMap(TimeInterval.init) { startTimer(duration: seconds) }
+        if let seconds = value(after: "--timer").flatMap(TimeInterval.init) {
+            startTimer(duration: seconds, label: value(after: "--label"))
+        }
         if args.contains("--pause") { timer.pause() }
         if args.contains("--menu") {
             bubble?.menu.page = switch value(after: "--menu") {

@@ -17,6 +17,9 @@ final class PetTimer {
 
     private(set) var state: State = .idle
 
+    /// Optional name for the current timer, like "Tea". Kept through pause, resume and edits.
+    private(set) var label: String?
+
     @ObservationIgnored var onStateChange: (() -> Void)?
     @ObservationIgnored private var timer: Timer?
 
@@ -41,7 +44,8 @@ final class PetTimer {
         }
     }
 
-    func start(duration: TimeInterval) {
+    func start(duration: TimeInterval, label: String? = nil) {
+        self.label = label
         schedule(end: Date().addingTimeInterval(duration))
     }
 
@@ -101,7 +105,7 @@ final class PetTimer {
 
     func resume() {
         guard case .paused(let remaining) = state else { return }
-        start(duration: remaining)
+        schedule(end: Date().addingTimeInterval(remaining))
     }
 
     /// "Pause Timer" or "Resume Timer", for the menu bar and right-click menus.
@@ -117,6 +121,7 @@ final class PetTimer {
     func stop() {
         timer?.invalidate()
         timer = nil
+        label = nil
         setState(.idle)
     }
 

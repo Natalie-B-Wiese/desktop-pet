@@ -7,6 +7,22 @@ enum TimerDraft {
 
     static let minuteRange = 0...999
 
+    static let maxLabelLength = 30
+
+    /// Trims a typed label; an empty one means "no label".
+    static func cleanLabel(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// A text binding that stops accepting characters past `maxLabelLength`.
+    static func limited(_ text: Binding<String>) -> Binding<String> {
+        Binding(
+            get: { text.wrappedValue },
+            set: { text.wrappedValue = String($0.prefix(maxLabelLength)) }
+        )
+    }
+
     /// The quick-adjust buttons, in minutes.
     static let steps = [-10, -5, 5, 10]
 
@@ -34,10 +50,11 @@ enum TimerDraft {
 
 /// The "Custom…" timer window: pick a number of minutes, then Start.
 struct SetTimerView: View {
-    var onStart: (TimeInterval) -> Void
+    var onStart: (_ duration: TimeInterval, _ label: String?) -> Void
     var onCancel: () -> Void
 
     @AppStorage(TimerDraft.minutesKey) private var minutes = TimerDraft.defaultMinutes
+    @State private var label = ""
 
     private var duration: TimeInterval { TimeInterval(minutes * 60) }
 
@@ -53,13 +70,18 @@ struct SetTimerView: View {
                 }
             }
 
+            TextField("Label (optional)", text: TimerDraft.limited($label))
+
             HStack {
                 Button("Cancel", role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Start") { onStart(duration) }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(duration <= 0)
+                Button("Start") {
+                    onStart(duration, TimerDraft.cleanLabel(label))
+                    label = ""
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(duration <= 0)
             }
         }
         .padding(20)
