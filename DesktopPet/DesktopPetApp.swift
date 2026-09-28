@@ -26,6 +26,28 @@ struct MenuContent: View {
         }
         .keyboardShortcut("p")
 
+        Divider()
+
+        Menu("Start Timer") {
+            ForEach(PetTimer.presetMinutes, id: \.self) { minutes in
+                Button(AppController.presetTitle(minutes)) {
+                    controller.startTimer(minutes: minutes)
+                }
+            }
+            Divider()
+            Button("Custom…") {
+                controller.showSetTimerWindow()
+            }
+        }
+
+        if controller.timer.isActive {
+            Button("Stop Timer") {
+                controller.timer.stop()
+            }
+        }
+
+        Divider()
+
         Button("Customize…") {
             controller.showCustomizeWindow()
         }

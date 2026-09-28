@@ -3,17 +3,20 @@ import Observation
 import ServiceManagement
 import SwiftUI
 
-/// Owns the floating pet window and the Customize window.
+/// Owns the floating pet, its speech bubble, the timer, and the app's windows.
 @Observable
 final class AppController {
     static let shared = AppController()
 
     let settings = PetSettings()
+    let timer = PetTimer()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
     @ObservationIgnored private var petPanel: PetPanel?
+    @ObservationIgnored private var bubble: SpeechBubbleController?
     @ObservationIgnored private var customizeWindow: NSWindow?
+    @ObservationIgnored private var setTimerWindow: NSWindow?
 
     private static let visibleKey = "petVisible"
 
@@ -23,37 +26,22 @@ final class AppController {
             guard let self else { return }
             petPanel?.setScale(CGFloat(settings.scale))
         }
+        timer.onStateChange = { [weak self] in self?.timerStateChanged() }
     }
 
     func start() {
         let panel = PetPanel(image: PetRenderer.render(settings.palette), scale: CGFloat(settings.scale))
-        panel.onHide = { [weak self] in self?.setPetVisible(false) }
-        panel.onCustomize = { [weak self] in self?.showCustomizeWindow() }
+        panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
+        bubble = SpeechBubbleController(timer: timer, pet: panel)
 
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
         setPetVisible(wasVisible)
 
-        // `open DesktopPet.app --args --customize` opens the Customize window right away (handy for testing).
-        // Add `--snapshot <path.png>` to also save a picture of that window (lets Claude check the layout).
-        let args = ProcessInfo.processInfo.arguments
-        if args.contains("--customize") {
-            showCustomizeWindow()
-            if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
-                let path = args[i + 1]
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-                    self?.snapshotCustomizeWindow(to: URL(fileURLWithPath: path))
-                }
-            }
-        }
+        handleTestingArguments()
     }
 
-    private func snapshotCustomizeWindow(to url: URL) {
-        guard let view = customizeWindow?.contentView?.superview, // include the title bar
-              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-        view.cacheDisplay(in: view.bounds, to: rep)
-        try? rep.representation(using: .png, properties: [:])?.write(to: url)
-    }
+    // MARK: - Pet
 
     func togglePet() {
         setPetVisible(!isPetVisible)
@@ -67,7 +55,80 @@ final class AppController {
         } else {
             petPanel?.orderOut(nil)
         }
+        bubble?.update()
     }
+
+    private func refreshPetImage() {
+        petPanel?.setImage(PetRenderer.render(settings.palette))
+    }
+
+    /// The cat's right-click menu.
+    private func makePetMenu() -> NSMenu {
+        let menu = NSMenu()
+        let timerItem = NSMenuItem(title: "Start Timer", action: nil, keyEquivalent: "")
+        let timerMenu = NSMenu()
+        for minutes in PetTimer.presetMinutes {
+            timerMenu.addItem(ClosureMenuItem(Self.presetTitle(minutes)) { [weak self] in
+                self?.startTimer(minutes: minutes)
+            })
+        }
+        timerMenu.addItem(.separator())
+        timerMenu.addItem(ClosureMenuItem("Custom…") { [weak self] in self?.showSetTimerWindow() })
+        timerItem.submenu = timerMenu
+        menu.addItem(timerItem)
+        if timer.isActive {
+            menu.addItem(ClosureMenuItem("Stop Timer") { [weak self] in self?.timer.stop() })
+        }
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("Customize…") { [weak self] in self?.showCustomizeWindow() })
+        menu.addItem(ClosureMenuItem("Hide Pet") { [weak self] in self?.setPetVisible(false) })
+        return menu
+    }
+
+    // MARK: - Timer
+
+    static func presetTitle(_ minutes: Int) -> String {
+        minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+
+    func startTimer(minutes: Int) {
+        startTimer(duration: TimeInterval(minutes * 60))
+    }
+
+    func startTimer(duration: TimeInterval) {
+        timer.start(duration: duration)
+    }
+
+    private func timerStateChanged() {
+        // The bubble needs the cat, so bring it back when a timer starts or finishes.
+        if timer.isActive && !isPetVisible {
+            setPetVisible(true)
+        } else {
+            bubble?.update()
+        }
+    }
+
+    func showSetTimerWindow() {
+        if setTimerWindow == nil {
+            let view = SetTimerView(
+                onStart: { [weak self] duration in
+                    self?.setTimerWindow?.close()
+                    self?.startTimer(duration: duration)
+                },
+                onCancel: { [weak self] in self?.setTimerWindow?.close() }
+            )
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.title = "Set Timer"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            setTimerWindow = window
+        }
+        NSApp.activate()
+        setTimerWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - Customize
 
     func showCustomizeWindow() {
         if customizeWindow == nil {
@@ -84,6 +145,8 @@ final class AppController {
         customizeWindow?.makeKeyAndOrderFront(nil)
     }
 
+    // MARK: - Launch at Login
+
     func setLaunchesAtLogin(_ enabled: Bool) {
         do {
             if enabled {
@@ -97,7 +160,32 @@ final class AppController {
         launchesAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    private func refreshPetImage() {
-        petPanel?.setImage(PetRenderer.render(settings.palette))
+    // MARK: - Testing
+
+    /// Launch arguments that let Claude check windows without screen-recording permission:
+    /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer;
+    /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
+    private func handleTestingArguments() {
+        let args = ProcessInfo.processInfo.arguments
+        func value(after flag: String) -> String? {
+            args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
+        }
+
+        if args.contains("--customize") { showCustomizeWindow() }
+        if args.contains("--set-timer") { showSetTimerWindow() }
+        if let seconds = value(after: "--timer").flatMap(TimeInterval.init) { startTimer(duration: seconds) }
+
+        if let path = value(after: "--snapshot") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                let base = (path as NSString).deletingPathExtension
+                for (n, window) in NSApp.windows.filter(\.isVisible).enumerated() {
+                    guard let view = window.contentView?.superview ?? window.contentView,
+                          let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?
+                        .write(to: URL(fileURLWithPath: "\(base)-\(n).png"))
+                }
+            }
+        }
     }
 }

@@ -2,16 +2,21 @@ import AppKit
 
 /// A borderless, transparent window that floats above other apps and holds the pet.
 final class PetPanel: NSPanel {
-    var onHide: (() -> Void)?
-    var onCustomize: (() -> Void)?
+    /// Builds the right-click menu fresh each time, so it reflects the current timer state.
+    var menuProvider: (() -> NSMenu)? {
+        get { petView.menuProvider }
+        set { petView.menuProvider = newValue }
+    }
 
     private let petView: PetView
+    private(set) var scale: CGFloat
 
     /// `scale` is how many points each image pixel is drawn as.
     init(image: NSImage, scale: CGFloat) {
         let size = Self.size(forScale: scale)
         petView = PetView(frame: NSRect(origin: .zero, size: size))
         petView.image = image
+        self.scale = scale
 
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
@@ -28,8 +33,6 @@ final class PetPanel: NSPanel {
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
         contentView = petView
-
-        petView.menu = makeContextMenu()
 
         if setFrameUsingName("PetWindow") {
             // The saved frame may be from a different size; keep its position, apply the current size.
@@ -50,6 +53,7 @@ final class PetPanel: NSPanel {
 
     /// Resizes the pet, keeping its feet (bottom center) in the same spot.
     func setScale(_ scale: CGFloat) {
+        self.scale = scale
         let newSize = Self.size(forScale: scale)
         let anchor = NSPoint(x: frame.midX, y: frame.minY)
         let newFrame = NSRect(
@@ -59,6 +63,12 @@ final class PetPanel: NSPanel {
             height: newSize.height
         )
         setFrame(newFrame, display: true)
+    }
+
+    /// The top of the pet's head, in screen coordinates (where the speech bubble points).
+    /// Tied to pet.png: the head spans image columns 1–12 and its ear tips sit on row 1.
+    var headTop: NSPoint {
+        NSPoint(x: frame.minX + 6.5 * scale, y: frame.maxY - 1 * scale)
     }
 
     private static func size(forScale scale: CGFloat) -> NSSize {
@@ -78,20 +88,12 @@ final class PetPanel: NSPanel {
         let onSomeScreen = NSScreen.screens.contains { $0.visibleFrame.intersects(frame) }
         if !onSomeScreen { placeInDefaultPosition() }
     }
-
-    private func makeContextMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.addItem(withTitle: "Customize…", action: #selector(customizeClicked), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Hide Pet", action: #selector(hideClicked), keyEquivalent: "").target = self
-        return menu
-    }
-
-    @objc private func customizeClicked() { onCustomize?() }
-    @objc private func hideClicked() { onHide?() }
 }
 
 /// Draws the pet with crisp, unsmoothed pixels and lets you drag it around.
 final class PetView: NSView {
+    var menuProvider: (() -> NSMenu)?
+
     var image: NSImage? {
         didSet { needsDisplay = true }
     }
@@ -107,4 +109,23 @@ final class PetView: NSView {
     override func mouseDown(with event: NSEvent) {
         window?.performDrag(with: event)
     }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        menuProvider?()
+    }
+}
+
+/// A menu item that runs a closure, so AppKit menus can be built without selectors.
+final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(run), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    @objc private func run() { handler() }
 }
