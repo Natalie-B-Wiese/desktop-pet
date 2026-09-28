@@ -306,7 +306,7 @@ struct BubbleView: View {
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                     Text(pomodoro.phase == .work
                          ? "Click to start \(pomodoro.breakMinutes)-min break"
-                         : "Click to start session \(pomodoro.session + 1)")
+                         : "Click to start work session")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .opacity(0.55)
                 }
@@ -401,7 +401,7 @@ struct BubbleView: View {
     private var timerControlsMenu: some View {
         VStack(spacing: 6) {
             if let label = timer.displayLabel, timer.pomodoro != nil {
-                // Pomodoro: the period ("Work · Session 2") is the title; there's no label to edit.
+                // Pomodoro: the period ("Work" or "Break") is the title; there's no label to edit.
                 Text(label)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
             } else {

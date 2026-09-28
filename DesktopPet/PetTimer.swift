@@ -44,7 +44,7 @@ final class PetTimer {
     /// What to show above the countdown: the Pomodoro period, or the trimmed label (nil if none).
     var displayLabel: String? {
         if let pomodoro {
-            return pomodoro.phase == .work ? "Work · Session \(pomodoro.session)" : "Break"
+            return pomodoro.phase == .work ? "Work" : "Break"
         }
         return label.flatMap(TimerDraft.cleanLabel)
     }
