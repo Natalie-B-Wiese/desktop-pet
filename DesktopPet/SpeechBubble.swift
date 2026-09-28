@@ -473,7 +473,7 @@ struct BubbleView: View {
     }
 }
 
-/// The Start page: a plain timer ("How long?") or Pomodoro (work and break lengths).
+/// The Start page: a plain timer (minutes and label) or Pomodoro (work and break lengths).
 private struct BubbleTimerPage: View {
     enum Mode: String { case timer, pomodoro }
 
@@ -518,9 +518,6 @@ private struct BubbleTimerPage: View {
 
     @ViewBuilder
     private var timerForm: some View {
-        Text("How long?")
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-
         VStack(spacing: 1) {
             numberBox($minutes, range: TimerDraft.minuteRange, width: 72, fontSize: 22)
                 .focused($firstFieldFocused)
@@ -540,21 +537,12 @@ private struct BubbleTimerPage: View {
 
     @ViewBuilder
     private var pomodoroForm: some View {
-        Text("Work, then take a break")
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-
         VStack(spacing: 6) {
             pomodoroRow("Work", $workMinutes)
                 .focused($firstFieldFocused)
             pomodoroRow("Break", $breakMinutes)
         }
         .padding(.vertical, 2)
-
-        Text("Click the bubble to start each break and session.")
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .opacity(0.55)
     }
 
     private func pomodoroRow(_ title: String, _ value: Binding<Int>) -> some View {
