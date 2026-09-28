@@ -26,8 +26,7 @@ final class BubbleMenu {
 
 /// What the menu buttons do. The menu closes itself before running any of these.
 struct BubbleActions {
-    var startTimer: (_ minutes: Int) -> Void
-    var customTimer: () -> Void
+    var startTimer: (_ duration: TimeInterval) -> Void
     var stopTimer: () -> Void
     var customize: () -> Void
     var hide: () -> Void
@@ -39,7 +38,7 @@ final class SpeechBubbleController {
 
     private let timer: PetTimer
     private let layout = BubbleLayout()
-    private let panel: NSPanel
+    private let panel: BubblePanel
     private let container: BubbleContainer
     private let hostingView: FirstClickHostingView<BubbleView>
     private weak var pet: PetPanel?
@@ -55,8 +54,7 @@ final class SpeechBubbleController {
 
         let menu = self.menu
         let closingActions = BubbleActions(
-            startTimer: { minutes in menu.page = nil; actions.startTimer(minutes) },
-            customTimer: { menu.page = nil; actions.customTimer() },
+            startTimer: { duration in menu.page = nil; actions.startTimer(duration) },
             stopTimer: { menu.page = nil; actions.stopTimer() },
             customize: { menu.page = nil; actions.customize() },
             hide: { menu.page = nil; actions.hide() }
@@ -68,7 +66,7 @@ final class SpeechBubbleController {
         container = BubbleContainer()
         container.addSubview(hostingView)
 
-        panel = NSPanel(
+        panel = BubblePanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -115,6 +113,14 @@ final class SpeechBubbleController {
         // Menu buttons need real clicks; otherwise the whole bubble is one click target.
         container.passesClicksToContent = menu.isOpen
 
+        // Only the timer page has text fields, so only then does the bubble take the keyboard.
+        let wantsKeyboard = menu.page == .timer
+        if panel.acceptsKeyboard && !wantsKeyboard && panel.isKeyWindow {
+            // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
+            panel.orderOut(nil)
+        }
+        panel.acceptsKeyboard = wantsKeyboard
+
         hostingView.layoutSubtreeIfNeeded()
         let size = hostingView.fittingSize
         let anchor = pet.headTop
@@ -131,7 +137,11 @@ final class SpeechBubbleController {
         panel.setFrame(frame, display: true)
         hostingView.frame = container.bounds
         if panel.parent == nil { pet.addChildWindow(panel, ordered: .above) }
-        panel.orderFront(nil)
+        if wantsKeyboard {
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.orderFront(nil)
+        }
     }
 
     private func menuChanged() {
@@ -146,6 +156,14 @@ final class SpeechBubbleController {
         }
         update()
     }
+}
+
+/// Can take keyboard focus (for the timer page's text fields) without activating the app,
+/// so the app you were using stays in front.
+private final class BubblePanel: NSPanel {
+    var acceptsKeyboard = false
+    override var canBecomeKey: Bool { acceptsKeyboard }
+    override var canBecomeMain: Bool { false }
 }
 
 /// Either hands clicks to the SwiftUI buttons inside, or catches them all as one "click the bubble".
@@ -260,21 +278,81 @@ struct BubbleView: View {
     }
 
     private var timerMenu: some View {
-        VStack(spacing: 6) {
+        BubbleTimerPage(
+            onStart: actions.startTimer,
+            onBack: { menu.page = .main },
+            onClose: { menu.page = nil }
+        )
+        .frame(width: 190)
+    }
+}
+
+/// "How long?": type minutes and seconds or nudge them, then Start.
+private struct BubbleTimerPage: View {
+    var onStart: (TimeInterval) -> Void
+    var onBack: () -> Void
+    var onClose: () -> Void
+
+    @AppStorage(TimerDraft.minutesKey) private var minutes = TimerDraft.defaultMinutes
+    @AppStorage(TimerDraft.secondsKey) private var seconds = 0
+    @FocusState private var minutesFocused: Bool
+
+    private var duration: TimeInterval { TimeInterval(minutes * 60 + seconds) }
+
+    var body: some View {
+        VStack(spacing: 8) {
             Text("How long?")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
-                ForEach(PetTimer.presetMinutes, id: \.self) { minutes in
-                    BubbleButton(minutes == 1 ? "1 min" : "\(minutes) min") { actions.startTimer(minutes) }
+            HStack(alignment: .top, spacing: 4) {
+                field("min", value: $minutes, range: TimerDraft.minuteRange)
+                    .focused($minutesFocused)
+                Text(":")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .padding(.top, 3)
+                field("sec", value: $seconds, range: TimerDraft.secondRange)
+            }
+
+            HStack(spacing: 4) {
+                ForEach(TimerDraft.steps, id: \.self) { step in
+                    BubbleButton(TimerDraft.stepTitle(step), centered: true) {
+                        TimerDraft.adjust(&minutes, by: step)
+                    }
                 }
             }
 
-            BubbleButton("Custom…", systemImage: "slider.horizontal.3", action: actions.customTimer)
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
+            BubbleButton("Start", systemImage: "play.fill", action: start)
+                .disabled(duration <= 0)
+                .opacity(duration <= 0 ? 0.4 : 1)
+            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
-        .frame(width: 190)
+        .onAppear {
+            // Wait a moment for the bubble to become the key window before focusing.
+            DispatchQueue.main.async { minutesFocused = true }
+        }
+        .onExitCommand(perform: onClose) // Esc closes the menu
+    }
+
+    private func start() {
+        guard duration > 0 else { return }
+        onStart(duration)
+    }
+
+    private func field(_ unit: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
+        VStack(spacing: 1) {
+            TextField(unit, text: TimerDraft.digits(value, in: range))
+                .textFieldStyle(.plain)
+                .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
+                .multilineTextAlignment(.center)
+                .frame(width: 56)
+                .padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+                .onSubmit(start) // Return starts the timer
+            Text(unit)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .opacity(0.55)
+        }
     }
 }
 
@@ -285,18 +363,27 @@ struct BubbleButton: View {
     let title: String
     let systemImage: String?
     let style: Style
+    let centered: Bool
     let action: () -> Void
 
-    init(_ title: String, systemImage: String? = nil, style: Style = .normal, action: @escaping () -> Void) {
+    init(
+        _ title: String,
+        systemImage: String? = nil,
+        style: Style = .normal,
+        centered: Bool = false,
+        action: @escaping () -> Void
+    ) {
         self.title = title
         self.systemImage = systemImage
         self.style = style
+        self.centered = centered
         self.action = action
     }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
+                if centered { Spacer(minLength: 0) }
                 if let systemImage {
                     Image(systemName: systemImage)
                         .frame(width: 16)
@@ -306,7 +393,7 @@ struct BubbleButton: View {
                 Spacer(minLength: 0)
             }
             .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .padding(.horizontal, 10)
+            .padding(.horizontal, centered ? 4 : 10)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())

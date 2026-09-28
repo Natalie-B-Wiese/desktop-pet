@@ -34,8 +34,7 @@ final class AppController {
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
         let bubble = SpeechBubbleController(timer: timer, pet: panel, actions: BubbleActions(
-            startTimer: { [weak self] minutes in self?.startTimer(minutes: minutes) },
-            customTimer: { [weak self] in self?.showSetTimerWindow() },
+            startTimer: { [weak self] duration in self?.startTimer(duration: duration) },
             stopTimer: { [weak self] in self?.timer.stop() },
             customize: { [weak self] in self?.showCustomizeWindow() },
             hide: { [weak self] in self?.setPetVisible(false) }
