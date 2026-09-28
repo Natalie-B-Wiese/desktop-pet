@@ -33,7 +33,7 @@ final class AppController {
         let panel = PetPanel(image: PetRenderer.render(settings.palette), scale: CGFloat(settings.scale))
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
-        let bubble = SpeechBubbleController(timer: timer, pet: panel, actions: BubbleActions(
+        let bubble = SpeechBubbleController(timer: timer, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },

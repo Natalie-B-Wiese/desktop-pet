@@ -49,7 +49,7 @@ final class SpeechBubbleController {
     /// Space between the pet's head and the tip of the bubble's tail.
     private static let gap: CGFloat = 2
 
-    init(timer: PetTimer, pet: PetPanel, actions: BubbleActions) {
+    init(timer: PetTimer, settings: PetSettings, pet: PetPanel, actions: BubbleActions) {
         self.timer = timer
         self.pet = pet
 
@@ -63,7 +63,7 @@ final class SpeechBubbleController {
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, layout: layout, menu: menu, actions: closingActions
+            timer: timer, settings: settings, layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
         container.addSubview(hostingView)
@@ -203,6 +203,7 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 
 struct BubbleView: View {
     let timer: PetTimer
+    let settings: PetSettings
     let layout: BubbleLayout
     let menu: BubbleMenu
     let actions: BubbleActions
@@ -291,7 +292,9 @@ struct BubbleView: View {
 
     private var mainMenu: some View {
         VStack(spacing: 6) {
-            Text("What would you like to do?")
+            Text(settings.displayName.map { "What should \($0) do?" } ?? "What would you like to do?")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true) // long names wrap to a second line
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .padding(.bottom, 2)
 

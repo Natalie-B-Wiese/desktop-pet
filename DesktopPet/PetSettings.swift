@@ -35,6 +35,19 @@ final class PetSettings {
         }
     }
 
+    /// The pet's name exactly as typed (may be empty). Use `displayName` to show it.
+    var name: String {
+        didSet { if name != oldValue { defaults.set(name, forKey: "name") } }
+    }
+
+    static let maxNameLength = 20
+
+    /// The name trimmed for display, or nil when the pet hasn't been named.
+    var displayName: String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     static let scaleRange = 2...12
     static let defaultScale = 6
 
@@ -52,6 +65,7 @@ final class PetSettings {
         )
         let savedScale = UserDefaults.standard.integer(forKey: "scale") // 0 when never saved
         scale = Self.scaleRange.contains(savedScale) ? savedScale : Self.defaultScale
+        name = UserDefaults.standard.string(forKey: "name") ?? ""
     }
 
     func reset() {

@@ -13,6 +13,13 @@ struct CustomizeView: View {
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
 
             Form {
+                Section("Name") {
+                    TextField("Name", text: Binding(
+                        get: { settings.name },
+                        set: { settings.name = String($0.prefix(PetSettings.maxNameLength)) }
+                    ), prompt: Text("Name your pet"))
+                    .labelsHidden()
+                }
                 Section("Colors") {
                     colorRow("Main", \.main)
                     colorRow("Secondary", \.secondary)
@@ -26,7 +33,7 @@ struct CustomizeView: View {
             }
             .formStyle(.grouped)
             .scrollDisabled(true)
-            .frame(height: 290)
+            .frame(height: 370)
 
             Button("Reset to Default Colors") {
                 settings.reset()
