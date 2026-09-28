@@ -329,35 +329,8 @@ struct BubbleView: View {
                 }
                 Text(PetTimer.format(timer.remaining ?? 0))
                     .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
-                minuteStepper
-                    .padding(.leading, 3)
             }
         }
-    }
-
-    /// Up/down carets like a number input's: add or remove one minute.
-    private var minuteStepper: some View {
-        VStack(spacing: 2) {
-            caretButton("chevron.up", seconds: 60)
-            caretButton("chevron.down", seconds: -60)
-        }
-    }
-
-    private func caretButton(_ systemImage: String, seconds: Int) -> some View {
-        let allowed = timer.canAdjust(bySeconds: seconds)
-        let shape = RoundedRectangle(cornerRadius: 4)
-        return Button {
-            timer.adjust(bySeconds: seconds)
-        } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: 8, weight: .heavy))
-                .frame(width: 20, height: 13)
-                .contentShape(shape)
-        }
-        .buttonStyle(CaretButtonStyle())
-        .disabled(!allowed)
-        .opacity(allowed ? 1 : 0.35)
-        .help(seconds > 0 ? "Add 1 minute" : "Subtract 1 minute")
     }
 
     private var timerControlsMenu: some View {
@@ -471,6 +444,16 @@ private struct BubbleTimerPage: View {
                 .background(RoundedRectangle(cornerRadius: 7).fill(.white))
                 .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
                 .onSubmit(start) // Return starts the timer
+                // Beside the box without shifting it off-center.
+                .overlay(alignment: .trailing) {
+                    CaretStepper(
+                        canIncrement: value.wrappedValue < range.upperBound,
+                        canDecrement: value.wrappedValue > range.lowerBound,
+                        increment: { value.wrappedValue += 1 },
+                        decrement: { value.wrappedValue -= 1 }
+                    )
+                    .offset(x: 26)
+                }
             Text(unit)
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)
@@ -546,6 +529,33 @@ private struct BubbleButtonStyle: ButtonStyle {
             .foregroundStyle(style == .quiet ? Color.black.opacity(0.6) : .black)
             .background(shape.fill(configuration.isPressed ? Color.black.opacity(0.12) : .white))
             .overlay(shape.stroke(Color.black.opacity(style == .quiet ? 0.25 : 1), lineWidth: 1.5))
+    }
+}
+
+/// Up/down carets like a number input's.
+private struct CaretStepper: View {
+    var canIncrement: Bool
+    var canDecrement: Bool
+    var increment: () -> Void
+    var decrement: () -> Void
+
+    var body: some View {
+        VStack(spacing: 2) {
+            caret("chevron.up", enabled: canIncrement, action: increment)
+            caret("chevron.down", enabled: canDecrement, action: decrement)
+        }
+    }
+
+    private func caret(_ systemImage: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 8, weight: .heavy))
+                .frame(width: 20, height: 13)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(CaretButtonStyle())
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.35)
     }
 }
 
