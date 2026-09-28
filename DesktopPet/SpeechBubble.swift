@@ -522,14 +522,6 @@ private struct BubbleTimerPage: View {
                 .opacity(0.55)
         }
 
-        HStack(spacing: 4) {
-            ForEach(TimerDraft.steps, id: \.self) { step in
-                BubbleButton(TimerDraft.stepTitle(step), centered: true) {
-                    TimerDraft.adjust(&minutes, by: step)
-                }
-            }
-        }
-
         TextField("Label (optional)", text: TimerDraft.limited($label))
             .bubbleFieldStyle()
             .onSubmit(start) // Return starts the timer
