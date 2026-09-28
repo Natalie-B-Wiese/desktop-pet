@@ -12,7 +12,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls, editTimer }
+    enum Page { case main, startTimer, timerControls }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -230,9 +230,8 @@ struct BubbleView: View {
         switch menu.page {
         case .main: mainMenu
         case .startTimer: timerMenu
-        // If the countdown ends while these pages are open, fall back to the main menu.
+        // If the countdown ends while this page is open, fall back to the main menu.
         case .timerControls: if timer.hasCountdown { timerControlsMenu } else { mainMenu }
-        case .editTimer: if timer.hasCountdown { editTimerMenu } else { mainMenu }
         case nil: timerContent
         }
     }
@@ -315,26 +314,6 @@ struct BubbleView: View {
             Text("Timer")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
             bigReadout
-                .padding(.bottom, 2)
-
-            if timer.state.isPaused {
-                BubbleButton("Resume", systemImage: "play.circle", action: actions.togglePause)
-            } else {
-                BubbleButton("Pause", systemImage: "pause.circle", action: actions.togglePause)
-            }
-            BubbleButton("Edit timer", systemImage: "plusminus.circle") { menu.page = .editTimer }
-            BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
-        }
-        .frame(width: 190)
-    }
-
-    private var editTimerMenu: some View {
-        VStack(spacing: 8) {
-            Text("Edit timer")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-
-            bigReadout
 
             // Redraws every quarter second so the greyed-out buttons stay current.
             TimelineView(.periodic(from: .now, by: 0.25)) { _ in
@@ -349,9 +328,15 @@ struct BubbleView: View {
                     }
                 }
             }
+            .padding(.bottom, 2)
 
-            BubbleButton("Done", systemImage: "checkmark") { menu.page = nil }
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .timerControls }
+            if timer.state.isPaused {
+                BubbleButton("Resume", systemImage: "play.circle", action: actions.togglePause)
+            } else {
+                BubbleButton("Pause", systemImage: "pause.circle", action: actions.togglePause)
+            }
+            BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
+            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
         }
         .frame(width: 190)
     }

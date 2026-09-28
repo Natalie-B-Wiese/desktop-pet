@@ -191,7 +191,7 @@ final class AppController {
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
     /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--pause` to pause it);
-    /// `--menu [start|controls|edit]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
@@ -207,7 +207,6 @@ final class AppController {
             bubble?.menu.page = switch value(after: "--menu") {
             case "start": .startTimer
             case "controls": .timerControls
-            case "edit": .editTimer
             default: .main
             }
         }
