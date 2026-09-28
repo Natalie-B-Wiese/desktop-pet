@@ -354,7 +354,7 @@ struct BubbleView: View {
             }
 
             // Edits the running timer's label live; Return or Esc closes the menu.
-            TextField("Add a label", text: TimerDraft.limited(Binding(
+            TextField("Label (optional)", text: TimerDraft.limited(Binding(
                 get: { timer.label ?? "" },
                 set: { timer.label = $0 }
             )))
