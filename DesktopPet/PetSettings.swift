@@ -25,7 +25,21 @@ final class PetSettings {
         }
     }
 
+    /// How many points each image pixel is drawn as. Whole numbers keep the pixel art crisp.
+    var scale: Int {
+        didSet {
+            scale = min(max(scale, Self.scaleRange.lowerBound), Self.scaleRange.upperBound)
+            guard scale != oldValue else { return }
+            defaults.set(scale, forKey: "scale")
+            onScaleChange?()
+        }
+    }
+
+    static let scaleRange = 2...12
+    static let defaultScale = 6
+
     @ObservationIgnored var onChange: (() -> Void)?
+    @ObservationIgnored var onScaleChange: (() -> Void)?
 
     private let defaults = UserDefaults.standard
 
@@ -36,6 +50,8 @@ final class PetSettings {
             secondary: Self.load("color.secondary", defaults: .standard) ?? fallback.secondary,
             detail: Self.load("color.detail", defaults: .standard) ?? fallback.detail
         )
+        let savedScale = UserDefaults.standard.integer(forKey: "scale") // 0 when never saved
+        scale = Self.scaleRange.contains(savedScale) ? savedScale : Self.defaultScale
     }
 
     func reset() {

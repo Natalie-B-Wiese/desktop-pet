@@ -7,7 +7,7 @@ xcodegen generate --quiet
 xcodebuild -project DesktopPet.xcodeproj -scheme DesktopPet -configuration Release \
   -derivedDataPath build -allowProvisioningUpdates -quiet build
 
-pkill -x DesktopPet 2>/dev/null || true
+pkill -x DesktopPet 2>/dev/null && while pgrep -x DesktopPet >/dev/null; do sleep 0.2; done || true
 rm -rf /Applications/DesktopPet.app
 cp -R build/Build/Products/Release/DesktopPet.app /Applications/
 open /Applications/DesktopPet.app

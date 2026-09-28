@@ -19,10 +19,14 @@ final class AppController {
 
     private init() {
         settings.onChange = { [weak self] in self?.refreshPetImage() }
+        settings.onScaleChange = { [weak self] in
+            guard let self else { return }
+            petPanel?.setScale(CGFloat(settings.scale))
+        }
     }
 
     func start() {
-        let panel = PetPanel(image: PetRenderer.render(settings.palette))
+        let panel = PetPanel(image: PetRenderer.render(settings.palette), scale: CGFloat(settings.scale))
         panel.onHide = { [weak self] in self?.setPetVisible(false) }
         panel.onCustomize = { [weak self] in self?.showCustomizeWindow() }
         petPanel = panel

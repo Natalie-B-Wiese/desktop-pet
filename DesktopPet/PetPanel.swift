@@ -2,19 +2,14 @@ import AppKit
 
 /// A borderless, transparent window that floats above other apps and holds the pet.
 final class PetPanel: NSPanel {
-    /// Each image pixel is drawn as a 6×6 point block.
-    static let scale: CGFloat = 6
-
     var onHide: (() -> Void)?
     var onCustomize: (() -> Void)?
 
     private let petView: PetView
 
-    init(image: NSImage) {
-        let size = NSSize(
-            width: PetRenderer.pixelSize.width * Self.scale,
-            height: PetRenderer.pixelSize.height * Self.scale
-        )
+    /// `scale` is how many points each image pixel is drawn as.
+    init(image: NSImage, scale: CGFloat) {
+        let size = Self.size(forScale: scale)
         petView = PetView(frame: NSRect(origin: .zero, size: size))
         petView.image = image
 
@@ -36,7 +31,10 @@ final class PetPanel: NSPanel {
 
         petView.menu = makeContextMenu()
 
-        if !setFrameUsingName("PetWindow") {
+        if setFrameUsingName("PetWindow") {
+            // The saved frame may be from a different size; keep its position, apply the current size.
+            setScale(scale)
+        } else {
             placeInDefaultPosition()
         }
         setFrameAutosaveName("PetWindow")
@@ -48,6 +46,26 @@ final class PetPanel: NSPanel {
 
     func setImage(_ image: NSImage) {
         petView.image = image
+    }
+
+    /// Resizes the pet, keeping its feet (bottom center) in the same spot.
+    func setScale(_ scale: CGFloat) {
+        let newSize = Self.size(forScale: scale)
+        let anchor = NSPoint(x: frame.midX, y: frame.minY)
+        let newFrame = NSRect(
+            x: (anchor.x - newSize.width / 2).rounded(),
+            y: anchor.y,
+            width: newSize.width,
+            height: newSize.height
+        )
+        setFrame(newFrame, display: true)
+    }
+
+    private static func size(forScale scale: CGFloat) -> NSSize {
+        NSSize(
+            width: PetRenderer.pixelSize.width * scale,
+            height: PetRenderer.pixelSize.height * scale
+        )
     }
 
     private func placeInDefaultPosition() {

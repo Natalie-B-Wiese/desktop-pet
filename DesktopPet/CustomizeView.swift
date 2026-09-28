@@ -13,13 +13,18 @@ struct CustomizeView: View {
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
 
             Form {
-                colorRow("Main", \.main)
-                colorRow("Secondary", \.secondary)
-                colorRow("Eyes", \.detail)
+                Section("Colors") {
+                    colorRow("Main", \.main)
+                    colorRow("Secondary", \.secondary)
+                    colorRow("Eyes", \.detail)
+                }
+                Section("Size") {
+                    sizeRow
+                }
             }
             .formStyle(.grouped)
             .scrollDisabled(true)
-            .frame(height: 160)
+            .frame(height: 290)
 
             Button("Reset to Default Colors") {
                 settings.reset()
@@ -28,6 +33,34 @@ struct CustomizeView: View {
         }
         .padding(20)
         .frame(width: 320)
+    }
+
+    private var sizeRow: some View {
+        let range = PetSettings.scaleRange
+        return HStack {
+            Slider(
+                value: Binding(
+                    get: { Double(settings.scale) },
+                    set: { settings.scale = Int($0.rounded()) }
+                ),
+                in: Double(range.lowerBound)...Double(range.upperBound),
+                step: 1
+            ) {
+                Text("Size")
+            } minimumValueLabel: {
+                Image(systemName: "cat.fill").imageScale(.small)
+            } maximumValueLabel: {
+                Image(systemName: "cat.fill").imageScale(.large)
+            }
+            Text("\(settings.scale)×")
+                .monospacedDigit()
+                .frame(width: 32, alignment: .trailing)
+                .foregroundStyle(.secondary)
+            Button("Reset") {
+                settings.scale = PetSettings.defaultScale
+            }
+            .disabled(settings.scale == PetSettings.defaultScale)
+        }
     }
 
     private func colorRow(_ title: String, _ keyPath: WritableKeyPath<PetPalette, NSColor>) -> some View {
