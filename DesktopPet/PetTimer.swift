@@ -17,8 +17,12 @@ final class PetTimer {
 
     private(set) var state: State = .idle
 
-    /// Optional name for the current timer, like "Tea". Kept through pause, resume and edits.
-    private(set) var label: String?
+    /// Optional name for the current timer, like "Tea", exactly as typed.
+    /// Kept through pause, resume and edits. Use `displayLabel` to show it.
+    var label: String?
+
+    /// The label trimmed for display, or nil when there isn't one.
+    var displayLabel: String? { label.flatMap(TimerDraft.cleanLabel) }
 
     @ObservationIgnored var onStateChange: (() -> Void)?
     @ObservationIgnored private var timer: Timer?

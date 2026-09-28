@@ -121,13 +121,15 @@ final class SpeechBubbleController {
         // Menu buttons need real clicks; otherwise the whole bubble is one click target.
         container.passesClicksToContent = menu.isOpen
 
-        // Only the timer page has text fields, so only then does the bubble take the keyboard.
-        let wantsKeyboard = menu.page == .startTimer
-        if panel.acceptsKeyboard && !wantsKeyboard && panel.isKeyWindow {
+        // Only pages with text fields may take the keyboard. The Start page grabs it right away
+        // (you're about to type minutes); the Timer page only when you click its label box.
+        let allowsKeyboard = menu.page == .startTimer || menu.page == .timerControls
+        let grabsKeyboard = menu.page == .startTimer
+        if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
         }
-        panel.acceptsKeyboard = wantsKeyboard
+        panel.acceptsKeyboard = allowsKeyboard
 
         hostingView.layoutSubtreeIfNeeded()
         let size = hostingView.fittingSize
@@ -145,7 +147,7 @@ final class SpeechBubbleController {
         panel.setFrame(frame, display: true)
         hostingView.frame = container.bounds
         if panel.parent == nil { pet.addChildWindow(panel, ordered: .above) }
-        if wantsKeyboard {
+        if grabsKeyboard {
             panel.makeKeyAndOrderFront(nil)
         } else {
             panel.orderFront(nil)
@@ -275,7 +277,7 @@ struct BubbleView: View {
     /// The timer's label in small type, if it has one.
     @ViewBuilder
     private var labelLine: some View {
-        if let label = timer.label {
+        if let label = timer.displayLabel {
             Text(label)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .lineLimit(1)
@@ -330,10 +332,8 @@ struct BubbleView: View {
 
     private var timerControlsMenu: some View {
         VStack(spacing: 6) {
-            Text(timer.label ?? "Timer")
+            Text("Timer")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .lineLimit(1)
-                .truncationMode(.tail)
             bigReadout
 
             // Redraws every quarter second so the greyed-out buttons stay current.
@@ -349,6 +349,15 @@ struct BubbleView: View {
                     }
                 }
             }
+
+            // Edits the running timer's label live; Return or Esc closes the menu.
+            TextField("Add a label", text: TimerDraft.limited(Binding(
+                get: { timer.label ?? "" },
+                set: { timer.label = $0 }
+            )))
+            .bubbleFieldStyle()
+            .onSubmit { menu.page = nil }
+            .onExitCommand { menu.page = nil }
             .padding(.bottom, 2)
 
             if timer.state.isPaused {
@@ -401,12 +410,7 @@ private struct BubbleTimerPage: View {
             }
 
             TextField("Label (optional)", text: TimerDraft.limited($label))
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(RoundedRectangle(cornerRadius: 7).fill(.white))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+                .bubbleFieldStyle()
                 .onSubmit(start) // Return starts the timer
 
             BubbleButton("Start", systemImage: "play.fill", action: start)
@@ -441,6 +445,18 @@ private struct BubbleTimerPage: View {
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)
         }
+    }
+}
+
+extension View {
+    /// A white, black-outlined text box that matches the bubble.
+    func bubbleFieldStyle() -> some View {
+        textFieldStyle(.plain)
+            .font(.system(size: 12, weight: .medium, design: .rounded))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
     }
 }
 
