@@ -24,7 +24,7 @@ final class BubbleMenu {
     var isOpen: Bool { page != nil }
 }
 
-/// What the menu buttons do. The menu closes itself before running any of these.
+/// What the menu buttons do. The menu closes itself before running these, except pause/resume.
 struct BubbleActions {
     var startTimer: (_ duration: TimeInterval) -> Void
     var stopTimer: () -> Void
@@ -57,7 +57,7 @@ final class SpeechBubbleController {
         let closingActions = BubbleActions(
             startTimer: { duration in menu.page = nil; actions.startTimer(duration) },
             stopTimer: { menu.page = nil; actions.stopTimer() },
-            togglePause: { menu.page = nil; actions.togglePause() },
+            togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             customize: { menu.page = nil; actions.customize() },
             hide: { menu.page = nil; actions.hide() }
         )
