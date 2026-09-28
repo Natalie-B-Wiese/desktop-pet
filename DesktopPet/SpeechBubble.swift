@@ -189,6 +189,9 @@ private final class BubbleContainer: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
+        // While the menu is open, clicks the buttons don't take (e.g. on a disabled button)
+        // bubble up to here; ignore them rather than treating them as "click the bubble".
+        guard !passesClicksToContent else { return }
         onClick?()
     }
 }
