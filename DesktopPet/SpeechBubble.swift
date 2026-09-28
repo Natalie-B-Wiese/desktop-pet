@@ -544,6 +544,7 @@ private struct CaretStepper: View {
             caret("chevron.up", enabled: canIncrement, action: increment)
             caret("chevron.down", enabled: canDecrement, action: decrement)
         }
+        .buttonRepeatBehavior(.enabled) // hold to keep counting
     }
 
     private func caret(_ systemImage: String, enabled: Bool, action: @escaping () -> Void) -> some View {
