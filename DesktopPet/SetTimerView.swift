@@ -5,6 +5,12 @@ enum TimerDraft {
     static let minutesKey = "customTimer.minutes"
     static let defaultMinutes = 20
 
+    static let pomodoroWorkKey = "pomodoro.workMinutes"
+    static let pomodoroBreakKey = "pomodoro.breakMinutes"
+    static let defaultWorkMinutes = 25
+    static let defaultBreakMinutes = 5
+    static let pomodoroRange = 1...180
+
     static let minuteRange = 0...999
 
     static let maxLabelLength = 30

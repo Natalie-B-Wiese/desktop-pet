@@ -39,8 +39,12 @@ final class AppController {
         let bubble = SpeechBubbleController(
             timer: timer, reminders: reminders, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
+            startPomodoro: { [weak self] work, rest in
+                self?.timer.startPomodoro(workLength: work, breakLength: rest)
+            },
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },
+            startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
             customize: { [weak self] in self?.showCustomizeWindow() },
             hide: { [weak self] in self?.setPetVisible(false) },
             openRemindersWindow: { [weak self] in self?.showRemindersWindow() }
@@ -90,7 +94,13 @@ final class AppController {
         timerMenu.addItem(.separator())
         timerMenu.addItem(ClosureMenuItem("Custom…") { [weak self] in self?.showSetTimerWindow() })
         timerItem.submenu = timerMenu
-        if !timer.hasCountdown { menu.addItem(timerItem) } // stop the current timer first
+        if !timer.isBusy { // stop the current timer first
+            menu.addItem(timerItem)
+            menu.addItem(ClosureMenuItem(startPomodoroTitle) { [weak self] in self?.startPomodoro() })
+        }
+        if let title = timer.nextPomodoroPeriodTitle {
+            menu.addItem(ClosureMenuItem(title) { [weak self] in self?.timer.startNextPomodoroPeriod() })
+        }
         if timer.hasCountdown {
             menu.addItem(ClosureMenuItem(timer.pauseTitle) { [weak self] in self?.timer.togglePause() })
             let editItem = NSMenuItem(title: "Edit Timer", action: nil, keyEquivalent: "")
@@ -107,7 +117,7 @@ final class AppController {
             menu.addItem(editItem)
         }
         if timer.isActive {
-            menu.addItem(ClosureMenuItem("Stop Timer") { [weak self] in self?.timer.stop() })
+            menu.addItem(ClosureMenuItem(timer.stopTitle) { [weak self] in self?.timer.stop() })
         }
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem("Reminders…") { [weak self] in self?.showRemindersWindow() })
@@ -131,6 +141,25 @@ final class AppController {
 
     func startTimer(duration: TimeInterval, label: String? = nil) {
         timer.start(duration: duration, label: label)
+    }
+
+    /// Starts Pomodoro with the work and break lengths last used on the bubble's Start page.
+    func startPomodoro() {
+        let (work, rest) = savedPomodoroMinutes
+        timer.startPomodoro(workLength: TimeInterval(work * 60), breakLength: TimeInterval(rest * 60))
+    }
+
+    /// "Start Pomodoro (25 / 5 min)".
+    var startPomodoroTitle: String {
+        let (work, rest) = savedPomodoroMinutes
+        return "Start Pomodoro (\(work) / \(rest) min)"
+    }
+
+    private var savedPomodoroMinutes: (work: Int, rest: Int) {
+        let defaults = UserDefaults.standard
+        let work = defaults.object(forKey: TimerDraft.pomodoroWorkKey) as? Int ?? TimerDraft.defaultWorkMinutes
+        let rest = defaults.object(forKey: TimerDraft.pomodoroBreakKey) as? Int ?? TimerDraft.defaultBreakMinutes
+        return (work, rest)
     }
 
     private func timerStateChanged() {
@@ -224,6 +253,7 @@ final class AppController {
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
     /// `--customize`, `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
+    /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode;
     /// `--menu [start|controls|reminders|add-reminder]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
@@ -235,6 +265,10 @@ final class AppController {
         if args.contains("--customize") { showCustomizeWindow() }
         if args.contains("--set-timer") { showSetTimerWindow() }
         if args.contains("--reminders") { showRemindersWindow() }
+        if let i = args.firstIndex(of: "--pomodoro"), i + 2 < args.count,
+           let work = TimeInterval(args[i + 1]), let rest = TimeInterval(args[i + 2]) {
+            timer.startPomodoro(workLength: work, breakLength: rest)
+        }
         if let seconds = value(after: "--timer").flatMap(TimeInterval.init) {
             startTimer(duration: seconds, label: value(after: "--label"))
         }

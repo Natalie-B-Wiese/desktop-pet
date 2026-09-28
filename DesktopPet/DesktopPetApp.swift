@@ -28,7 +28,7 @@ struct MenuContent: View {
 
         Divider()
 
-        if !controller.timer.hasCountdown { // stop the current timer first
+        if !controller.timer.isBusy { // stop the current timer first
             Menu("Start Timer") {
                 ForEach(PetTimer.presetMinutes, id: \.self) { minutes in
                     Button(AppController.presetTitle(minutes)) {
@@ -39,6 +39,16 @@ struct MenuContent: View {
                 Button("Custom…") {
                     controller.showSetTimerWindow()
                 }
+            }
+
+            Button(controller.startPomodoroTitle) {
+                controller.startPomodoro()
+            }
+        }
+
+        if let title = controller.timer.nextPomodoroPeriodTitle {
+            Button(title) {
+                controller.timer.startNextPomodoroPeriod()
             }
         }
 
@@ -58,7 +68,7 @@ struct MenuContent: View {
         }
 
         if controller.timer.isActive {
-            Button("Stop Timer") {
+            Button(controller.timer.stopTitle) {
                 controller.timer.stop()
             }
         }

@@ -15,14 +15,39 @@ final class PetTimer {
         }
     }
 
+    /// Work/break cycling. Each period ends in `.finished`, and the next starts when you click.
+    struct Pomodoro: Equatable {
+        enum Phase { case work, rest }
+
+        var phase: Phase
+        var workLength: TimeInterval
+        var breakLength: TimeInterval
+        /// Which work session this is (or the break follows), starting at 1.
+        var session: Int
+
+        var workMinutes: Int { Int((workLength / 60).rounded()) }
+        var breakMinutes: Int { Int((breakLength / 60).rounded()) }
+    }
+
     private(set) var state: State = .idle
+
+    /// Set while Pomodoro mode is running, including between periods.
+    private(set) var pomodoro: Pomodoro?
+
+    /// A regular timer or Pomodoro that hasn't been stopped, so "Start" should stay hidden.
+    var isBusy: Bool { hasCountdown || pomodoro != nil }
 
     /// Optional name for the current timer, like "Tea", exactly as typed.
     /// Kept through pause, resume and edits. Use `displayLabel` to show it.
     var label: String?
 
-    /// The label trimmed for display, or nil when there isn't one.
-    var displayLabel: String? { label.flatMap(TimerDraft.cleanLabel) }
+    /// What to show above the countdown: the Pomodoro period, or the trimmed label (nil if none).
+    var displayLabel: String? {
+        if let pomodoro {
+            return pomodoro.phase == .work ? "Work · Session \(pomodoro.session)" : "Break"
+        }
+        return label.flatMap(TimerDraft.cleanLabel)
+    }
 
     @ObservationIgnored var onStateChange: (() -> Void)?
     @ObservationIgnored private var timer: Timer?
@@ -50,8 +75,38 @@ final class PetTimer {
 
     func start(duration: TimeInterval, label: String? = nil) {
         self.label = label
+        pomodoro = nil
         schedule(end: Date().addingTimeInterval(duration))
     }
+
+    /// Starts Pomodoro mode with its first work session.
+    func startPomodoro(workLength: TimeInterval, breakLength: TimeInterval) {
+        label = nil
+        pomodoro = Pomodoro(phase: .work, workLength: workLength, breakLength: breakLength, session: 1)
+        schedule(end: Date().addingTimeInterval(workLength))
+    }
+
+    /// After a Pomodoro period ends: starts the break, or the next work session.
+    func startNextPomodoroPeriod() {
+        guard var pomodoro, state == .finished else { return }
+        if pomodoro.phase == .work {
+            pomodoro.phase = .rest
+        } else {
+            pomodoro.phase = .work
+            pomodoro.session += 1
+        }
+        self.pomodoro = pomodoro
+        schedule(end: Date().addingTimeInterval(pomodoro.phase == .work ? pomodoro.workLength : pomodoro.breakLength))
+    }
+
+    /// "Start Break" or "Start Work Session", for the menus once a Pomodoro period ends.
+    var nextPomodoroPeriodTitle: String? {
+        guard let pomodoro, state == .finished else { return nil }
+        return pomodoro.phase == .work ? "Start Break" : "Start Work Session"
+    }
+
+    /// "Stop Timer" or "Stop Pomodoro".
+    var stopTitle: String { pomodoro == nil ? "Stop Timer" : "Stop Pomodoro" }
 
     /// The Edit timer buttons, in seconds, in the order they appear in the bubble.
     static let editSteps = [-300, -30, 30, 300]
@@ -121,11 +176,12 @@ final class PetTimer {
         if case .paused = state { resume() } else { pause() }
     }
 
-    /// Cancels a running or paused timer, or closes the "time's up" message.
+    /// Cancels a running or paused timer (or all of Pomodoro mode), or closes the "time's up" message.
     func stop() {
         timer?.invalidate()
         timer = nil
         label = nil
+        pomodoro = nil
         setState(.idle)
     }
 

@@ -27,8 +27,10 @@ final class BubbleMenu {
 /// What the menu buttons do. The menu closes itself before running these, except pause/resume.
 struct BubbleActions {
     var startTimer: (_ duration: TimeInterval, _ label: String?) -> Void
+    var startPomodoro: (_ work: TimeInterval, _ rest: TimeInterval) -> Void
     var stopTimer: () -> Void
     var togglePause: () -> Void
+    var startNextPomodoroPeriod: () -> Void
     var customize: () -> Void
     var hide: () -> Void
     var openRemindersWindow: () -> Void
@@ -59,8 +61,10 @@ final class SpeechBubbleController {
         let menu = self.menu
         let closingActions = BubbleActions(
             startTimer: { duration, label in menu.page = nil; actions.startTimer(duration, label) },
+            startPomodoro: { work, rest in menu.page = nil; actions.startPomodoro(work, rest) },
             stopTimer: { menu.page = nil; actions.stopTimer() },
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
+            startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
             customize: { menu.page = nil; actions.customize() },
             hide: { menu.page = nil; actions.hide() },
             openRemindersWindow: { menu.page = nil; actions.openRemindersWindow() }
@@ -94,7 +98,7 @@ final class SpeechBubbleController {
             if !reminders.due.isEmpty {
                 reminders.dismissFirstDue()
             } else if timer.state == .finished {
-                timer.stop()
+                if timer.pomodoro != nil { timer.startNextPomodoroPeriod() } else { timer.stop() }
             } else if timer.hasCountdown {
                 timer.togglePause()
             }
@@ -295,13 +299,26 @@ struct BubbleView: View {
             }
             .opacity(0.5)
         case .finished:
-            VStack(spacing: 1) {
-                labelLine
-                Text("Time's up!")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                Text("Click to close")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .opacity(0.55)
+            if let pomodoro = timer.pomodoro {
+                // A Pomodoro period ended; clicking starts the next one.
+                VStack(spacing: 1) {
+                    Text(pomodoro.phase == .work ? "Break time!" : "Back to work!")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text(pomodoro.phase == .work
+                         ? "Click to start \(pomodoro.breakMinutes)-min break"
+                         : "Click to start session \(pomodoro.session + 1)")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.55)
+                }
+            } else {
+                VStack(spacing: 1) {
+                    labelLine
+                    Text("Time's up!")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text("Click to close")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.55)
+                }
             }
         case .idle:
             EmptyView()
@@ -341,8 +358,17 @@ struct BubbleView: View {
                     ) { menu.page = .timerControls }
                 }
             case .finished:
-                BubbleButton("Clear time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
-                BubbleButton("Start a timer", systemImage: "timer") { menu.page = .startTimer }
+                if let pomodoro = timer.pomodoro {
+                    BubbleButton(
+                        pomodoro.phase == .work ? "Start break" : "Start work session",
+                        systemImage: "play.circle",
+                        action: actions.startNextPomodoroPeriod
+                    )
+                    BubbleButton("Stop Pomodoro", systemImage: "stop.circle", action: actions.stopTimer)
+                } else {
+                    BubbleButton("Clear time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
+                    BubbleButton("Start a timer", systemImage: "timer") { menu.page = .startTimer }
+                }
             }
 
             let upcomingCount = reminders.upcoming.count
@@ -374,8 +400,14 @@ struct BubbleView: View {
 
     private var timerControlsMenu: some View {
         VStack(spacing: 6) {
-            Text("Timer")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+            if let label = timer.displayLabel, timer.pomodoro != nil {
+                // Pomodoro: the period ("Work · Session 2") is the title; there's no label to edit.
+                Text(label)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            } else {
+                Text("Timer")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            }
             bigReadout
 
             // Redraws every quarter second so the greyed-out buttons stay current.
@@ -392,22 +424,28 @@ struct BubbleView: View {
                 }
             }
 
-            // Edits the running timer's label live; Return or Esc closes the menu.
-            TextField("Label (optional)", text: TimerDraft.limited(Binding(
-                get: { timer.label ?? "" },
-                set: { timer.label = $0 }
-            )))
-            .bubbleFieldStyle()
-            .onSubmit { menu.page = nil }
-            .onExitCommand { menu.page = nil }
-            .padding(.bottom, 2)
+            if timer.pomodoro == nil {
+                // Edits the running timer's label live; Return or Esc closes the menu.
+                TextField("Label (optional)", text: TimerDraft.limited(Binding(
+                    get: { timer.label ?? "" },
+                    set: { timer.label = $0 }
+                )))
+                .bubbleFieldStyle()
+                .onSubmit { menu.page = nil }
+                .onExitCommand { menu.page = nil }
+                .padding(.bottom, 2)
+            }
 
             if timer.state.isPaused {
                 BubbleButton("Resume", systemImage: "play.circle", action: actions.togglePause)
             } else {
                 BubbleButton("Pause", systemImage: "pause.circle", action: actions.togglePause)
             }
-            BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
+            BubbleButton(
+                timer.pomodoro == nil ? "Stop timer" : "Stop Pomodoro",
+                systemImage: "stop.circle",
+                action: actions.stopTimer
+            )
             BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
         }
         .frame(width: 190)
@@ -416,6 +454,7 @@ struct BubbleView: View {
     private var timerMenu: some View {
         BubbleTimerPage(
             onStart: actions.startTimer,
+            onStartPomodoro: actions.startPomodoro,
             onBack: { menu.page = .main },
             onClose: { menu.page = nil }
         )
@@ -423,80 +462,168 @@ struct BubbleView: View {
     }
 }
 
-/// "How long?": type the minutes or nudge them, then Start.
+/// The Start page: a plain timer ("How long?") or Pomodoro (work and break lengths).
 private struct BubbleTimerPage: View {
+    enum Mode: String { case timer, pomodoro }
+
     var onStart: (_ duration: TimeInterval, _ label: String?) -> Void
+    var onStartPomodoro: (_ work: TimeInterval, _ rest: TimeInterval) -> Void
     var onBack: () -> Void
     var onClose: () -> Void
 
+    @AppStorage("startPage.mode") private var mode = Mode.timer
     @AppStorage(TimerDraft.minutesKey) private var minutes = TimerDraft.defaultMinutes
+    @AppStorage(TimerDraft.pomodoroWorkKey) private var workMinutes = TimerDraft.defaultWorkMinutes
+    @AppStorage(TimerDraft.pomodoroBreakKey) private var breakMinutes = TimerDraft.defaultBreakMinutes
     @State private var label = ""
-    @FocusState private var minutesFocused: Bool
+    @FocusState private var firstFieldFocused: Bool
 
     private var duration: TimeInterval { TimeInterval(minutes * 60) }
+    private var canStart: Bool {
+        mode == .timer ? minutes > 0 : workMinutes > 0 && breakMinutes > 0
+    }
 
     var body: some View {
         VStack(spacing: 8) {
-            Text("How long?")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+            BubbleTabs(selection: $mode, options: [(.timer, "Timer"), (.pomodoro, "Pomodoro")])
 
-            field("minutes", value: $minutes, range: TimerDraft.minuteRange)
-                .focused($minutesFocused)
-
-            HStack(spacing: 4) {
-                ForEach(TimerDraft.steps, id: \.self) { step in
-                    BubbleButton(TimerDraft.stepTitle(step), centered: true) {
-                        TimerDraft.adjust(&minutes, by: step)
-                    }
-                }
+            switch mode {
+            case .timer: timerForm
+            case .pomodoro: pomodoroForm
             }
 
-            TextField("Label (optional)", text: TimerDraft.limited($label))
-                .bubbleFieldStyle()
-                .onSubmit(start) // Return starts the timer
-
             BubbleButton("Start", systemImage: "play.fill", action: start)
-                .disabled(duration <= 0)
-                .opacity(duration <= 0 ? 0.4 : 1)
+                .disabled(!canStart)
+                .opacity(canStart ? 1 : 0.4)
             BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
         .onAppear {
             // Wait a moment for the bubble to become the key window before focusing.
-            DispatchQueue.main.async { minutesFocused = true }
+            DispatchQueue.main.async { firstFieldFocused = true }
         }
+        .onChange(of: mode) { firstFieldFocused = true }
         .onExitCommand(perform: onClose) // Esc closes the menu
     }
 
-    private func start() {
-        guard duration > 0 else { return }
-        onStart(duration, TimerDraft.cleanLabel(label))
-    }
+    @ViewBuilder
+    private var timerForm: some View {
+        Text("How long?")
+            .font(.system(size: 13, weight: .bold, design: .rounded))
 
-    private func field(_ unit: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
         VStack(spacing: 1) {
-            TextField(unit, text: TimerDraft.digits(value, in: range))
-                .textFieldStyle(.plain)
-                .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
-                .multilineTextAlignment(.center)
-                .frame(width: 72)
-                .padding(.vertical, 3)
-                .background(RoundedRectangle(cornerRadius: 7).fill(.white))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
-                .onSubmit(start) // Return starts the timer
+            numberBox($minutes, range: TimerDraft.minuteRange, width: 72, fontSize: 22)
+                .focused($firstFieldFocused)
                 // Beside the box without shifting it off-center.
                 .overlay(alignment: .trailing) {
-                    CaretStepper(
-                        canIncrement: value.wrappedValue < range.upperBound,
-                        canDecrement: value.wrappedValue > range.lowerBound,
-                        increment: { value.wrappedValue += 1 },
-                        decrement: { value.wrappedValue -= 1 }
-                    )
-                    .offset(x: 26)
+                    stepper($minutes, range: TimerDraft.minuteRange).offset(x: 26)
                 }
-            Text(unit)
+            Text("minutes")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)
         }
+
+        HStack(spacing: 4) {
+            ForEach(TimerDraft.steps, id: \.self) { step in
+                BubbleButton(TimerDraft.stepTitle(step), centered: true) {
+                    TimerDraft.adjust(&minutes, by: step)
+                }
+            }
+        }
+
+        TextField("Label (optional)", text: TimerDraft.limited($label))
+            .bubbleFieldStyle()
+            .onSubmit(start) // Return starts the timer
+    }
+
+    @ViewBuilder
+    private var pomodoroForm: some View {
+        Text("Work, then take a break")
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+
+        VStack(spacing: 6) {
+            pomodoroRow("Work", $workMinutes)
+                .focused($firstFieldFocused)
+            pomodoroRow("Break", $breakMinutes)
+        }
+        .padding(.vertical, 2)
+
+        Text("Click the bubble to start each break and session.")
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .opacity(0.55)
+    }
+
+    private func pomodoroRow(_ title: String, _ value: Binding<Int>) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .frame(width: 42, alignment: .leading)
+            numberBox(value, range: TimerDraft.pomodoroRange, width: 52, fontSize: 18)
+            stepper(value, range: TimerDraft.pomodoroRange)
+            Text("min")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .opacity(0.55)
+        }
+    }
+
+    private func numberBox(_ value: Binding<Int>, range: ClosedRange<Int>, width: CGFloat, fontSize: CGFloat) -> some View {
+        TextField("", text: TimerDraft.digits(value, in: range))
+            .textFieldStyle(.plain)
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .multilineTextAlignment(.center)
+            .frame(width: width)
+            .padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+            .onSubmit(start) // Return starts
+    }
+
+    private func stepper(_ value: Binding<Int>, range: ClosedRange<Int>) -> some View {
+        CaretStepper(
+            canIncrement: value.wrappedValue < range.upperBound,
+            canDecrement: value.wrappedValue > range.lowerBound,
+            increment: { value.wrappedValue += 1 },
+            decrement: { value.wrappedValue -= 1 }
+        )
+    }
+
+    private func start() {
+        guard canStart else { return }
+        switch mode {
+        case .timer:
+            onStart(duration, TimerDraft.cleanLabel(label))
+        case .pomodoro:
+            onStartPomodoro(TimeInterval(workMinutes * 60), TimeInterval(breakMinutes * 60))
+        }
+    }
+}
+
+/// Two or more tabs styled like the bubble: the selected one is filled black.
+private struct BubbleTabs<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(Value, String)]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.0) { value, title in
+                let selected = value == selection
+                Button {
+                    selection = value
+                } label: {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(selected ? Color.white : .black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background(selected ? Color.black : .white)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
     }
 }
 
