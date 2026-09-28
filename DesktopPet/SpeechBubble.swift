@@ -7,6 +7,10 @@ import SwiftUI
 final class BubbleLayout {
     var tailX: CGFloat = 0
     var tailPointsUp = false
+
+    /// Called when the bubble's contents change size (e.g. switching Timer/Pomodoro tabs),
+    /// so its window can be resized to fit.
+    @ObservationIgnored var onContentSizeChange: (() -> Void)?
 }
 
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
@@ -104,6 +108,10 @@ final class SpeechBubbleController {
             }
         }
         menu.onChange = { [weak self] in self?.menuChanged() }
+        layout.onContentSizeChange = { [weak self] in
+            // Resize on the next pass, not in the middle of SwiftUI's layout.
+            DispatchQueue.main.async { self?.update() }
+        }
 
         for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
             observers.append(NotificationCenter.default.addObserver(
@@ -241,6 +249,9 @@ struct BubbleView: View {
             .padding(2) // room for the outline
             .fixedSize()
             .environment(\.colorScheme, .light) // the bubble is always white, even in Dark Mode
+            .onGeometryChange(for: CGSize.self, of: \.size) { _ in
+                layout.onContentSizeChange?()
+            }
     }
 
     @ViewBuilder

@@ -253,7 +253,7 @@ final class AppController {
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
     /// `--customize`, `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
-    /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode;
+    /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--menu [start|controls|reminders|add-reminder]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
@@ -283,6 +283,14 @@ final class AppController {
             }
         }
 
+        if args.contains("--flip-start-mode") {
+            // Switches the Start page between Timer and Pomodoro after a second, as a click would.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                let defaults = UserDefaults.standard
+                let current = defaults.string(forKey: "startPage.mode") ?? "timer"
+                defaults.set(current == "timer" ? "pomodoro" : "timer", forKey: "startPage.mode")
+            }
+        }
         if let path = value(after: "--snapshot") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 let base = (path as NSString).deletingPathExtension
