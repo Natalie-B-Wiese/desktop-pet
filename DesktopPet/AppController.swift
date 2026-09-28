@@ -87,6 +87,18 @@ final class AppController {
         if !timer.hasCountdown { menu.addItem(timerItem) } // stop the current timer first
         if timer.hasCountdown {
             menu.addItem(ClosureMenuItem(timer.pauseTitle) { [weak self] in self?.timer.togglePause() })
+            let editItem = NSMenuItem(title: "Edit Timer", action: nil, keyEquivalent: "")
+            let editMenu = NSMenu()
+            editMenu.autoenablesItems = false
+            for step in Self.editSteps {
+                let item = ClosureMenuItem(Self.editTitle(step)) { [weak self] in
+                    self?.timer.adjust(byMinutes: step)
+                }
+                item.isEnabled = timer.canAdjust(byMinutes: step)
+                editMenu.addItem(item)
+            }
+            editItem.submenu = editMenu
+            menu.addItem(editItem)
         }
         if timer.isActive {
             menu.addItem(ClosureMenuItem("Stop Timer") { [weak self] in self?.timer.stop() })
@@ -98,6 +110,13 @@ final class AppController {
     }
 
     // MARK: - Timer
+
+    /// The Edit Timer submenu order: additions first, then subtractions.
+    static let editSteps = [5, 10, -5, -10]
+
+    static func editTitle(_ step: Int) -> String {
+        step > 0 ? "Add \(step) Minutes" : "Subtract \(-step) Minutes"
+    }
 
     static func presetTitle(_ minutes: Int) -> String {
         minutes == 1 ? "1 minute" : "\(minutes) minutes"
@@ -188,7 +207,13 @@ final class AppController {
         if args.contains("--set-timer") { showSetTimerWindow() }
         if let seconds = value(after: "--timer").flatMap(TimeInterval.init) { startTimer(duration: seconds) }
         if args.contains("--pause") { timer.pause() }
-        if args.contains("--menu") { bubble?.menu.page = value(after: "--menu") == "timer" ? .timer : .main }
+        if args.contains("--menu") {
+            bubble?.menu.page = switch value(after: "--menu") {
+            case "timer": .timer
+            case "edit": .editTimer
+            default: .main
+            }
+        }
 
         if let path = value(after: "--snapshot") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

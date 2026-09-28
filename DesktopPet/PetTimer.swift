@@ -28,8 +28,37 @@ final class PetTimer {
         }
     }
 
+    /// Time left on a running or paused countdown, otherwise nil.
+    var remaining: TimeInterval? {
+        switch state {
+        case .running(let end): max(0, end.timeIntervalSinceNow)
+        case .paused(let remaining): remaining
+        case .idle, .finished: nil
+        }
+    }
+
     func start(duration: TimeInterval) {
-        let end = Date().addingTimeInterval(duration)
+        schedule(end: Date().addingTimeInterval(duration))
+    }
+
+    /// Whether adding `minutes` (negative to subtract) would leave time on the clock.
+    func canAdjust(byMinutes minutes: Int) -> Bool {
+        guard let remaining else { return false }
+        return remaining + TimeInterval(minutes * 60) > 0
+    }
+
+    /// Adds or subtracts time from the current countdown, keeping it running or paused.
+    func adjust(byMinutes minutes: Int) {
+        guard canAdjust(byMinutes: minutes) else { return }
+        let delta = TimeInterval(minutes * 60)
+        switch state {
+        case .running(let end): schedule(end: end.addingTimeInterval(delta))
+        case .paused(let remaining): setState(.paused(remaining: remaining + delta))
+        case .idle, .finished: break
+        }
+    }
+
+    private func schedule(end: Date) {
         timer?.invalidate()
         let timer = Timer(fire: end, interval: 0, repeats: false) { [weak self] _ in
             self?.setState(.finished)

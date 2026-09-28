@@ -46,6 +46,15 @@ struct MenuContent: View {
             Button(controller.timer.pauseTitle) {
                 controller.timer.togglePause()
             }
+
+            Menu("Edit Timer") {
+                ForEach(AppController.editSteps, id: \.self) { step in
+                    Button(AppController.editTitle(step)) {
+                        controller.timer.adjust(byMinutes: step)
+                    }
+                    .disabled(!controller.timer.canAdjust(byMinutes: step))
+                }
+            }
         }
 
         if controller.timer.isActive {
