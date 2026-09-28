@@ -42,6 +42,7 @@ final class AppController {
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
             },
+            startStopwatch: { [weak self] label in self?.timer.startStopwatch(label: label) },
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
@@ -97,12 +98,15 @@ final class AppController {
         if !timer.isBusy { // stop the current timer first
             menu.addItem(timerItem)
             menu.addItem(ClosureMenuItem(startPomodoroTitle) { [weak self] in self?.startPomodoro() })
+            menu.addItem(ClosureMenuItem("Start Stopwatch") { [weak self] in self?.timer.startStopwatch() })
         }
         if let title = timer.nextPomodoroPeriodTitle {
             menu.addItem(ClosureMenuItem(title) { [weak self] in self?.timer.startNextPomodoroPeriod() })
         }
         if timer.hasCountdown {
             menu.addItem(ClosureMenuItem(timer.pauseTitle) { [weak self] in self?.timer.togglePause() })
+        }
+        if timer.hasCountdown && !timer.isStopwatch {
             let editItem = NSMenuItem(title: "Edit Timer", action: nil, keyEquivalent: "")
             let editMenu = NSMenu()
             editMenu.autoenablesItems = false
@@ -254,6 +258,7 @@ final class AppController {
     /// Launch arguments that let Claude check windows without screen-recording permission:
     /// `--customize`, `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
+    /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--menu [start|controls|reminders|add-reminder]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
@@ -269,6 +274,7 @@ final class AppController {
            let work = TimeInterval(args[i + 1]), let rest = TimeInterval(args[i + 2]) {
             timer.startPomodoro(workLength: work, breakLength: rest)
         }
+        if args.contains("--stopwatch") { timer.startStopwatch(label: value(after: "--label")) }
         if let seconds = value(after: "--timer").flatMap(TimeInterval.init) {
             startTimer(duration: seconds, label: value(after: "--label"))
         }

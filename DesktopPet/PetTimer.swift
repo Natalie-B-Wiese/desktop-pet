@@ -1,12 +1,14 @@
 import Foundation
 import Observation
 
-/// A countdown that ends at a fixed date, so it stays accurate across sleep.
+/// A countdown that ends at a fixed date (so it stays accurate across sleep), or a stopwatch.
 @Observable
 final class PetTimer {
     enum State: Equatable {
         case idle
+        /// For a stopwatch, `end` is instead the moment it (effectively) started counting.
         case running(end: Date)
+        /// For a stopwatch, `remaining` is instead the time counted so far.
         case paused(remaining: TimeInterval)
         case finished
 
@@ -33,6 +35,15 @@ final class PetTimer {
 
     /// Set while Pomodoro mode is running, including between periods.
     private(set) var pomodoro: Pomodoro?
+
+    /// Counting up instead of down. A stopwatch never finishes on its own.
+    private(set) var isStopwatch = false
+
+    /// "Timer", "Pomodoro" or "Stopwatch", for titles and menu items.
+    var kindTitle: String {
+        if pomodoro != nil { return "Pomodoro" }
+        return isStopwatch ? "Stopwatch" : "Timer"
+    }
 
     /// A regular timer or Pomodoro that hasn't been stopped, so "Start" should stay hidden.
     var isBusy: Bool { hasCountdown || pomodoro != nil }
@@ -64,26 +75,53 @@ final class PetTimer {
         }
     }
 
-    /// Time left on a running or paused countdown, otherwise nil.
+    /// Time left on a running or paused countdown, otherwise nil (including for a stopwatch).
     var remaining: TimeInterval? {
-        switch state {
+        if isStopwatch { return nil }
+        return switch state {
         case .running(let end): max(0, end.timeIntervalSinceNow)
         case .paused(let remaining): remaining
         case .idle, .finished: nil
         }
     }
 
+    /// The time to show: remaining for a countdown, counted so far for a stopwatch.
+    func displayTime(at date: Date = Date()) -> TimeInterval {
+        switch state {
+        case .running(let end): isStopwatch ? date.timeIntervalSince(end) : max(0, end.timeIntervalSince(date))
+        case .paused(let time): time
+        case .idle, .finished: 0
+        }
+    }
+
+    /// `displayTime` as "4:05". Countdowns round up (so 0:00 means done), stopwatches down.
+    func formattedTime(at date: Date = Date()) -> String {
+        Self.format(displayTime(at: date), roundingUp: !isStopwatch)
+    }
+
     func start(duration: TimeInterval, label: String? = nil) {
         self.label = label
         pomodoro = nil
+        isStopwatch = false
         schedule(end: Date().addingTimeInterval(duration))
     }
 
     /// Starts Pomodoro mode with its first work session.
     func startPomodoro(workLength: TimeInterval, breakLength: TimeInterval) {
         label = nil
+        isStopwatch = false
         pomodoro = Pomodoro(phase: .work, workLength: workLength, breakLength: breakLength, session: 1)
         schedule(end: Date().addingTimeInterval(workLength))
+    }
+
+    /// Starts counting up from 0:00.
+    func startStopwatch(label: String? = nil) {
+        timer?.invalidate()
+        timer = nil
+        self.label = label
+        pomodoro = nil
+        isStopwatch = true
+        setState(.running(end: Date()))
     }
 
     /// After a Pomodoro period ends: starts the break, or the next work session.
@@ -105,8 +143,8 @@ final class PetTimer {
         return pomodoro.phase == .work ? "Start Break" : "Start Work Session"
     }
 
-    /// "Stop Timer" or "Stop Pomodoro".
-    var stopTitle: String { pomodoro == nil ? "Stop Timer" : "Stop Pomodoro" }
+    /// "Stop Timer", "Stop Pomodoro" or "Stop Stopwatch".
+    var stopTitle: String { "Stop \(kindTitle)" }
 
     /// The Edit timer buttons, in seconds, in the order they appear in the bubble.
     static let editSteps = [-300, -30, 30, 300]
@@ -156,20 +194,25 @@ final class PetTimer {
     }
 
     func pause() {
-        guard case .running(let end) = state else { return }
+        guard case .running = state else { return }
         timer?.invalidate()
         timer = nil
-        setState(.paused(remaining: max(0, end.timeIntervalSinceNow)))
+        setState(.paused(remaining: displayTime()))
     }
 
     func resume() {
-        guard case .paused(let remaining) = state else { return }
-        schedule(end: Date().addingTimeInterval(remaining))
+        guard case .paused(let time) = state else { return }
+        if isStopwatch {
+            // Pretend it started `time` ago, so it carries on from where it was.
+            setState(.running(end: Date().addingTimeInterval(-time)))
+        } else {
+            schedule(end: Date().addingTimeInterval(time))
+        }
     }
 
-    /// "Pause Timer" or "Resume Timer", for the menu bar and right-click menus.
+    /// "Pause Timer" or "Resume Stopwatch" etc., for the menu bar and right-click menus.
     var pauseTitle: String {
-        if case .paused = state { "Resume Timer" } else { "Pause Timer" }
+        "\(state.isPaused ? "Resume" : "Pause") \(kindTitle)"
     }
 
     func togglePause() {
@@ -182,6 +225,7 @@ final class PetTimer {
         timer = nil
         label = nil
         pomodoro = nil
+        isStopwatch = false
         setState(.idle)
     }
 
@@ -191,8 +235,8 @@ final class PetTimer {
     }
 
     /// "4:05" or "1:02:03".
-    static func format(_ remaining: TimeInterval) -> String {
-        let total = max(0, Int(remaining.rounded(.up)))
+    static func format(_ time: TimeInterval, roundingUp: Bool = true) -> String {
+        let total = max(0, Int(time.rounded(roundingUp ? .up : .down)))
         let hours = total / 3600, minutes = (total % 3600) / 60, seconds = total % 60
         return hours > 0
             ? String(format: "%d:%02d:%02d", hours, minutes, seconds)

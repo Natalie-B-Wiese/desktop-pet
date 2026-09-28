@@ -44,6 +44,10 @@ struct MenuContent: View {
             Button(controller.startPomodoroTitle) {
                 controller.startPomodoro()
             }
+
+            Button("Start Stopwatch") {
+                controller.timer.startStopwatch()
+            }
         }
 
         if let title = controller.timer.nextPomodoroPeriodTitle {
@@ -56,7 +60,9 @@ struct MenuContent: View {
             Button(controller.timer.pauseTitle) {
                 controller.timer.togglePause()
             }
+        }
 
+        if controller.timer.hasCountdown && !controller.timer.isStopwatch {
             Menu("Edit Timer") {
                 ForEach(AppController.editMenuSteps, id: \.self) { step in
                     Button(PetTimer.editTitle(step)) {

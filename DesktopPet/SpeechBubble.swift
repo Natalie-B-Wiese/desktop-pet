@@ -32,6 +32,7 @@ final class BubbleMenu {
 struct BubbleActions {
     var startTimer: (_ duration: TimeInterval, _ label: String?) -> Void
     var startPomodoro: (_ work: TimeInterval, _ rest: TimeInterval) -> Void
+    var startStopwatch: (_ label: String?) -> Void
     var stopTimer: () -> Void
     var togglePause: () -> Void
     var startNextPomodoroPeriod: () -> Void
@@ -66,6 +67,7 @@ final class SpeechBubbleController {
         let closingActions = BubbleActions(
             startTimer: { duration, label in menu.page = nil; actions.startTimer(duration, label) },
             startPomodoro: { work, rest in menu.page = nil; actions.startPomodoro(work, rest) },
+            startStopwatch: { label in menu.page = nil; actions.startStopwatch(label) },
             stopTimer: { menu.page = nil; actions.stopTimer() },
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
@@ -290,21 +292,24 @@ struct BubbleView: View {
     @ViewBuilder
     private var timerContent: some View {
         switch timer.state {
-        case .running(let end):
+        case .running:
             VStack(spacing: 0) {
                 labelLine
                 TimelineView(.periodic(from: .now, by: 0.25)) { context in
-                    Text(PetTimer.format(end.timeIntervalSince(context.date)))
-                        .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                    HStack(spacing: 4) {
+                        stopwatchIcon
+                        Text(timer.formattedTime(at: context.date))
+                            .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                    }
                 }
             }
-        case .paused(let remaining):
+        case .paused:
             VStack(spacing: 0) {
                 labelLine
                 HStack(spacing: 4) {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 11, weight: .bold))
-                    Text(PetTimer.format(remaining))
+                    Text(timer.formattedTime())
                         .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
                 }
             }
@@ -336,6 +341,15 @@ struct BubbleView: View {
         }
     }
 
+    /// A small ⏱ so a stopwatch (counting up) doesn't look like a countdown.
+    @ViewBuilder
+    private var stopwatchIcon: some View {
+        if timer.isStopwatch {
+            Image(systemName: "stopwatch")
+                .font(.system(size: 11, weight: .bold))
+        }
+    }
+
     /// The timer's label in small type, if it has one.
     @ViewBuilder
     private var labelLine: some View {
@@ -364,8 +378,8 @@ struct BubbleView: View {
                 // "Start a timer" is hidden meanwhile, so the countdown can't be overwritten by accident.
                 TimelineView(.periodic(from: .now, by: 0.25)) { _ in
                     BubbleButton(
-                        "Timer (\(PetTimer.format(timer.remaining ?? 0)))",
-                        systemImage: timer.state.isPaused ? "pause.circle" : "timer"
+                        "\(timer.isStopwatch ? "Stopwatch" : "Timer") (\(timer.formattedTime()))",
+                        systemImage: timer.state.isPaused ? "pause.circle" : timer.isStopwatch ? "stopwatch" : "timer"
                     ) { menu.page = .timerControls }
                 }
             case .finished:
@@ -403,7 +417,7 @@ struct BubbleView: View {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 14, weight: .bold))
                 }
-                Text(PetTimer.format(timer.remaining ?? 0))
+                Text(timer.formattedTime())
                     .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
             }
         }
@@ -416,21 +430,23 @@ struct BubbleView: View {
                 Text(label)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
             } else {
-                Text("Timer")
+                Text(timer.kindTitle)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
             }
             bigReadout
 
-            // Redraws every quarter second so the greyed-out buttons stay current.
-            TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-                HStack(spacing: 4) {
-                    ForEach(PetTimer.editSteps, id: \.self) { step in
-                        let allowed = timer.canAdjust(bySeconds: step)
-                        BubbleButton(PetTimer.shortEditTitle(step), centered: true) {
-                            timer.adjust(bySeconds: step)
+            if !timer.isStopwatch { // a stopwatch just counts; there's nothing to add or subtract
+                // Redraws every quarter second so the greyed-out buttons stay current.
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    HStack(spacing: 4) {
+                        ForEach(PetTimer.editSteps, id: \.self) { step in
+                            let allowed = timer.canAdjust(bySeconds: step)
+                            BubbleButton(PetTimer.shortEditTitle(step), centered: true) {
+                                timer.adjust(bySeconds: step)
+                            }
+                            .disabled(!allowed)
+                            .opacity(allowed ? 1 : 0.35)
                         }
-                        .disabled(!allowed)
-                        .opacity(allowed ? 1 : 0.35)
                     }
                 }
             }
@@ -453,7 +469,7 @@ struct BubbleView: View {
                 BubbleButton("Pause", systemImage: "pause.circle", action: actions.togglePause)
             }
             BubbleButton(
-                timer.pomodoro == nil ? "Stop timer" : "Stop Pomodoro",
+                timer.pomodoro != nil ? "Stop Pomodoro" : "Stop \(timer.kindTitle.lowercased())",
                 systemImage: "stop.circle",
                 action: actions.stopTimer
             )
@@ -466,19 +482,21 @@ struct BubbleView: View {
         BubbleTimerPage(
             onStart: actions.startTimer,
             onStartPomodoro: actions.startPomodoro,
+            onStartStopwatch: actions.startStopwatch,
             onBack: { menu.page = .main },
             onClose: { menu.page = nil }
         )
-        .frame(width: 190)
+        .frame(width: 228) // a little wider than other pages, to fit three tabs
     }
 }
 
 /// The Start page: a plain timer (minutes and label) or Pomodoro (work and break lengths).
 private struct BubbleTimerPage: View {
-    enum Mode: String { case timer, pomodoro }
+    enum Mode: String { case timer, pomodoro, stopwatch }
 
     var onStart: (_ duration: TimeInterval, _ label: String?) -> Void
     var onStartPomodoro: (_ work: TimeInterval, _ rest: TimeInterval) -> Void
+    var onStartStopwatch: (_ label: String?) -> Void
     var onBack: () -> Void
     var onClose: () -> Void
 
@@ -491,16 +509,21 @@ private struct BubbleTimerPage: View {
 
     private var duration: TimeInterval { TimeInterval(minutes * 60) }
     private var canStart: Bool {
-        mode == .timer ? minutes > 0 : workMinutes > 0 && breakMinutes > 0
+        switch mode {
+        case .timer: minutes > 0
+        case .pomodoro: workMinutes > 0 && breakMinutes > 0
+        case .stopwatch: true
+        }
     }
 
     var body: some View {
         VStack(spacing: 8) {
-            BubbleTabs(selection: $mode, options: [(.timer, "Timer"), (.pomodoro, "Pomodoro")])
+            BubbleTabs(selection: $mode, options: [(.timer, "Timer"), (.pomodoro, "Pomodoro"), (.stopwatch, "Stopwatch")])
 
             switch mode {
             case .timer: timerForm
             case .pomodoro: pomodoroForm
+            case .stopwatch: stopwatchForm
             }
 
             BubbleButton("Start", systemImage: "play.fill", action: start)
@@ -545,6 +568,13 @@ private struct BubbleTimerPage: View {
         .padding(.vertical, 2)
     }
 
+    private var stopwatchForm: some View {
+        TextField("Label (optional)", text: TimerDraft.limited($label))
+            .bubbleFieldStyle()
+            .focused($firstFieldFocused)
+            .onSubmit(start) // Return starts the stopwatch
+    }
+
     private func pomodoroRow(_ title: String, _ value: Binding<Int>) -> some View {
         HStack(spacing: 6) {
             Text(title)
@@ -586,6 +616,8 @@ private struct BubbleTimerPage: View {
             onStart(duration, TimerDraft.cleanLabel(label))
         case .pomodoro:
             onStartPomodoro(TimeInterval(workMinutes * 60), TimeInterval(breakMinutes * 60))
+        case .stopwatch:
+            onStartStopwatch(TimerDraft.cleanLabel(label))
         }
     }
 }
@@ -604,7 +636,10 @@ private struct BubbleTabs<Value: Hashable>: View {
                 } label: {
                     Text(title)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8) // three tabs share a narrow bubble
                         .foregroundStyle(selected ? Color.white : .black)
+                        .padding(.horizontal, 4)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
                         .background(selected ? Color.black : .white)
