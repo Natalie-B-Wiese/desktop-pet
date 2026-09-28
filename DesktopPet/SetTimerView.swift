@@ -1,13 +1,11 @@
 import SwiftUI
 
-/// The minutes and seconds last picked, shared by the bubble's timer page and the Set Timer window.
+/// The minutes last picked, shared by the bubble's timer page and the Set Timer window.
 enum TimerDraft {
     static let minutesKey = "customTimer.minutes"
-    static let secondsKey = "customTimer.seconds"
     static let defaultMinutes = 20
 
     static let minuteRange = 0...999
-    static let secondRange = 0...59
 
     /// The quick-adjust buttons, in minutes.
     static let steps = [-10, -5, 5, 10]
@@ -34,22 +32,18 @@ enum TimerDraft {
     }
 }
 
-/// The "Custom…" timer window: pick minutes and seconds, then Start.
+/// The "Custom…" timer window: pick a number of minutes, then Start.
 struct SetTimerView: View {
     var onStart: (TimeInterval) -> Void
     var onCancel: () -> Void
 
     @AppStorage(TimerDraft.minutesKey) private var minutes = TimerDraft.defaultMinutes
-    @AppStorage(TimerDraft.secondsKey) private var seconds = 0
 
-    private var duration: TimeInterval { TimeInterval(minutes * 60 + seconds) }
+    private var duration: TimeInterval { TimeInterval(minutes * 60) }
 
     var body: some View {
         VStack(spacing: 16) {
-            HStack(spacing: 20) {
-                field("Minutes", value: $minutes, range: TimerDraft.minuteRange)
-                field("Seconds", value: $seconds, range: TimerDraft.secondRange)
-            }
+            field("Minutes", value: $minutes, range: TimerDraft.minuteRange)
 
             HStack(spacing: 6) {
                 ForEach(TimerDraft.steps, id: \.self) { step in

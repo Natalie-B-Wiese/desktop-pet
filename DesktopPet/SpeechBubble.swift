@@ -287,31 +287,24 @@ struct BubbleView: View {
     }
 }
 
-/// "How long?": type minutes and seconds or nudge them, then Start.
+/// "How long?": type the minutes or nudge them, then Start.
 private struct BubbleTimerPage: View {
     var onStart: (TimeInterval) -> Void
     var onBack: () -> Void
     var onClose: () -> Void
 
     @AppStorage(TimerDraft.minutesKey) private var minutes = TimerDraft.defaultMinutes
-    @AppStorage(TimerDraft.secondsKey) private var seconds = 0
     @FocusState private var minutesFocused: Bool
 
-    private var duration: TimeInterval { TimeInterval(minutes * 60 + seconds) }
+    private var duration: TimeInterval { TimeInterval(minutes * 60) }
 
     var body: some View {
         VStack(spacing: 8) {
             Text("How long?")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
 
-            HStack(alignment: .top, spacing: 4) {
-                field("min", value: $minutes, range: TimerDraft.minuteRange)
-                    .focused($minutesFocused)
-                Text(":")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .padding(.top, 3)
-                field("sec", value: $seconds, range: TimerDraft.secondRange)
-            }
+            field("minutes", value: $minutes, range: TimerDraft.minuteRange)
+                .focused($minutesFocused)
 
             HStack(spacing: 4) {
                 ForEach(TimerDraft.steps, id: \.self) { step in
@@ -344,7 +337,7 @@ private struct BubbleTimerPage: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
                 .multilineTextAlignment(.center)
-                .frame(width: 56)
+                .frame(width: 72)
                 .padding(.vertical, 3)
                 .background(RoundedRectangle(cornerRadius: 7).fill(.white))
                 .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
