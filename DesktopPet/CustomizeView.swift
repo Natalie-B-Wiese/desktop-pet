@@ -18,8 +18,10 @@ struct CustomizeView: View {
                     colorRow("Secondary", \.secondary)
                     colorRow("Eyes", \.detail)
                 }
-                Section("Size") {
-                    sizeRow
+                Section {
+                    sizeSlider
+                } header: {
+                    sizeHeader
                 }
             }
             .formStyle(.grouped)
@@ -35,32 +37,41 @@ struct CustomizeView: View {
         .frame(width: 320)
     }
 
-    private var sizeRow: some View {
-        let range = PetSettings.scaleRange
-        return HStack {
-            Slider(
-                value: Binding(
-                    get: { Double(settings.scale) },
-                    set: { settings.scale = Int($0.rounded()) }
-                ),
-                in: Double(range.lowerBound)...Double(range.upperBound),
-                step: 1
-            ) {
-                Text("Size")
-            } minimumValueLabel: {
-                Image(systemName: "cat.fill").imageScale(.small)
-            } maximumValueLabel: {
-                Image(systemName: "cat.fill").imageScale(.large)
-            }
+    private var sizeHeader: some View {
+        HStack {
+            Text("Size")
+            Spacer()
             Text("\(settings.scale)×")
                 .monospacedDigit()
-                .frame(width: 32, alignment: .trailing)
-                .foregroundStyle(.secondary)
             Button("Reset") {
                 settings.scale = PetSettings.defaultScale
             }
+            .buttonStyle(.link)
             .disabled(settings.scale == PetSettings.defaultScale)
         }
+    }
+
+    private var sizeSlider: some View {
+        let range = PetSettings.scaleRange
+        return Slider(
+            value: Binding(
+                get: { Double(settings.scale) },
+                set: { newValue in
+                    let clamped = min(max(Int(newValue.rounded()), range.lowerBound), range.upperBound)
+                    if clamped != settings.scale { settings.scale = clamped }
+                }
+            ),
+            in: Double(range.lowerBound)...Double(range.upperBound),
+            step: 1
+        ) {
+            Text("Size")
+        } minimumValueLabel: {
+            Image(systemName: "cat.fill").imageScale(.small)
+        } maximumValueLabel: {
+            Image(systemName: "cat.fill").imageScale(.large)
+        }
+        .labelsHidden()
+        .frame(maxWidth: .infinity)
     }
 
     private func colorRow(_ title: String, _ keyPath: WritableKeyPath<PetPalette, NSColor>) -> some View {

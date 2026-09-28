@@ -10,5 +10,5 @@ xcodebuild -project DesktopPet.xcodeproj -scheme DesktopPet -configuration Relea
 pkill -x DesktopPet 2>/dev/null && while pgrep -x DesktopPet >/dev/null; do sleep 0.2; done || true
 rm -rf /Applications/DesktopPet.app
 cp -R build/Build/Products/Release/DesktopPet.app /Applications/
-open /Applications/DesktopPet.app
+open /Applications/DesktopPet.app --args "$@"
 echo "Installed and launched /Applications/DesktopPet.app"

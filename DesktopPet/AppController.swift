@@ -33,6 +33,26 @@ final class AppController {
 
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
         setPetVisible(wasVisible)
+
+        // `open DesktopPet.app --args --customize` opens the Customize window right away (handy for testing).
+        // Add `--snapshot <path.png>` to also save a picture of that window (lets Claude check the layout).
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--customize") {
+            showCustomizeWindow()
+            if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
+                let path = args[i + 1]
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                    self?.snapshotCustomizeWindow(to: URL(fileURLWithPath: path))
+                }
+            }
+        }
+    }
+
+    private func snapshotCustomizeWindow(to url: URL) {
+        guard let view = customizeWindow?.contentView?.superview, // include the title bar
+              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: url)
     }
 
     func togglePet() {

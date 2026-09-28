@@ -26,9 +26,9 @@ final class PetSettings {
     }
 
     /// How many points each image pixel is drawn as. Whole numbers keep the pixel art crisp.
+    /// Callers keep it within `scaleRange`; don't reassign it in `didSet` (with @Observable that recurses forever).
     var scale: Int {
         didSet {
-            scale = min(max(scale, Self.scaleRange.lowerBound), Self.scaleRange.upperBound)
             guard scale != oldValue else { return }
             defaults.set(scale, forKey: "scale")
             onScaleChange?()
