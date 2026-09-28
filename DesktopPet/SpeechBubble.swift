@@ -28,6 +28,7 @@ final class BubbleMenu {
 struct BubbleActions {
     var startTimer: (_ duration: TimeInterval) -> Void
     var stopTimer: () -> Void
+    var togglePause: () -> Void
     var customize: () -> Void
     var hide: () -> Void
 }
@@ -56,6 +57,7 @@ final class SpeechBubbleController {
         let closingActions = BubbleActions(
             startTimer: { duration in menu.page = nil; actions.startTimer(duration) },
             stopTimer: { menu.page = nil; actions.stopTimer() },
+            togglePause: { menu.page = nil; actions.togglePause() },
             customize: { menu.page = nil; actions.customize() },
             hide: { menu.page = nil; actions.hide() }
         )
@@ -234,6 +236,14 @@ struct BubbleView: View {
                 Text(PetTimer.format(end.timeIntervalSince(context.date)))
                     .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
             }
+        case .paused(let remaining):
+            HStack(spacing: 4) {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text(PetTimer.format(remaining))
+                    .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+            }
+            .opacity(0.5)
         case .finished:
             VStack(spacing: 1) {
                 Text("Time's up!")
@@ -259,11 +269,19 @@ struct BubbleView: View {
             case .running(let end):
                 TimelineView(.periodic(from: .now, by: 0.25)) { context in
                     BubbleButton(
-                        "Stop timer (\(PetTimer.format(end.timeIntervalSince(context.date))))",
-                        systemImage: "stop.circle",
-                        action: actions.stopTimer
+                        "Pause timer (\(PetTimer.format(end.timeIntervalSince(context.date))))",
+                        systemImage: "pause.circle",
+                        action: actions.togglePause
                     )
                 }
+                BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
+            case .paused(let remaining):
+                BubbleButton(
+                    "Resume timer (\(PetTimer.format(remaining)))",
+                    systemImage: "play.circle",
+                    action: actions.togglePause
+                )
+                BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
             case .finished:
                 BubbleButton("Clear time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
             case .idle:

@@ -40,6 +40,12 @@ struct MenuContent: View {
             }
         }
 
+        if controller.timer.hasCountdown {
+            Button(controller.timer.pauseTitle) {
+                controller.timer.togglePause()
+            }
+        }
+
         if controller.timer.isActive {
             Button("Stop Timer") {
                 controller.timer.stop()

@@ -7,6 +7,7 @@ final class PetTimer {
     enum State: Equatable {
         case idle
         case running(end: Date)
+        case paused(remaining: TimeInterval)
         case finished
     }
 
@@ -19,6 +20,14 @@ final class PetTimer {
 
     var isActive: Bool { state != .idle }
 
+    /// Running or paused, i.e. a countdown that can be paused, resumed or stopped.
+    var hasCountdown: Bool {
+        switch state {
+        case .running, .paused: true
+        case .idle, .finished: false
+        }
+    }
+
     func start(duration: TimeInterval) {
         let end = Date().addingTimeInterval(duration)
         timer?.invalidate()
@@ -30,7 +39,28 @@ final class PetTimer {
         setState(.running(end: end))
     }
 
-    /// Cancels a running timer, or closes the "time's up" message.
+    func pause() {
+        guard case .running(let end) = state else { return }
+        timer?.invalidate()
+        timer = nil
+        setState(.paused(remaining: max(0, end.timeIntervalSinceNow)))
+    }
+
+    func resume() {
+        guard case .paused(let remaining) = state else { return }
+        start(duration: remaining)
+    }
+
+    /// "Pause Timer" or "Resume Timer", for the menu bar and right-click menus.
+    var pauseTitle: String {
+        if case .paused = state { "Resume Timer" } else { "Pause Timer" }
+    }
+
+    func togglePause() {
+        if case .paused = state { resume() } else { pause() }
+    }
+
+    /// Cancels a running or paused timer, or closes the "time's up" message.
     func stop() {
         timer?.invalidate()
         timer = nil

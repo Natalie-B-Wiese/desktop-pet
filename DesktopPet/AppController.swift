@@ -36,6 +36,7 @@ final class AppController {
         let bubble = SpeechBubbleController(timer: timer, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration in self?.startTimer(duration: duration) },
             stopTimer: { [weak self] in self?.timer.stop() },
+            togglePause: { [weak self] in self?.timer.togglePause() },
             customize: { [weak self] in self?.showCustomizeWindow() },
             hide: { [weak self] in self?.setPetVisible(false) }
         ))
@@ -84,6 +85,9 @@ final class AppController {
         timerMenu.addItem(ClosureMenuItem("Custom…") { [weak self] in self?.showSetTimerWindow() })
         timerItem.submenu = timerMenu
         menu.addItem(timerItem)
+        if timer.hasCountdown {
+            menu.addItem(ClosureMenuItem(timer.pauseTitle) { [weak self] in self?.timer.togglePause() })
+        }
         if timer.isActive {
             menu.addItem(ClosureMenuItem("Stop Timer") { [weak self] in self?.timer.stop() })
         }
@@ -171,7 +175,7 @@ final class AppController {
     // MARK: - Testing
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
-    /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer;
+    /// `--customize` or `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--pause` to pause it);
     /// `--menu` or `--menu timer` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
@@ -183,6 +187,7 @@ final class AppController {
         if args.contains("--customize") { showCustomizeWindow() }
         if args.contains("--set-timer") { showSetTimerWindow() }
         if let seconds = value(after: "--timer").flatMap(TimeInterval.init) { startTimer(duration: seconds) }
+        if args.contains("--pause") { timer.pause() }
         if args.contains("--menu") { bubble?.menu.page = value(after: "--menu") == "timer" ? .timer : .main }
 
         if let path = value(after: "--snapshot") {
