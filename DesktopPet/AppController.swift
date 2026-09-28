@@ -90,11 +90,11 @@ final class AppController {
             let editItem = NSMenuItem(title: "Edit Timer", action: nil, keyEquivalent: "")
             let editMenu = NSMenu()
             editMenu.autoenablesItems = false
-            for step in Self.editSteps {
-                let item = ClosureMenuItem(Self.editTitle(step)) { [weak self] in
-                    self?.timer.adjust(byMinutes: step)
+            for step in Self.editMenuSteps {
+                let item = ClosureMenuItem(PetTimer.editTitle(step)) { [weak self] in
+                    self?.timer.adjust(bySeconds: step)
                 }
-                item.isEnabled = timer.canAdjust(byMinutes: step)
+                item.isEnabled = timer.canAdjust(bySeconds: step)
                 editMenu.addItem(item)
             }
             editItem.submenu = editMenu
@@ -112,11 +112,7 @@ final class AppController {
     // MARK: - Timer
 
     /// The Edit Timer submenu order: additions first, then subtractions.
-    static let editSteps = [5, 10, -5, -10]
-
-    static func editTitle(_ step: Int) -> String {
-        step > 0 ? "Add \(step) Minutes" : "Subtract \(-step) Minutes"
-    }
+    static let editMenuSteps = [30, 300, -30, -300]
 
     static func presetTitle(_ minutes: Int) -> String {
         minutes == 1 ? "1 minute" : "\(minutes) minutes"

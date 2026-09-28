@@ -41,16 +41,36 @@ final class PetTimer {
         schedule(end: Date().addingTimeInterval(duration))
     }
 
-    /// Whether adding `minutes` (negative to subtract) would leave time on the clock.
-    func canAdjust(byMinutes minutes: Int) -> Bool {
+    /// The Edit timer buttons, in seconds, in the order they appear in the bubble.
+    static let editSteps = [-300, -30, 30, 300]
+
+    /// "−5m", "+30s": short labels for the bubble's buttons.
+    static func shortEditTitle(_ seconds: Int) -> String {
+        let sign = seconds > 0 ? "+" : "−"
+        let amount = abs(seconds)
+        return amount % 60 == 0 ? "\(sign)\(amount / 60)m" : "\(sign)\(amount)s"
+    }
+
+    /// "Add 30 Seconds", "Subtract 5 Minutes": labels for the menu bar and right-click menus.
+    static func editTitle(_ seconds: Int) -> String {
+        let verb = seconds > 0 ? "Add" : "Subtract"
+        let amount = abs(seconds)
+        let unit = amount % 60 == 0
+            ? (amount == 60 ? "1 Minute" : "\(amount / 60) Minutes")
+            : "\(amount) Seconds"
+        return "\(verb) \(unit)"
+    }
+
+    /// Whether adding `seconds` (negative to subtract) would leave time on the clock.
+    func canAdjust(bySeconds seconds: Int) -> Bool {
         guard let remaining else { return false }
-        return remaining + TimeInterval(minutes * 60) > 0
+        return remaining + TimeInterval(seconds) > 0
     }
 
     /// Adds or subtracts time from the current countdown, keeping it running or paused.
-    func adjust(byMinutes minutes: Int) {
-        guard canAdjust(byMinutes: minutes) else { return }
-        let delta = TimeInterval(minutes * 60)
+    func adjust(bySeconds seconds: Int) {
+        guard canAdjust(bySeconds: seconds) else { return }
+        let delta = TimeInterval(seconds)
         switch state {
         case .running(let end): schedule(end: end.addingTimeInterval(delta))
         case .paused(let remaining): setState(.paused(remaining: remaining + delta))

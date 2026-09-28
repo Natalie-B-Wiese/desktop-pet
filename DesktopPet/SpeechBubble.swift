@@ -326,10 +326,10 @@ struct BubbleView: View {
                     .opacity(timer.state == .finished ? 0.4 : 1)
 
                     HStack(spacing: 4) {
-                        ForEach(TimerDraft.steps, id: \.self) { step in
-                            let allowed = timer.canAdjust(byMinutes: step)
-                            BubbleButton(TimerDraft.stepTitle(step), centered: true) {
-                                timer.adjust(byMinutes: step)
+                        ForEach(PetTimer.editSteps, id: \.self) { step in
+                            let allowed = timer.canAdjust(bySeconds: step)
+                            BubbleButton(PetTimer.shortEditTitle(step), centered: true) {
+                                timer.adjust(bySeconds: step)
                             }
                             .disabled(!allowed)
                             .opacity(allowed ? 1 : 0.35)
@@ -443,15 +443,16 @@ struct BubbleButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                if centered { Spacer(minLength: 0) }
                 if let systemImage {
                     Image(systemName: systemImage)
                         .frame(width: 16)
                 }
                 Text(title)
                     .monospacedDigit()
-                Spacer(minLength: 0)
+                    .lineLimit(1)
+                    .fixedSize()
             }
+            .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .padding(.horizontal, centered ? 4 : 10)
             .padding(.vertical, 6)

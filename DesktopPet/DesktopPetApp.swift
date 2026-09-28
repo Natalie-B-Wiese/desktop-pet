@@ -48,11 +48,11 @@ struct MenuContent: View {
             }
 
             Menu("Edit Timer") {
-                ForEach(AppController.editSteps, id: \.self) { step in
-                    Button(AppController.editTitle(step)) {
-                        controller.timer.adjust(byMinutes: step)
+                ForEach(AppController.editMenuSteps, id: \.self) { step in
+                    Button(PetTimer.editTitle(step)) {
+                        controller.timer.adjust(bySeconds: step)
                     }
-                    .disabled(!controller.timer.canAdjust(byMinutes: step))
+                    .disabled(!controller.timer.canAdjust(bySeconds: step))
                 }
             }
         }
