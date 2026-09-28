@@ -9,6 +9,10 @@ final class PetTimer {
         case running(end: Date)
         case paused(remaining: TimeInterval)
         case finished
+
+        var isPaused: Bool {
+            if case .paused = self { true } else { false }
+        }
     }
 
     private(set) var state: State = .idle

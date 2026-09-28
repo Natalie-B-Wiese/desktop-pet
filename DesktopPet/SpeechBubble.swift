@@ -12,7 +12,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, timer, editTimer }
+    enum Page { case main, startTimer, timerControls, editTimer }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -122,7 +122,7 @@ final class SpeechBubbleController {
         container.passesClicksToContent = menu.isOpen
 
         // Only the timer page has text fields, so only then does the bubble take the keyboard.
-        let wantsKeyboard = menu.page == .timer
+        let wantsKeyboard = menu.page == .startTimer
         if panel.acceptsKeyboard && !wantsKeyboard && panel.isKeyWindow {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -229,8 +229,10 @@ struct BubbleView: View {
     private var content: some View {
         switch menu.page {
         case .main: mainMenu
-        case .timer: timerMenu
-        case .editTimer: editTimerMenu
+        case .startTimer: timerMenu
+        // If the countdown ends while these pages are open, fall back to the main menu.
+        case .timerControls: if timer.hasCountdown { timerControlsMenu } else { mainMenu }
+        case .editTimer: if timer.hasCountdown { editTimerMenu } else { mainMenu }
         case nil: timerContent
         }
     }
@@ -270,34 +272,21 @@ struct BubbleView: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .padding(.bottom, 2)
 
-            // Hidden while a countdown exists, so it can't be overwritten by accident.
-            if !timer.hasCountdown {
-                BubbleButton("Start a timer", systemImage: "timer") { menu.page = .timer }
-            }
-
             switch timer.state {
-            case .running(let end):
-                TimelineView(.periodic(from: .now, by: 0.25)) { context in
+            case .idle:
+                BubbleButton("Start a timer", systemImage: "timer") { menu.page = .startTimer }
+            case .running, .paused:
+                // All the countdown's options live one page down, keeping this menu short.
+                // "Start a timer" is hidden meanwhile, so the countdown can't be overwritten by accident.
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
                     BubbleButton(
-                        "Pause timer (\(PetTimer.format(end.timeIntervalSince(context.date))))",
-                        systemImage: "pause.circle",
-                        action: actions.togglePause
-                    )
+                        "Timer (\(PetTimer.format(timer.remaining ?? 0)))",
+                        systemImage: timer.state.isPaused ? "pause.circle" : "timer"
+                    ) { menu.page = .timerControls }
                 }
-                BubbleButton("Edit timer", systemImage: "plusminus.circle") { menu.page = .editTimer }
-                BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
-            case .paused(let remaining):
-                BubbleButton(
-                    "Resume timer (\(PetTimer.format(remaining)))",
-                    systemImage: "play.circle",
-                    action: actions.togglePause
-                )
-                BubbleButton("Edit timer", systemImage: "plusminus.circle") { menu.page = .editTimer }
-                BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
             case .finished:
                 BubbleButton("Clear time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
-            case .idle:
-                EmptyView()
+                BubbleButton("Start a timer", systemImage: "timer") { menu.page = .startTimer }
             }
 
             BubbleButton("Customize", systemImage: "paintpalette", action: actions.customize)
@@ -307,39 +296,62 @@ struct BubbleView: View {
         .frame(width: 190)
     }
 
+    /// The remaining time in large type, with a pause symbol when paused. Redraws itself.
+    private var bigReadout: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            HStack(spacing: 5) {
+                if timer.state.isPaused {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 14, weight: .bold))
+                }
+                Text(PetTimer.format(timer.remaining ?? 0))
+                    .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
+            }
+        }
+    }
+
+    private var timerControlsMenu: some View {
+        VStack(spacing: 6) {
+            Text("Timer")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+            bigReadout
+                .padding(.bottom, 2)
+
+            if timer.state.isPaused {
+                BubbleButton("Resume", systemImage: "play.circle", action: actions.togglePause)
+            } else {
+                BubbleButton("Pause", systemImage: "pause.circle", action: actions.togglePause)
+            }
+            BubbleButton("Edit timer", systemImage: "plusminus.circle") { menu.page = .editTimer }
+            BubbleButton("Stop timer", systemImage: "stop.circle", action: actions.stopTimer)
+            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
+        }
+        .frame(width: 190)
+    }
+
     private var editTimerMenu: some View {
         VStack(spacing: 8) {
             Text("Edit timer")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
 
-            // Redraws every quarter second so the time and the greyed-out buttons stay current.
-            TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-                VStack(spacing: 8) {
-                    HStack(spacing: 5) {
-                        if case .paused = timer.state {
-                            Image(systemName: "pause.fill")
-                                .font(.system(size: 14, weight: .bold))
-                        }
-                        Text(PetTimer.format(timer.remaining ?? 0))
-                            .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
-                    }
-                    .opacity(timer.state == .finished ? 0.4 : 1)
+            bigReadout
 
-                    HStack(spacing: 4) {
-                        ForEach(PetTimer.editSteps, id: \.self) { step in
-                            let allowed = timer.canAdjust(bySeconds: step)
-                            BubbleButton(PetTimer.shortEditTitle(step), centered: true) {
-                                timer.adjust(bySeconds: step)
-                            }
-                            .disabled(!allowed)
-                            .opacity(allowed ? 1 : 0.35)
+            // Redraws every quarter second so the greyed-out buttons stay current.
+            TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                HStack(spacing: 4) {
+                    ForEach(PetTimer.editSteps, id: \.self) { step in
+                        let allowed = timer.canAdjust(bySeconds: step)
+                        BubbleButton(PetTimer.shortEditTitle(step), centered: true) {
+                            timer.adjust(bySeconds: step)
                         }
+                        .disabled(!allowed)
+                        .opacity(allowed ? 1 : 0.35)
                     }
                 }
             }
 
             BubbleButton("Done", systemImage: "checkmark") { menu.page = nil }
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
+            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .timerControls }
         }
         .frame(width: 190)
     }
