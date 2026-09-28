@@ -1,0 +1,27 @@
+# XcodeGen spec. Regenerate the Xcode project with: xcodegen generate
+name: DesktopPet
+options:
+  bundleIdPrefix: com.nataliewiese
+  deploymentTarget:
+    macOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: KX9UX7C7HK
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  DesktopPet:
+    type: application
+    platform: macOS
+    sources:
+      - DesktopPet
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nataliewiese.DesktopPet
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Desktop Pet
+        INFOPLIST_KEY_LSUIElement: YES # menu bar only, no Dock icon
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
+        ENABLE_HARDENED_RUNTIME: YES
