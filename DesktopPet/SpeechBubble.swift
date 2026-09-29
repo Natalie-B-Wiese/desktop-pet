@@ -16,7 +16,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, math }
+    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, math, clipboard }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -49,6 +49,7 @@ final class SpeechBubbleController {
     private let reminders: ReminderStore
     private let todos: TodoStore
     private let mathHistory = MathHistory()
+    private let clipboard: ClipboardHistory
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     private let container: BubbleContainer
@@ -61,10 +62,11 @@ final class SpeechBubbleController {
     private static let gap: CGFloat = 2
 
     init(
-        timer: PetTimer, reminders: ReminderStore, todos: TodoStore,
+        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, clipboard: ClipboardHistory,
         settings: PetSettings, pet: PetPanel, actions: BubbleActions
     ) {
         self.timer = timer
+        self.clipboard = clipboard
         self.reminders = reminders
         self.todos = todos
         self.pet = pet
@@ -83,7 +85,8 @@ final class SpeechBubbleController {
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, reminders: reminders, todos: todos, mathHistory: mathHistory, settings: settings,
+            timer: timer, reminders: reminders, todos: todos, mathHistory: mathHistory,
+            clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -238,6 +241,7 @@ struct BubbleView: View {
     let reminders: ReminderStore
     let todos: TodoStore
     let mathHistory: MathHistory
+    let clipboard: ClipboardHistory
     let settings: PetSettings
     let layout: BubbleLayout
     let menu: BubbleMenu
@@ -292,6 +296,9 @@ struct BubbleView: View {
                 onClose: { menu.page = nil }
             )
             .frame(width: 190)
+        case .clipboard:
+            BubbleClipboardPage(history: clipboard, onBack: { menu.page = .main })
+                .frame(width: 220)
         case .math:
             BubbleMathPage(history: mathHistory, onBack: { menu.page = .main }, onClose: { menu.page = nil })
                 .frame(width: 210)
@@ -426,6 +433,8 @@ struct BubbleView: View {
                 remainingTodos > 0 ? "To-dos (\(remainingTodos))" : "To-dos",
                 systemImage: "checklist"
             ) { menu.page = .todos }
+
+            BubbleButton("Clipboard", systemImage: "doc.on.clipboard") { menu.page = .clipboard }
 
             BubbleButton("Math", systemImage: "plus.forwardslash.minus") { menu.page = .math }
 
