@@ -19,7 +19,6 @@ final class AppController {
 
     @ObservationIgnored private var petPanel: PetPanel?
     @ObservationIgnored private var bubble: SpeechBubbleController?
-    @ObservationIgnored private var customizeWindow: NSWindow?
     @ObservationIgnored private var setTimerWindow: NSWindow?
     @ObservationIgnored private var remindersWindow: NSWindow?
 
@@ -50,7 +49,6 @@ final class AppController {
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
-            customize: { [weak self] in self?.showCustomizeWindow() },
             hide: { [weak self] in self?.setPetVisible(false) },
             openRemindersWindow: { [weak self] in self?.showRemindersWindow() },
             takeScreenshot: { [weak self] in self?.takeScreenshot() }
@@ -133,7 +131,7 @@ final class AppController {
         menu.addItem(ClosureMenuItem("Notes") { [weak self] in self?.showPage(.notes) })
         menu.addItem(ClosureMenuItem("Take Screenshot") { [weak self] in self?.takeScreenshot() })
         menu.addItem(ClosureMenuItem("Reminders…") { [weak self] in self?.showRemindersWindow() })
-        menu.addItem(ClosureMenuItem("Customize…") { [weak self] in self?.showCustomizeWindow() })
+        menu.addItem(ClosureMenuItem("Customize") { [weak self] in self?.showCustomize() })
         menu.addItem(ClosureMenuItem("Hide Pet") { [weak self] in self?.setPetVisible(false) })
         return menu
     }
@@ -308,19 +306,9 @@ final class AppController {
 
     // MARK: - Customize
 
-    func showCustomizeWindow() {
-        if customizeWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(
-                rootView: CustomizeView(settings: settings)
-            ))
-            window.title = "Customize Pet"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.center()
-            customizeWindow = window
-        }
-        NSApp.activate()
-        customizeWindow?.makeKeyAndOrderFront(nil)
+    /// Customize lives in the bubble: name, color swatches and size, with Topsy as the preview.
+    func showCustomize() {
+        showPage(.customize)
     }
 
     // MARK: - Launch at Login
@@ -341,7 +329,7 @@ final class AppController {
     // MARK: - Testing
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
-    /// `--customize`, `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
+    /// `--customize` opens that bubble page; `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|notes]` opens the cat's click menu (on that page);
@@ -352,7 +340,7 @@ final class AppController {
             args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
         }
 
-        if args.contains("--customize") { showCustomizeWindow() }
+        if args.contains("--customize") { showCustomize() }
         if args.contains("--set-timer") { showSetTimerWindow() }
         if args.contains("--reminders") { showRemindersWindow() }
         if let i = args.firstIndex(of: "--pomodoro"), i + 2 < args.count,

@@ -97,8 +97,8 @@ struct MenuContent: View {
             controller.showRemindersWindow()
         }
 
-        Button("Customize…") {
-            controller.showCustomizeWindow()
+        Button("Customize") {
+            controller.showCustomize()
         }
         .keyboardShortcut(",")
 

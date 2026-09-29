@@ -16,7 +16,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard }
+    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -36,7 +36,6 @@ struct BubbleActions {
     var stopTimer: () -> Void
     var togglePause: () -> Void
     var startNextPomodoroPeriod: () -> Void
-    var customize: () -> Void
     var hide: () -> Void
     var openRemindersWindow: () -> Void
     var takeScreenshot: () -> Void
@@ -82,7 +81,6 @@ final class SpeechBubbleController {
             stopTimer: { menu.page = nil; actions.stopTimer() },
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
-            customize: { menu.page = nil; actions.customize() },
             hide: { menu.page = nil; actions.hide() },
             openRemindersWindow: { menu.page = nil; actions.openRemindersWindow() },
             takeScreenshot: { menu.page = nil; actions.takeScreenshot() }
@@ -163,7 +161,7 @@ final class SpeechBubbleController {
         // Only pages with text fields may take the keyboard. The Start page grabs it right away
         // (you're about to type minutes); the Timer page only when you click its label box.
         let grabsKeyboard = menu.page == .startTimer || menu.page == .addReminder || menu.page == .math
-        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes].contains(menu.page)
+        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .customize].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -310,6 +308,7 @@ struct BubbleView: View {
         case .math, .todos: 210
         case .notes: 220
         case .clipboard: 250
+        case .customize: 262 // label + 7 swatches + "More…"
         }
     }
 
@@ -331,6 +330,7 @@ struct BubbleView: View {
         case .notes: "Notes"
         case .math: "Math"
         case .clipboard: "Clipboard"
+        case .customize: "Customize"
         }
     }
 
@@ -394,6 +394,8 @@ struct BubbleView: View {
         case .math:
             BubbleMathPage(history: mathHistory, onClose: { menu.page = nil })
                 .frame(width: 210)
+        case .customize:
+            BubbleCustomizePage(settings: settings)
         case .todos:
             BubbleTodoPage(store: todos, onClose: { menu.page = nil })
                 .frame(width: 210)
@@ -487,7 +489,7 @@ struct BubbleView: View {
                 MenuTile("Math", systemImage: "plus.forwardslash.minus") { menu.page = .math }
             }
             HStack(spacing: Self.tileSpacing) {
-                MenuTile("Customize", systemImage: "paintpalette", action: actions.customize)
+                MenuTile("Customize", systemImage: "paintpalette") { menu.page = .customize }
                 MenuTile("Hide", systemImage: "eye.slash", action: actions.hide)
             }
 
@@ -745,7 +747,7 @@ private struct BubbleTimerPage: View {
 }
 
 /// Two or more tabs styled like the bubble: the selected one is filled black.
-private struct BubbleTabs<Value: Hashable>: View {
+struct BubbleTabs<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [(Value, String)]
 
