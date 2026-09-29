@@ -4,7 +4,6 @@ import SwiftUI
 /// into the same box to edit. Return adds a line; the button (or ⌘Return) adds or saves.
 struct BubbleNotesPage: View {
     let store: NoteStore
-    var onBack: () -> Void
     var onClose: () -> Void
 
     @State private var draft = ""
@@ -23,9 +22,6 @@ struct BubbleNotesPage: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("Notes")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
 
             editor
 
@@ -59,7 +55,6 @@ struct BubbleNotesPage: View {
                 rows
             }
 
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
     }
 

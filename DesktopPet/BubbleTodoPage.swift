@@ -3,7 +3,6 @@ import SwiftUI
 /// The bubble's to-do list: add at the top, click a box to check an item off.
 struct BubbleTodoPage: View {
     let store: TodoStore
-    var onBack: () -> Void
     var onClose: () -> Void
 
     @State private var newText = ""
@@ -16,9 +15,6 @@ struct BubbleTodoPage: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("To-dos")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
 
             TextField("Add a to-do", text: Binding(
                 get: { newText },
@@ -50,7 +46,6 @@ struct BubbleTodoPage: View {
                 rows
             }
 
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
     }
 

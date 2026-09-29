@@ -4,16 +4,12 @@ import SwiftUI
 struct BubbleClipboardPage: View {
     let history: ClipboardHistory
     var onScreenshot: () -> Void
-    var onBack: () -> Void
 
     /// The slot that was just copied, to show "Copied!" on it for a moment.
     @State private var justCopied: ClipboardEntry.ID?
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("Clipboard")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
 
             if history.isAccessDenied {
                 note("Clipboard access is off. Turn it on in System Settings → Privacy & Security → Paste from Other Apps.")
@@ -55,7 +51,6 @@ struct BubbleClipboardPage: View {
                 BubbleButton("Clear all", systemImage: "trash", action: history.clear)
             }
 
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
     }
 

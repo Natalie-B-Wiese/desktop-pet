@@ -280,53 +280,123 @@ struct BubbleView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch menu.page {
+        if let page = menu.page.map(effectivePage) {
+            VStack(spacing: 6) {
+                header(for: page)
+                pageBody(page)
+            }
+            .frame(width: Self.width(of: page))
+        } else if let reminder = reminders.due.first {
+            // A due reminder takes priority; the timer shows again once it's closed.
+            BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1)
+        } else {
+            timerContent
+        }
+    }
+
+    /// The Timer page falls back to the main menu if there's no longer anything to show on it.
+    private func effectivePage(_ page: BubbleMenu.Page) -> BubbleMenu.Page {
+        if page == .timerControls, !timer.hasCountdown, !(timer.state == .finished && timer.pomodoro != nil) {
+            return .main
+        }
+        return page
+    }
+
+    private static func width(of page: BubbleMenu.Page) -> CGFloat {
+        switch page {
+        case .main: 3 * MenuTile.width + 2 * tileSpacing
+        case .startTimer: 228
+        case .timerControls, .reminders, .addReminder: 190
+        case .math, .todos: 210
+        case .notes: 220
+        case .clipboard: 250
+        }
+    }
+
+    private func title(for page: BubbleMenu.Page) -> String {
+        switch page {
+        case .main: settings.displayName.map { "What should \($0) do?" } ?? "What would you like to do?"
+        case .startTimer: "New timer"
+        case .timerControls:
+            if timer.state == .finished, let pomodoro = timer.pomodoro {
+                pomodoro.phase == .work ? "Break time!" : "Back to work!"
+            } else if timer.pomodoro != nil {
+                timer.displayLabel ?? "Pomodoro" // "Work" or "Break"
+            } else {
+                timer.kindTitle
+            }
+        case .reminders: "Reminders"
+        case .addReminder: "Remind me at…"
+        case .todos: "To-dos"
+        case .notes: "Notes"
+        case .math: "Math"
+        case .clipboard: "Clipboard"
+        }
+    }
+
+    /// Where ‹ goes; nil on the main menu.
+    private func backDestination(for page: BubbleMenu.Page) -> BubbleMenu.Page? {
+        switch page {
+        case .main: nil
+        case .addReminder: .reminders
+        default: .main
+        }
+    }
+
+    /// ‹ on the left (except on the main menu), the title, and ✕ on the right.
+    private func header(for page: BubbleMenu.Page) -> some View {
+        ZStack(alignment: .top) {
+            Text(title(for: page))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true) // long pet names wrap to a second line
+                .padding(.horizontal, 24) // clear of the ‹ and ✕
+                .padding(.top, 2)
+            HStack {
+                if let back = backDestination(for: page) {
+                    HeaderIconButton(systemImage: "chevron.left", help: "Back") { menu.page = back }
+                }
+                Spacer(minLength: 0)
+                HeaderIconButton(systemImage: "xmark", help: "Close") { menu.page = nil }
+            }
+        }
+        .padding(.bottom, 2)
+    }
+
+    @ViewBuilder
+    private func pageBody(_ page: BubbleMenu.Page) -> some View {
+        switch page {
         case .main: mainMenu
         case .startTimer: timerMenu
         // If the countdown ends while this page is open, fall back to the main menu.
         case .timerControls:
-            if timer.hasCountdown {
-                timerControlsMenu
-            } else if timer.state == .finished, timer.pomodoro != nil {
-                pomodoroBetweenPeriodsMenu
-            } else {
-                mainMenu
-            }
+            if timer.hasCountdown { timerControlsMenu } else { pomodoroBetweenPeriodsMenu }
         case .reminders:
             BubbleRemindersPage(
                 store: reminders,
                 onAdd: { menu.page = .addReminder },
-                onOpenWindow: actions.openRemindersWindow,
-                onBack: { menu.page = .main }
+                onOpenWindow: actions.openRemindersWindow
             )
             .frame(width: 190)
         case .addReminder:
             BubbleAddReminderPage(
                 store: reminders,
                 onAdded: { menu.page = .reminders },
-                onBack: { menu.page = .reminders },
                 onClose: { menu.page = nil }
             )
             .frame(width: 190)
         case .notes:
-            BubbleNotesPage(store: notes, onBack: { menu.page = .main }, onClose: { menu.page = nil })
+            BubbleNotesPage(store: notes, onClose: { menu.page = nil })
                 .frame(width: 220)
         case .clipboard:
-            BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot, onBack: { menu.page = .main })
+            BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot)
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
         case .math:
-            BubbleMathPage(history: mathHistory, onBack: { menu.page = .main }, onClose: { menu.page = nil })
+            BubbleMathPage(history: mathHistory, onClose: { menu.page = nil })
                 .frame(width: 210)
         case .todos:
-            BubbleTodoPage(store: todos, onBack: { menu.page = .main }, onClose: { menu.page = nil })
+            BubbleTodoPage(store: todos, onClose: { menu.page = nil })
                 .frame(width: 210)
-        case nil:
-            // A due reminder takes priority; the timer shows again once it's closed.
-            if let reminder = reminders.due.first {
-                BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1)
-            } else {
-                timerContent
-            }
         }
     }
 
@@ -405,12 +475,6 @@ struct BubbleView: View {
 
     private var mainMenu: some View {
         VStack(spacing: 6) {
-            Text(settings.displayName.map { "What should \($0) do?" } ?? "What would you like to do?")
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true) // long names wrap to a second line
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
-
             // Grouped rows: time things, tools, and the cat itself.
             HStack(spacing: Self.tileSpacing) {
                 timerTile
@@ -427,8 +491,6 @@ struct BubbleView: View {
                 MenuTile("Hide", systemImage: "eye.slash", action: actions.hide)
             }
 
-            BubbleButton("Never mind", systemImage: "xmark", style: .quiet) { menu.page = nil }
-                .padding(.top, 2)
         }
         .frame(width: 3 * MenuTile.width + 2 * Self.tileSpacing)
     }
@@ -485,30 +547,18 @@ struct BubbleView: View {
     private var pomodoroBetweenPeriodsMenu: some View {
         let onBreakNext = timer.pomodoro?.phase == .work
         return VStack(spacing: 6) {
-            Text(onBreakNext ? "Break time!" : "Back to work!")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
             BubbleButton(
                 onBreakNext ? "Start break" : "Start work session",
                 systemImage: "play.circle",
                 action: actions.startNextPomodoroPeriod
             )
             BubbleButton("Stop Pomodoro", systemImage: "stop.circle", action: actions.stopTimer)
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
         }
         .frame(width: 190)
     }
 
     private var timerControlsMenu: some View {
         VStack(spacing: 6) {
-            if let label = timer.displayLabel, timer.pomodoro != nil {
-                // Pomodoro: the period ("Work" or "Break") is the title; there's no label to edit.
-                Text(label)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-            } else {
-                Text(timer.kindTitle)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-            }
             bigReadout
 
             if !timer.isStopwatch { // a stopwatch just counts; there's nothing to add or subtract
@@ -549,7 +599,6 @@ struct BubbleView: View {
                 systemImage: "stop.circle",
                 action: actions.stopTimer
             )
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
         }
         .frame(width: 190)
     }
@@ -559,7 +608,6 @@ struct BubbleView: View {
             onStart: actions.startTimer,
             onStartPomodoro: actions.startPomodoro,
             onStartStopwatch: actions.startStopwatch,
-            onBack: { menu.page = .main },
             onClose: { menu.page = nil }
         )
         .frame(width: 228) // a little wider than other pages, to fit three tabs
@@ -573,7 +621,6 @@ private struct BubbleTimerPage: View {
     var onStart: (_ duration: TimeInterval, _ label: String?) -> Void
     var onStartPomodoro: (_ work: TimeInterval, _ rest: TimeInterval) -> Void
     var onStartStopwatch: (_ label: String?) -> Void
-    var onBack: () -> Void
     var onClose: () -> Void
 
     @AppStorage("startPage.mode") private var mode = Mode.timer
@@ -605,7 +652,6 @@ private struct BubbleTimerPage: View {
             BubbleButton("Start", systemImage: "play.fill", action: start)
                 .disabled(!canStart)
                 .opacity(canStart ? 1 : 0.4)
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
         .onAppear {
             // Wait a moment for the bubble to become the key window before focusing.
@@ -738,6 +784,32 @@ extension View {
             .padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: 7).fill(.white))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+    }
+}
+
+/// The small ‹ and ✕ in a page's header.
+private struct HeaderIconButton: View {
+    let systemImage: String
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .bold))
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HeaderIconButtonStyle())
+        .help(help)
+    }
+}
+
+private struct HeaderIconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.black)
+            .background(Circle().fill(configuration.isPressed ? Color.black.opacity(0.12) : .clear))
     }
 }
 

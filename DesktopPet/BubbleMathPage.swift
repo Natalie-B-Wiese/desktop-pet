@@ -34,7 +34,6 @@ final class MathHistory {
 /// The bubble's calculator: type an equation, press Return, see the answer.
 struct BubbleMathPage: View {
     let history: MathHistory
-    var onBack: () -> Void
     var onClose: () -> Void
 
     @State private var input = ""
@@ -43,9 +42,6 @@ struct BubbleMathPage: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("Math")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
 
             if history.entries.isEmpty {
                 Text("Try 2^(3+1) * 5")
@@ -91,7 +87,6 @@ struct BubbleMathPage: View {
                     .opacity(0.7)
             }
 
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
         .onAppear {
             // Wait a moment for the bubble to become the key window before focusing.

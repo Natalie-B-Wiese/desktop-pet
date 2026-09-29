@@ -5,7 +5,6 @@ struct BubbleRemindersPage: View {
     let store: ReminderStore
     var onAdd: () -> Void
     var onOpenWindow: () -> Void
-    var onBack: () -> Void
 
     /// More than this and the bubble gets too tall; the rest are in the Reminders window.
     private static let maxShown = 4
@@ -13,9 +12,6 @@ struct BubbleRemindersPage: View {
     var body: some View {
         let upcoming = store.upcoming
         VStack(spacing: 6) {
-            Text("Reminders")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .padding(.bottom, 2)
 
             if upcoming.isEmpty {
                 Text("No reminders yet")
@@ -35,7 +31,6 @@ struct BubbleRemindersPage: View {
 
             BubbleButton("Add reminder", systemImage: "plus", action: onAdd)
             BubbleButton("Open Reminders window", systemImage: "list.bullet", action: onOpenWindow)
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
     }
 
@@ -75,7 +70,6 @@ struct BubbleRemindersPage: View {
 struct BubbleAddReminderPage: View {
     let store: ReminderStore
     var onAdded: () -> Void
-    var onBack: () -> Void
     var onClose: () -> Void
 
     @State private var time = ReminderStore.defaultTime()
@@ -84,8 +78,6 @@ struct BubbleAddReminderPage: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text("Remind me at…")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
 
             VStack(spacing: 2) {
                 DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
@@ -106,7 +98,6 @@ struct BubbleAddReminderPage: View {
             .onSubmit(add) // Return adds it
 
             BubbleButton("Add", systemImage: "bell.badge", action: add)
-            BubbleButton("Back", systemImage: "chevron.left", style: .quiet, action: onBack)
         }
         .onAppear {
             // Wait a moment for the bubble to become the key window before focusing.
