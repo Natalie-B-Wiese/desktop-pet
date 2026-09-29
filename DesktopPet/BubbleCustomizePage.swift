@@ -139,6 +139,10 @@ struct BubbleCustomizePage: View {
                 }
             }
         }
+        // A light box sets the families apart from the shades below.
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.black.opacity(0.15), lineWidth: 1))
     }
 
     /// Shades of the chosen family.
