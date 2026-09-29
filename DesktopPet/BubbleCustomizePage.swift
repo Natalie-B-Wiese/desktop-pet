@@ -21,8 +21,8 @@ struct ColorFamily: Identifiable {
         ColorFamily(name: "Pink", shades: ["FFE0EC", "FBB6CF", "F48BB0", "E35D91", "B53D6D", "7A2447"]),
         // Most real cats and dogs are browns and neutrals, so they get families of their own.
         ColorFamily(name: "Brown", shades: ["F6E3C4", "E0C097", "C69A6B", "9E6E45", "7A4E2E", "4A2E1B"]),
-        // The "lilac" or "minky" coat: a warm gray with a hint of pink-brown.
-        ColorFamily(name: "Brown-gray", shades: ["EFE8E5", "D9CCC7", "BBAAA4", "9A8882", "776761", "524541"]),
+        // The "lilac" or "minky" coat: a soft, sandy warm gray.
+        ColorFamily(name: "Brown-gray", shades: ["EFEBE3", "DBD2C4", "BFB2A0", "9F917F", "7D6F60", "574C42"]),
         // The "blue" of Russian Blue, Chartreux and Korat cats.
         ColorFamily(name: "Blue-gray", shades: ["E3E8EE", "C3CCD6", "A0ACBA", "7E8C9C", "5C6878", "3A4452"]),
         ColorFamily(name: "Neutral", shades: ["FFFFFF", "D9D9D9", "ABABAB", "7A7A7A", "4A4A4A", "1E1E1E"]),
