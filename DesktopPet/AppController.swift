@@ -175,6 +175,7 @@ final class AppController {
         } else {
             bubble?.update()
         }
+        if timer.state == .finished { petPanel?.hop() } // time's up, or a Pomodoro period ended
     }
 
     func showSetTimerWindow() {
@@ -207,6 +208,8 @@ final class AppController {
 
     // MARK: - Reminders
 
+    @ObservationIgnored private var lastDueCount = 0
+
     private func remindersChanged() {
         // A due reminder needs the cat to be seen, so bring it back.
         if !reminders.due.isEmpty && !isPetVisible {
@@ -214,6 +217,9 @@ final class AppController {
         } else {
             bubble?.update()
         }
+        // Hop only when a new reminder arrives, not when one is closed or deleted.
+        if reminders.due.count > lastDueCount { petPanel?.hop() }
+        lastDueCount = reminders.due.count
     }
 
     func showRemindersWindow() {

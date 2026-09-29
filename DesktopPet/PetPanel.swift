@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 
 /// A borderless, transparent window that floats above other apps and holds the pet.
 final class PetPanel: NSPanel {
@@ -52,6 +53,41 @@ final class PetPanel: NSPanel {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    // MARK: - Hop
+
+    private var hopTimer: Timer?
+    private var hopBaseOrigin: NSPoint?
+
+    /// A couple of quick hops to get your attention, landing back where it started.
+    func hop(times: Int = 2) {
+        guard hopTimer == nil, isVisible else { return }
+        let base = frame.origin
+        hopBaseOrigin = base
+        let height = 3 * scale // about 3 pixels of the pixel art, at any size
+        let duration = 0.32 * Double(times)
+        let start = CACurrentMediaTime()
+
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let progress = min(1, (CACurrentMediaTime() - start) / duration)
+            // |sin| gives back-to-back arcs, one per hop.
+            let lift = height * abs(sin(.pi * Double(times) * progress))
+            setFrameOrigin(NSPoint(x: base.x, y: base.y + lift))
+            if progress >= 1 { stopHop() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        hopTimer = timer
+    }
+
+    /// Ends a hop early (e.g. you grabbed the cat), putting it back on the ground.
+    func stopHop() {
+        guard let timer = hopTimer else { return }
+        timer.invalidate()
+        hopTimer = nil
+        if let base = hopBaseOrigin { setFrameOrigin(base) }
+        hopBaseOrigin = nil
+    }
 
     func setImage(_ image: NSImage) {
         petView.image = image
@@ -121,6 +157,7 @@ final class PetView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
+        (window as? PetPanel)?.stopHop() // land first, so dragging starts from the ground
         mouseDownLocation = NSEvent.mouseLocation
         windowOriginAtMouseDown = window?.frame.origin
         isDragging = false
