@@ -70,6 +70,8 @@ struct BubbleMathPage: View {
                             input = input.replacingOccurrences(of: "=", with: "")
                             calculate()
                         }
+                    } else {
+                        error = nil // typing again hides the last error
                     }
                 }
             ))
@@ -81,7 +83,6 @@ struct BubbleMathPage: View {
                 .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
                 .focused($inputFocused)
                 .onSubmit(calculate) // Return shows the answer
-                .onChange(of: input) { error = nil }
                 .onExitCommand(perform: onClose) // Esc closes the menu
 
             if let error {
