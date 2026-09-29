@@ -62,12 +62,14 @@ struct BubbleMathPage: View {
             TextField("Type an equation", text: Binding(
                 get: { input },
                 set: { newValue in
-                    // Typing (or pasting) "=" works like pressing Return.
+                    input = newValue
+                    // Typing (or pasting) "=" works like pressing Return. Wait until the box has
+                    // finished handling the keystroke, or it would put the old text back.
                     if newValue.contains("=") {
-                        input = newValue.replacingOccurrences(of: "=", with: "")
-                        calculate()
-                    } else {
-                        input = newValue
+                        DispatchQueue.main.async {
+                            input = input.replacingOccurrences(of: "=", with: "")
+                            calculate()
+                        }
                     }
                 }
             ))
