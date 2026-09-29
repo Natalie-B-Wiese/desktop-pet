@@ -9,7 +9,7 @@ struct BubbleCustomizePage: View {
     @FocusState private var nameFocused: Bool
 
     /// Sizes offered as buttons: how many points each image pixel is drawn as.
-    private static let sizes: [(scale: Int, title: String)] = [(4, "S"), (6, "M"), (8, "L"), (10, "XL")]
+    private static let sizes: [(scale: Int, title: String)] = [(4, "S"), (5, "M"), (6, "L"), (8, "XL")]
 
     private static let bodySwatches = ["E8893A", "7A7574", "2B2B2B", "F2F0EB", "8B5A3C", "E9D2A6", "BA94E0"]
     private static let accentSwatches = ["F6E3C4", "FFFFFF", "D0D0D0", "F2B8C6", "D9B38C", "555555", "D6F4E4"]
