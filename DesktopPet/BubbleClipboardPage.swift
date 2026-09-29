@@ -69,6 +69,15 @@ struct BubbleClipboardPage: View {
             .buttonStyle(.plain)
             .help("Copy again")
 
+            CaretStepper(
+                canIncrement: history.canMove(entry.id, by: -1),
+                canDecrement: history.canMove(entry.id, by: 1),
+                increment: { history.move(entry.id, by: -1) },
+                decrement: { history.move(entry.id, by: 1) },
+                repeatsWhenHeld: false // one spot per click
+            )
+            .help("Move up or down")
+
             Button {
                 history.delete(entry.id)
             } label: {

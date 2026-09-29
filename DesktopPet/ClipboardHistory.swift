@@ -56,7 +56,7 @@ final class ClipboardHistory {
 
     // MARK: - Using entries
 
-    /// Puts an entry back on the clipboard (and moves it to the top), ready to paste.
+    /// Puts an entry back on the clipboard, ready to paste. It keeps its place in the list.
     func copyToClipboard(_ entry: ClipboardEntry) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -69,7 +69,18 @@ final class ClipboardHistory {
             pasteboard.writeObjects(urls as [NSURL])
         }
         lastChangeCount = pasteboard.changeCount // our own write isn't a new copy
-        moveToTop(entry.id)
+    }
+
+    func canMove(_ id: ClipboardEntry.ID, by offset: Int) -> Bool {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return false }
+        return entries.indices.contains(index + offset)
+    }
+
+    /// Moves an entry up (-1) or down (+1) in the list.
+    func move(_ id: ClipboardEntry.ID, by offset: Int) {
+        guard canMove(id, by: offset), let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries.swapAt(index, index + offset)
+        save()
     }
 
     func delete(_ id: ClipboardEntry.ID) {

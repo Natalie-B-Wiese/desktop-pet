@@ -298,7 +298,7 @@ struct BubbleView: View {
             .frame(width: 190)
         case .clipboard:
             BubbleClipboardPage(history: clipboard, onBack: { menu.page = .main })
-                .frame(width: 220)
+                .frame(width: 250) // room for the copy button and reorder arrows around the preview
         case .math:
             BubbleMathPage(history: mathHistory, onBack: { menu.page = .main }, onClose: { menu.page = nil })
                 .frame(width: 210)
@@ -761,18 +761,20 @@ private struct BubbleButtonStyle: ButtonStyle {
 }
 
 /// Up/down carets like a number input's.
-private struct CaretStepper: View {
+struct CaretStepper: View {
     var canIncrement: Bool
     var canDecrement: Bool
     var increment: () -> Void
     var decrement: () -> Void
+    /// Holding a caret keeps counting. Off for things like reordering, where one step per click is right.
+    var repeatsWhenHeld = true
 
     var body: some View {
         VStack(spacing: 2) {
             caret("chevron.up", enabled: canIncrement, action: increment)
             caret("chevron.down", enabled: canDecrement, action: decrement)
         }
-        .buttonRepeatBehavior(.enabled) // hold to keep counting
+        .buttonRepeatBehavior(repeatsWhenHeld ? .enabled : .disabled)
     }
 
     private func caret(_ systemImage: String, enabled: Bool, action: @escaping () -> Void) -> some View {
