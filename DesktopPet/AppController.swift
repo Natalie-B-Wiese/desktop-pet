@@ -51,7 +51,8 @@ final class AppController {
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
             customize: { [weak self] in self?.showCustomizeWindow() },
             hide: { [weak self] in self?.setPetVisible(false) },
-            openRemindersWindow: { [weak self] in self?.showRemindersWindow() }
+            openRemindersWindow: { [weak self] in self?.showRemindersWindow() },
+            takeScreenshot: { [weak self] in self?.takeScreenshot() }
         ))
         panel.onClick = { [weak bubble] in bubble?.toggleMenu() }
         self.bubble = bubble
@@ -128,6 +129,7 @@ final class AppController {
         }
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem("To-dos") { [weak self] in self?.showTodos() })
+        menu.addItem(ClosureMenuItem("Take Screenshot") { [weak self] in self?.takeScreenshot() })
         menu.addItem(ClosureMenuItem("Reminders…") { [weak self] in self?.showRemindersWindow() })
         menu.addItem(ClosureMenuItem("Customize…") { [weak self] in self?.showCustomizeWindow() })
         menu.addItem(ClosureMenuItem("Hide Pet") { [weak self] in self?.setPetVisible(false) })
@@ -198,6 +200,64 @@ final class AppController {
         }
         NSApp.activate()
         setTimerWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - Screenshots
+
+    @ObservationIgnored private var isTakingScreenshot = false
+
+    /// Lets you select part of the screen with the standard macOS crosshair (Space picks a window,
+    /// Esc cancels). The clipping goes on the clipboard, so clipboard history saves it as a slot.
+    func takeScreenshot() {
+        guard !isTakingScreenshot else { return }
+
+        // The crosshair only sees other apps' windows with Screen Recording permission.
+        guard CGPreflightScreenCaptureAccess() else {
+            CGRequestScreenCaptureAccess() // shows macOS's prompt, and lists the app in System Settings
+            clipboard.screenshotNeedsPermission = true
+            if !isPetVisible { setPetVisible(true) }
+            bubble?.open(.clipboard)
+            return
+        }
+        clipboard.screenshotNeedsPermission = false
+        isTakingScreenshot = true
+
+        // Get the cat and its bubble out of the way while you select.
+        bubble?.menu.page = nil
+        petPanel?.orderOut(nil)
+        bubble?.update()
+
+        let changeCountBefore = NSPasteboard.general.changeCount
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-i", "-c"] // interactive, copy to clipboard
+        process.terminationHandler = { [weak self] _ in
+            DispatchQueue.main.async { self?.screenshotFinished(changeCountBefore: changeCountBefore) }
+        }
+        // A moment for the cat to disappear before the crosshair appears.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            do {
+                try process.run()
+            } catch {
+                NSLog("Couldn't start screencapture: \(error)")
+                self?.screenshotFinished(changeCountBefore: changeCountBefore)
+            }
+        }
+    }
+
+    private func screenshotFinished(changeCountBefore: Int) {
+        isTakingScreenshot = false
+        if isPetVisible { petPanel?.orderFrontRegardless() }
+        bubble?.update()
+
+        // Cancelled with Esc: nothing new on the clipboard, so just come back.
+        guard NSPasteboard.general.changeCount != changeCountBefore else { return }
+        // Give clipboard history a moment to save it, then show it in the top slot.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+            guard let self else { return }
+            if !isPetVisible { setPetVisible(true) }
+            bubble?.open(.clipboard)
+        }
     }
 
     // MARK: - To-dos

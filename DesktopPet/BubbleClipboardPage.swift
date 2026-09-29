@@ -3,6 +3,7 @@ import SwiftUI
 /// The bubble's clipboard history: click a slot to copy it again, ready to paste.
 struct BubbleClipboardPage: View {
     let history: ClipboardHistory
+    var onScreenshot: () -> Void
     var onBack: () -> Void
 
     /// The slot that was just copied, to show "Copied!" on it for a moment.
@@ -41,6 +42,16 @@ struct BubbleClipboardPage: View {
                 ForEach(history.entries) { entry in
                     row(entry)
                 }
+            }
+
+            if !history.isAccessDenied {
+                if history.screenshotNeedsPermission {
+                    note("To take screenshots, turn on Desktop Pet in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app.")
+                }
+                BubbleButton("Take screenshot", systemImage: "camera.viewfinder", action: onScreenshot)
+                    .help("Select part of the screen; it's copied into the top slot")
+            }
+            if !history.entries.isEmpty {
                 BubbleButton("Clear all", systemImage: "trash", action: history.clear)
             }
 

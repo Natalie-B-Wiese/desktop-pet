@@ -81,6 +81,10 @@ struct MenuContent: View {
 
         Divider()
 
+        Button("Take Screenshot") {
+            controller.takeScreenshot()
+        }
+
         Button("To-dos") {
             controller.showTodos()
         }

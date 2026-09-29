@@ -103,6 +103,9 @@ final class ClipboardHistory {
         return image
     }
 
+    /// Set when a screenshot was attempted without Screen Recording permission, to show a note.
+    var screenshotNeedsPermission = false
+
     /// Whether macOS is blocking this app from reading the clipboard (the user chose Deny).
     var isAccessDenied: Bool {
         if #available(macOS 26.0, *) {

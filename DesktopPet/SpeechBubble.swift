@@ -39,6 +39,7 @@ struct BubbleActions {
     var customize: () -> Void
     var hide: () -> Void
     var openRemindersWindow: () -> Void
+    var takeScreenshot: () -> Void
 }
 
 /// A small floating window above the pet's head that shows the timer or the click menu.
@@ -81,7 +82,8 @@ final class SpeechBubbleController {
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
             customize: { menu.page = nil; actions.customize() },
             hide: { menu.page = nil; actions.hide() },
-            openRemindersWindow: { menu.page = nil; actions.openRemindersWindow() }
+            openRemindersWindow: { menu.page = nil; actions.openRemindersWindow() },
+            takeScreenshot: { menu.page = nil; actions.takeScreenshot() }
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
@@ -297,7 +299,7 @@ struct BubbleView: View {
             )
             .frame(width: 190)
         case .clipboard:
-            BubbleClipboardPage(history: clipboard, onBack: { menu.page = .main })
+            BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot, onBack: { menu.page = .main })
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
         case .math:
             BubbleMathPage(history: mathHistory, onBack: { menu.page = .main }, onClose: { menu.page = nil })
