@@ -404,58 +404,67 @@ struct BubbleView: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .padding(.bottom, 2)
 
-            switch timer.state {
-            case .idle:
-                BubbleButton("Start a timer", systemImage: "timer") { menu.page = .startTimer }
-            case .running, .paused:
-                // All the countdown's options live one page down, keeping this menu short.
-                // "Start a timer" is hidden meanwhile, so the countdown can't be overwritten by accident.
-                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-                    BubbleButton(
-                        "\(timer.isStopwatch ? "Stopwatch" : "Timer") (\(timer.formattedTime()))",
-                        systemImage: timer.state.isPaused ? "pause.circle" : timer.isStopwatch ? "stopwatch" : "timer"
-                    ) { menu.page = .timerControls }
-                }
-            case .finished:
-                if let pomodoro = timer.pomodoro {
-                    BubbleButton(
-                        pomodoro.phase == .work ? "Start break" : "Start work session",
-                        systemImage: "play.circle",
-                        action: actions.startNextPomodoroPeriod
-                    )
-                    BubbleButton("Stop Pomodoro", systemImage: "stop.circle", action: actions.stopTimer)
-                } else {
-                    BubbleButton("Clear time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
-                    BubbleButton("Start a timer", systemImage: "timer") { menu.page = .startTimer }
-                }
+            // Between Pomodoro periods, the next step gets full-width buttons of its own.
+            if timer.state == .finished, let pomodoro = timer.pomodoro {
+                BubbleButton(
+                    pomodoro.phase == .work ? "Start break" : "Start work session",
+                    systemImage: "play.circle",
+                    action: actions.startNextPomodoroPeriod
+                )
+                BubbleButton("Stop Pomodoro", systemImage: "stop.circle", action: actions.stopTimer)
+                    .padding(.bottom, 2)
             }
 
-            let upcomingCount = reminders.upcoming.count
-            BubbleButton(
-                upcomingCount > 0 ? "Reminders (\(upcomingCount))" : "Reminders",
-                systemImage: "bell"
-            ) { menu.page = .reminders }
+            // Grouped rows: time things, tools, and the cat itself.
+            HStack(spacing: Self.tileSpacing) {
+                timerTile
+                MenuTile("Reminders", systemImage: "bell", badge: reminders.upcoming.count) { menu.page = .reminders }
+                MenuTile("To-dos", systemImage: "checklist", badge: todos.remainingCount) { menu.page = .todos }
+            }
+            HStack(spacing: Self.tileSpacing) {
+                MenuTile("Notes", systemImage: "note.text", badge: notes.notes.count) { menu.page = .notes }
+                MenuTile("Clipboard", systemImage: "doc.on.clipboard") { menu.page = .clipboard }
+                MenuTile("Math", systemImage: "plus.forwardslash.minus") { menu.page = .math }
+            }
+            HStack(spacing: Self.tileSpacing) {
+                MenuTile("Customize", systemImage: "paintpalette", action: actions.customize)
+                MenuTile("Hide", systemImage: "eye.slash", action: actions.hide)
+            }
 
-            let remainingTodos = todos.remainingCount
-            BubbleButton(
-                remainingTodos > 0 ? "To-dos (\(remainingTodos))" : "To-dos",
-                systemImage: "checklist"
-            ) { menu.page = .todos }
-
-            BubbleButton(
-                notes.notes.isEmpty ? "Notes" : "Notes (\(notes.notes.count))",
-                systemImage: "note.text"
-            ) { menu.page = .notes }
-
-            BubbleButton("Clipboard", systemImage: "doc.on.clipboard") { menu.page = .clipboard }
-
-            BubbleButton("Math", systemImage: "plus.forwardslash.minus") { menu.page = .math }
-
-            BubbleButton("Customize", systemImage: "paintpalette", action: actions.customize)
-            BubbleButton("Hide", systemImage: "eye.slash", action: actions.hide)
             BubbleButton("Never mind", systemImage: "xmark", style: .quiet) { menu.page = nil }
+                .padding(.top, 2)
         }
-        .frame(width: 190)
+        .frame(width: 3 * MenuTile.width + 2 * Self.tileSpacing)
+    }
+
+    private static let tileSpacing: CGFloat = 6
+
+    /// The Timer tile follows the timer: "Timer" when idle, the live time while one runs,
+    /// and "Time's up" (tap to clear) after a regular timer ends.
+    @ViewBuilder
+    private var timerTile: some View {
+        switch timer.state {
+        case .idle:
+            MenuTile("Timer", systemImage: "timer") { menu.page = .startTimer }
+        case .running, .paused:
+            // "Start a timer" is out of reach meanwhile, so the countdown can't be overwritten by accident.
+            TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                MenuTile(
+                    timer.formattedTime(),
+                    systemImage: timer.state.isPaused ? "pause.circle" : timer.isStopwatch ? "stopwatch" : "timer",
+                    monospacedLabel: true
+                ) { menu.page = .timerControls }
+            }
+        case .finished:
+            if timer.pomodoro != nil {
+                // The Pomodoro buttons above handle this; the tile just shows where things stand.
+                MenuTile(timer.pomodoro?.phase == .work ? "Break" : "Work", systemImage: "timer") {
+                    actions.startNextPomodoroPeriod()
+                }
+            } else {
+                MenuTile("Time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
+            }
+        }
     }
 
     /// The remaining time in large type, with a pause symbol when paused. Redraws itself.
@@ -711,6 +720,71 @@ extension View {
             .padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: 7).fill(.white))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+    }
+}
+
+/// A square icon-and-label button for the main menu grid, with an optional count badge.
+struct MenuTile: View {
+    static let width: CGFloat = 62
+
+    let title: String
+    let systemImage: String
+    var badge = 0
+    var monospacedLabel = false
+    let action: () -> Void
+
+    init(
+        _ title: String,
+        systemImage: String,
+        badge: Int = 0,
+        monospacedLabel: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.badge = badge
+        self.monospacedLabel = monospacedLabel
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(height: 20)
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(width: Self.width, height: 54)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(TileButtonStyle())
+        .overlay(alignment: .topTrailing) {
+            if badge > 0 {
+                Text("\(badge)")
+                    .font(.system(size: 9, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .frame(minWidth: 16, minHeight: 16)
+                    .background(Capsule().fill(.black))
+                    .offset(x: 4, y: -4)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+private struct TileButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 9)
+        configuration.label
+            .foregroundStyle(.black)
+            .background(shape.fill(configuration.isPressed ? Color.black.opacity(0.12) : .white))
+            .overlay(shape.stroke(.black, lineWidth: 1.5))
     }
 }
 
