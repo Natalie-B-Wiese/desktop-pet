@@ -3,11 +3,36 @@ import AppKit
 /// Recolors the pixel-art pet by swapping its pure red, green and blue pixels.
 enum PetRenderer {
     private static let source: CGImage = {
-        guard let url = Bundle.main.url(forResource: "pet", withExtension: "png"),
+        let name = PetCharacter.current.imageName
+        guard let url = Bundle.main.url(forResource: name, withExtension: "png"),
               let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
-        else { fatalError("pet.png is missing from the app bundle") }
+        else { fatalError("\(name).png is missing from the app bundle") }
         return image
+    }()
+
+    /// Which of the three recolorable parts (red, green, blue) the image actually contains.
+    static let usedSlots: [Bool] = {
+        var used = [false, false, false]
+        let width = source.width, height = source.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        pixels.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return }
+            context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        for i in stride(from: 0, to: pixels.count, by: 4) where pixels[i + 3] == 255 {
+            switch (pixels[i], pixels[i + 1], pixels[i + 2]) {
+            case (200..., ..<56, ..<56): used[0] = true
+            case (..<56, 200..., ..<56): used[1] = true
+            case (..<56, ..<56, 200...): used[2] = true
+            default: break
+            }
+        }
+        return used
     }()
 
     static var pixelSize: CGSize {
