@@ -16,7 +16,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, math, clipboard }
+    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -51,6 +51,7 @@ final class SpeechBubbleController {
     private let todos: TodoStore
     private let mathHistory = MathHistory()
     private let clipboard: ClipboardHistory
+    private let notes: NoteStore
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     private let container: BubbleContainer
@@ -63,10 +64,11 @@ final class SpeechBubbleController {
     private static let gap: CGFloat = 2
 
     init(
-        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, clipboard: ClipboardHistory,
-        settings: PetSettings, pet: PetPanel, actions: BubbleActions
+        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, notes: NoteStore,
+        clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel, actions: BubbleActions
     ) {
         self.timer = timer
+        self.notes = notes
         self.clipboard = clipboard
         self.reminders = reminders
         self.todos = todos
@@ -88,7 +90,7 @@ final class SpeechBubbleController {
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
             timer: timer, reminders: reminders, todos: todos, mathHistory: mathHistory,
-            clipboard: clipboard, settings: settings,
+            notes: notes, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -161,7 +163,7 @@ final class SpeechBubbleController {
         // Only pages with text fields may take the keyboard. The Start page grabs it right away
         // (you're about to type minutes); the Timer page only when you click its label box.
         let grabsKeyboard = menu.page == .startTimer || menu.page == .addReminder || menu.page == .math
-        let allowsKeyboard = grabsKeyboard || menu.page == .timerControls || menu.page == .todos
+        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -243,6 +245,7 @@ struct BubbleView: View {
     let reminders: ReminderStore
     let todos: TodoStore
     let mathHistory: MathHistory
+    let notes: NoteStore
     let clipboard: ClipboardHistory
     let settings: PetSettings
     let layout: BubbleLayout
@@ -298,6 +301,9 @@ struct BubbleView: View {
                 onClose: { menu.page = nil }
             )
             .frame(width: 190)
+        case .notes:
+            BubbleNotesPage(store: notes, onBack: { menu.page = .main }, onClose: { menu.page = nil })
+                .frame(width: 220)
         case .clipboard:
             BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot, onBack: { menu.page = .main })
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
@@ -435,6 +441,11 @@ struct BubbleView: View {
                 remainingTodos > 0 ? "To-dos (\(remainingTodos))" : "To-dos",
                 systemImage: "checklist"
             ) { menu.page = .todos }
+
+            BubbleButton(
+                notes.notes.isEmpty ? "Notes" : "Notes (\(notes.notes.count))",
+                systemImage: "note.text"
+            ) { menu.page = .notes }
 
             BubbleButton("Clipboard", systemImage: "doc.on.clipboard") { menu.page = .clipboard }
 
