@@ -19,6 +19,10 @@ struct BubbleClipboardPage: View {
             } else if history.entries.isEmpty {
                 note("Copy something and it'll show up here.")
             } else {
+                Text("New copies appear at the top")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .opacity(0.5)
+                    .padding(.top, -4)
                 ForEach(history.entries) { entry in
                     row(entry)
                 }
