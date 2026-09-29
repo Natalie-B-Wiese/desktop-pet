@@ -275,7 +275,7 @@ final class AppController {
     /// `--customize`, `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
-    /// `--menu [start|controls|reminders|add-reminder|todos]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|todos|math]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
@@ -302,6 +302,7 @@ final class AppController {
             case "reminders": .reminders
             case "add-reminder": .addReminder
             case "todos": .todos
+            case "math": .math
             default: .main
             }
         }
