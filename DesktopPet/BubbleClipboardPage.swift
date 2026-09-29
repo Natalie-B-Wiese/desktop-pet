@@ -41,11 +41,20 @@ struct BubbleClipboardPage: View {
     private func row(_ entry: ClipboardEntry) -> some View {
         HStack(spacing: 6) {
             Button {
-                history.copyToClipboard(entry)
-                justCopied = entry.id
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    if justCopied == entry.id { justCopied = nil }
-                }
+                copy(entry)
+            } label: {
+                Image(systemName: justCopied == entry.id ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(.white))
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(.black, lineWidth: 1.2))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Copy")
+
+            Button {
+                copy(entry) // clicking the item itself copies too
             } label: {
                 HStack(spacing: 8) {
                     preview(entry)
@@ -72,10 +81,18 @@ struct BubbleClipboardPage: View {
             .buttonStyle(.plain)
             .help("Remove")
         }
-        .padding(.leading, 8)
+        .padding(.leading, 5)
         .padding(.trailing, 3)
         .padding(.vertical, 5)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    private func copy(_ entry: ClipboardEntry) {
+        history.copyToClipboard(entry)
+        justCopied = entry.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if justCopied == entry.id { justCopied = nil }
+        }
     }
 
     @ViewBuilder
