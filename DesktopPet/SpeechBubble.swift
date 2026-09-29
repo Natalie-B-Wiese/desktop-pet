@@ -284,7 +284,14 @@ struct BubbleView: View {
         case .main: mainMenu
         case .startTimer: timerMenu
         // If the countdown ends while this page is open, fall back to the main menu.
-        case .timerControls: if timer.hasCountdown { timerControlsMenu } else { mainMenu }
+        case .timerControls:
+            if timer.hasCountdown {
+                timerControlsMenu
+            } else if timer.state == .finished, timer.pomodoro != nil {
+                pomodoroBetweenPeriodsMenu
+            } else {
+                mainMenu
+            }
         case .reminders:
             BubbleRemindersPage(
                 store: reminders,
@@ -404,17 +411,6 @@ struct BubbleView: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .padding(.bottom, 2)
 
-            // Between Pomodoro periods, the next step gets full-width buttons of its own.
-            if timer.state == .finished, let pomodoro = timer.pomodoro {
-                BubbleButton(
-                    pomodoro.phase == .work ? "Start break" : "Start work session",
-                    systemImage: "play.circle",
-                    action: actions.startNextPomodoroPeriod
-                )
-                BubbleButton("Stop Pomodoro", systemImage: "stop.circle", action: actions.stopTimer)
-                    .padding(.bottom, 2)
-            }
-
             // Grouped rows: time things, tools, and the cat itself.
             HStack(spacing: Self.tileSpacing) {
                 timerTile
@@ -456,13 +452,17 @@ struct BubbleView: View {
                 ) { menu.page = .timerControls }
             }
         case .finished:
-            if timer.pomodoro != nil {
-                // The Pomodoro buttons above handle this; the tile just shows where things stand.
-                MenuTile(timer.pomodoro?.phase == .work ? "Break" : "Work", systemImage: "timer") {
-                    actions.startNextPomodoroPeriod()
+            if let pomodoro = timer.pomodoro {
+                // Between periods: the Timer page offers the next period or stopping.
+                MenuTile(pomodoro.phase == .work ? "Break" : "Work", systemImage: "play.circle") {
+                    menu.page = .timerControls
                 }
             } else {
-                MenuTile("Time's up", systemImage: "checkmark.circle", action: actions.stopTimer)
+                // Clear the finished timer and go straight to setting up a new one.
+                MenuTile("Time's up", systemImage: "checkmark.circle") {
+                    timer.stop()
+                    menu.page = .startTimer
+                }
             }
         }
     }
@@ -479,6 +479,24 @@ struct BubbleView: View {
                     .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
             }
         }
+    }
+
+    /// The Timer page between Pomodoro periods: start the next one, or stop.
+    private var pomodoroBetweenPeriodsMenu: some View {
+        let onBreakNext = timer.pomodoro?.phase == .work
+        return VStack(spacing: 6) {
+            Text(onBreakNext ? "Break time!" : "Back to work!")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .padding(.bottom, 2)
+            BubbleButton(
+                onBreakNext ? "Start break" : "Start work session",
+                systemImage: "play.circle",
+                action: actions.startNextPomodoroPeriod
+            )
+            BubbleButton("Stop Pomodoro", systemImage: "stop.circle", action: actions.stopTimer)
+            BubbleButton("Back", systemImage: "chevron.left", style: .quiet) { menu.page = .main }
+        }
+        .frame(width: 190)
     }
 
     private var timerControlsMenu: some View {
