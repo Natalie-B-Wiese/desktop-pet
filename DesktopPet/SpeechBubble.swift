@@ -768,6 +768,8 @@ struct CaretStepper: View {
     var decrement: () -> Void
     /// Holding a caret keeps counting. Off for things like reordering, where one step per click is right.
     var repeatsWhenHeld = true
+    /// Boxed carets (like a number input's), or bare narrow arrows.
+    var outlined = true
 
     var body: some View {
         VStack(spacing: 2) {
@@ -780,23 +782,25 @@ struct CaretStepper: View {
     private func caret(_ systemImage: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 8, weight: .heavy))
-                .frame(width: 20, height: 13)
+                .font(.system(size: outlined ? 8 : 10, weight: .heavy))
+                .frame(width: outlined ? 20 : 12, height: outlined ? 13 : 16)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(CaretButtonStyle())
+        .buttonStyle(CaretButtonStyle(outlined: outlined))
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.35)
     }
 }
 
 private struct CaretButtonStyle: ButtonStyle {
+    var outlined: Bool
+
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: 4)
         configuration.label
             .foregroundStyle(.black)
-            .background(shape.fill(configuration.isPressed ? Color.black.opacity(0.12) : .white))
-            .overlay(shape.stroke(.black, lineWidth: 1.5))
+            .background(shape.fill(configuration.isPressed ? Color.black.opacity(0.12) : outlined ? .white : .clear))
+            .overlay(shape.stroke(outlined ? Color.black : .clear, lineWidth: 1.5))
     }
 }
 

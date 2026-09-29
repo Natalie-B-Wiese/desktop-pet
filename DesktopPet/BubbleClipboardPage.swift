@@ -39,17 +39,25 @@ struct BubbleClipboardPage: View {
     }
 
     private func row(_ entry: ClipboardEntry) -> some View {
-        HStack(spacing: 6) {
-            // Reorder arrows sit far left, away from the delete button on the right.
+        HStack(spacing: 3) {
+            // Reorder arrows sit outside the item on the far left, away from the delete button.
             CaretStepper(
                 canIncrement: history.canMove(entry.id, by: -1),
                 canDecrement: history.canMove(entry.id, by: 1),
                 increment: { history.move(entry.id, by: -1) },
                 decrement: { history.move(entry.id, by: 1) },
-                repeatsWhenHeld: false // one spot per click
+                repeatsWhenHeld: false, // one spot per click
+                outlined: false
             )
             .help("Move up or down")
 
+            itemBox(entry)
+        }
+    }
+
+    /// The outlined slot itself: copy button, preview, and delete.
+    private func itemBox(_ entry: ClipboardEntry) -> some View {
+        HStack(spacing: 6) {
             Button {
                 copy(entry)
             } label: {
