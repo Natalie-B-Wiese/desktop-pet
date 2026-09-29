@@ -78,13 +78,16 @@ struct BubbleCustomizePage: View {
             familyRow
             shadeRow
 
-            HStack(spacing: 6) {
+            // Same width as the color family box, edges lined up; "Size" sits in the margin to its left.
+            BubbleTabs(
+                selection: Binding(get: { settings.scale }, set: { settings.scale = $0 }),
+                options: Self.sizes.map { ($0.scale, $0.title) }
+            )
+            .frame(width: Self.familyBoxWidth)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .leading) {
                 Text("Size")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                BubbleTabs(
-                    selection: Binding(get: { settings.scale }, set: { settings.scale = $0 }),
-                    options: Self.sizes.map { ($0.scale, $0.title) }
-                )
             }
 
             BubbleButton("Reset colors", systemImage: "arrow.counterclockwise", style: .quiet, centered: true) {
@@ -121,17 +124,25 @@ struct BubbleCustomizePage: View {
         }
     }
 
+    private static let familiesPerRow = 6
+    private static let familyCircleSize: CGFloat = 20
+    private static let familySpacing: CGFloat = 6
+    private static let familyBoxPadding: CGFloat = 8
+    /// The color family box's full width, which the size buttons match.
+    private static let familyBoxWidth = CGFloat(familiesPerRow) * (familyCircleSize + 6)
+        + CGFloat(familiesPerRow - 1) * familySpacing + 2 * familyBoxPadding
+
     /// Two rows of six: bright colors on top, pet coat colors below.
     private var familyRow: some View {
-        let perRow = 6
+        let perRow = Self.familiesPerRow
         return VStack(spacing: 2) {
             ForEach(0..<(ColorFamily.all.count + perRow - 1) / perRow, id: \.self) { row in
-                HStack(spacing: 6) {
+                HStack(spacing: Self.familySpacing) {
                     ForEach(ColorFamily.all[(row * perRow)..<min((row + 1) * perRow, ColorFamily.all.count)]) { family in
                         Button {
                             selectedFamily = family.name
                         } label: {
-                            circle(family.representative, size: 20, selected: family.name == selectedFamily)
+                            circle(family.representative, size: Self.familyCircleSize, selected: family.name == selectedFamily)
                         }
                         .buttonStyle(.plain)
                         .help(family.name)
@@ -140,8 +151,9 @@ struct BubbleCustomizePage: View {
             }
         }
         // A light box sets the families apart from the shades below.
-        .padding(.horizontal, 8)
+        .padding(.horizontal, Self.familyBoxPadding)
         .padding(.vertical, 5)
+        .frame(width: Self.familyBoxWidth)
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.black.opacity(0.15), lineWidth: 1))
     }
 
