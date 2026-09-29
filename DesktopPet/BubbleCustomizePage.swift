@@ -46,7 +46,7 @@ struct BubbleCustomizePage: View {
     @State private var selectedFamily: String?
 
     /// Sizes offered as buttons: how many points each image pixel is drawn as.
-    private static let sizes: [(scale: Int, title: String)] = [(4, "S"), (5, "M"), (6, "L"), (8, "XL")]
+    private static let sizes: [(scale: Int, title: String)] = [(4, "S"), (5, "M"), (6, "L")]
     private static let slotKeyPaths: [WritableKeyPath<PetPalette, NSColor>] = [\.main, \.secondary, \.detail]
 
     private let character = PetCharacter.current
