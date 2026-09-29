@@ -14,11 +14,11 @@ struct ColorFamily: Identifiable {
         ColorFamily(name: "Red", shades: ["FFD6D6", "F7A1A1", "EF6B6B", "D93A3A", "A82424", "6E1515"]),
         ColorFamily(name: "Orange", shades: ["FFE3C7", "FFC08A", "F5A45F", "E8893A", "B8561A", "7A3810"]),
         ColorFamily(name: "Yellow", shades: ["FFF6C7", "FCE88A", "F5D547", "E0B623", "B08812", "735808"]),
+        ColorFamily(name: "Olive", shades: ["EEF0D2", "D6DC9E", "B8C26A", "98A33F", "6F7A2A", "474E1A"]),
         ColorFamily(name: "Green", shades: ["D9F2D0", "A8DE96", "72C45B", "4CAF50", "2F7A25", "1B4D16"]),
         ColorFamily(name: "Teal", shades: ["D0F2EE", "94DED5", "52C2B5", "23A094", "147369", "0B4A44"]),
         ColorFamily(name: "Blue", shades: ["D6E6FF", "A1C4F7", "6B9FEB", "3A7BD5", "2456A3", "14356B"]),
         ColorFamily(name: "Purple", shades: ["E8DDFA", "CBB5F2", "A98AE3", "8A63CF", "653FA6", "402470"]),
-        ColorFamily(name: "Pink", shades: ["FFE0EC", "FBB6CF", "F48BB0", "E35D91", "B53D6D", "7A2447"]),
         // Most real cats and dogs are browns and neutrals, so they get families of their own.
         ColorFamily(name: "Brown", shades: ["F6E3C4", "E0C097", "C69A6B", "9E6E45", "7A4E2E", "4A2E1B"]),
         // The "lilac" or "minky" coat: a soft, sandy warm gray.
