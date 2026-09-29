@@ -21,6 +21,8 @@ struct ColorFamily: Identifiable {
         ColorFamily(name: "Pink", shades: ["FFE0EC", "FBB6CF", "F48BB0", "E35D91", "B53D6D", "7A2447"]),
         // Most real cats and dogs are browns and neutrals, so they get families of their own.
         ColorFamily(name: "Brown", shades: ["F6E3C4", "E0C097", "C69A6B", "9E6E45", "7A4E2E", "4A2E1B"]),
+        // The "blue" of Russian Blue, Chartreux and Korat cats.
+        ColorFamily(name: "Blue-gray", shades: ["E3E8EE", "C3CCD6", "A0ACBA", "7E8C9C", "5C6878", "3A4452"]),
         ColorFamily(name: "Neutral", shades: ["FFFFFF", "D9D9D9", "ABABAB", "7A7A7A", "4A4A4A", "1E1E1E"]),
     ]
 
@@ -118,12 +120,12 @@ struct BubbleCustomizePage: View {
     }
 
     private var familyRow: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             ForEach(ColorFamily.all) { family in
                 Button {
                     selectedFamily = family.name
                 } label: {
-                    circle(family.representative, size: 18, selected: family.name == selectedFamily)
+                    circle(family.representative, size: 16, selected: family.name == selectedFamily)
                 }
                 .buttonStyle(.plain)
                 .help(family.name)
@@ -131,7 +133,7 @@ struct BubbleCustomizePage: View {
         }
     }
 
-    /// Shades of the chosen family, plus "More…" for an exact color.
+    /// Shades of the chosen family.
     private var shadeRow: some View {
         HStack(spacing: 6) {
             if let family = ColorFamily.all.first(where: { $0.name == selectedFamily }) {
@@ -150,25 +152,6 @@ struct BubbleCustomizePage: View {
                     .frame(height: 30)
             }
 
-            Button {
-                let slot = selectedSlot
-                ColorPanelBridge.shared.open(with: settings.palette[keyPath: Self.slotKeyPaths[slot]]) { color in
-                    settings.palette[keyPath: Self.slotKeyPaths[slot]] = color
-                }
-            } label: {
-                if ColorFamily.containing(currentHex) == nil {
-                    circle(currentHex, size: 24, selected: true) // a custom color from the picker
-                } else {
-                    Circle()
-                        .fill(AngularGradient(colors: [.red, .yellow, .green, .blue, .purple, .red], center: .center))
-                        .frame(width: 24, height: 24)
-                        .overlay(Circle().stroke(.black.opacity(0.3), lineWidth: 1))
-                        .padding(2)
-                        .frame(width: 30, height: 30)
-                }
-            }
-            .buttonStyle(.plain)
-            .help("More colors…")
         }
     }
 
@@ -181,27 +164,5 @@ struct BubbleCustomizePage: View {
             .overlay(Circle().stroke(.black, lineWidth: selected ? 2 : 0))
             .frame(width: size + 6, height: size + 6)
             .contentShape(Circle())
-    }
-}
-
-/// Opens the shared macOS color panel and reports picks back, for the "More…" swatch.
-final class ColorPanelBridge: NSObject {
-    static let shared = ColorPanelBridge()
-    private var onChange: ((NSColor) -> Void)?
-
-    func open(with color: NSColor, onChange: @escaping (NSColor) -> Void) {
-        let panel = NSColorPanel.shared
-        self.onChange = nil // don't echo the starting color back
-        panel.showsAlpha = false
-        panel.color = color
-        panel.setTarget(self)
-        panel.setAction(#selector(colorChanged(_:)))
-        self.onChange = onChange
-        NSApp.activate()
-        panel.orderFront(nil)
-    }
-
-    @objc private func colorChanged(_ panel: NSColorPanel) {
-        onChange?(panel.color.usingColorSpace(.sRGB) ?? panel.color)
     }
 }
