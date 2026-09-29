@@ -41,13 +41,6 @@ final class NoteStore {
         save()
     }
 
-    /// A note edited down to nothing is removed once you're done with it.
-    func removeIfEmpty(_ id: Note.ID) {
-        guard let note = notes.first(where: { $0.id == id }),
-              note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        delete(id)
-    }
-
     private func save() {
         if let data = try? JSONEncoder().encode(notes) {
             UserDefaults.standard.set(data, forKey: Self.storageKey)
