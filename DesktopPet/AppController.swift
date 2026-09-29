@@ -11,6 +11,7 @@ final class AppController {
     let settings = PetSettings()
     let timer = PetTimer()
     let reminders = ReminderStore()
+    let todos = TodoStore()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -37,7 +38,7 @@ final class AppController {
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
         let bubble = SpeechBubbleController(
-            timer: timer, reminders: reminders, settings: settings, pet: panel, actions: BubbleActions(
+            timer: timer, reminders: reminders, todos: todos, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -124,6 +125,7 @@ final class AppController {
             menu.addItem(ClosureMenuItem(timer.stopTitle) { [weak self] in self?.timer.stop() })
         }
         menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("To-dos") { [weak self] in self?.showTodos() })
         menu.addItem(ClosureMenuItem("Reminders…") { [weak self] in self?.showRemindersWindow() })
         menu.addItem(ClosureMenuItem("Customize…") { [weak self] in self?.showCustomizeWindow() })
         menu.addItem(ClosureMenuItem("Hide Pet") { [weak self] in self?.setPetVisible(false) })
@@ -195,6 +197,14 @@ final class AppController {
         setTimerWindow?.makeKeyAndOrderFront(nil)
     }
 
+    // MARK: - To-dos
+
+    /// Shows the cat (if hidden) with its bubble open on the to-do list.
+    func showTodos() {
+        if !isPetVisible { setPetVisible(true) }
+        bubble?.open(.todos)
+    }
+
     // MARK: - Reminders
 
     private func remindersChanged() {
@@ -259,7 +269,7 @@ final class AppController {
     /// `--customize`, `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
-    /// `--menu [start|controls|reminders|add-reminder]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|todos]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
@@ -285,6 +295,7 @@ final class AppController {
             case "controls": .timerControls
             case "reminders": .reminders
             case "add-reminder": .addReminder
+            case "todos": .todos
             default: .main
             }
         }

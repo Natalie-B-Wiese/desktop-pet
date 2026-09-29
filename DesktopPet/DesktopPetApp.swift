@@ -81,6 +81,10 @@ struct MenuContent: View {
 
         Divider()
 
+        Button("To-dos") {
+            controller.showTodos()
+        }
+
         Button("Reminders…") {
             controller.showRemindersWindow()
         }

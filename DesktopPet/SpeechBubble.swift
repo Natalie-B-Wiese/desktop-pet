@@ -16,7 +16,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls, reminders, addReminder }
+    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -47,6 +47,7 @@ final class SpeechBubbleController {
 
     private let timer: PetTimer
     private let reminders: ReminderStore
+    private let todos: TodoStore
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     private let container: BubbleContainer
@@ -58,9 +59,13 @@ final class SpeechBubbleController {
     /// Space between the pet's head and the tip of the bubble's tail.
     private static let gap: CGFloat = 2
 
-    init(timer: PetTimer, reminders: ReminderStore, settings: PetSettings, pet: PetPanel, actions: BubbleActions) {
+    init(
+        timer: PetTimer, reminders: ReminderStore, todos: TodoStore,
+        settings: PetSettings, pet: PetPanel, actions: BubbleActions
+    ) {
         self.timer = timer
         self.reminders = reminders
+        self.todos = todos
         self.pet = pet
 
         let menu = self.menu
@@ -77,7 +82,7 @@ final class SpeechBubbleController {
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, reminders: reminders, settings: settings,
+            timer: timer, reminders: reminders, todos: todos, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -131,6 +136,11 @@ final class SpeechBubbleController {
         menu.page = menu.isOpen ? nil : .main
     }
 
+    /// Opens the menu straight to `page` (e.g. To-dos from the menu bar).
+    func open(_ page: BubbleMenu.Page) {
+        menu.page = page
+    }
+
     /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
         guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty else {
@@ -145,7 +155,7 @@ final class SpeechBubbleController {
         // Only pages with text fields may take the keyboard. The Start page grabs it right away
         // (you're about to type minutes); the Timer page only when you click its label box.
         let grabsKeyboard = menu.page == .startTimer || menu.page == .addReminder
-        let allowsKeyboard = grabsKeyboard || menu.page == .timerControls
+        let allowsKeyboard = grabsKeyboard || menu.page == .timerControls || menu.page == .todos
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -225,6 +235,7 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 struct BubbleView: View {
     let timer: PetTimer
     let reminders: ReminderStore
+    let todos: TodoStore
     let settings: PetSettings
     let layout: BubbleLayout
     let menu: BubbleMenu
@@ -279,6 +290,9 @@ struct BubbleView: View {
                 onClose: { menu.page = nil }
             )
             .frame(width: 190)
+        case .todos:
+            BubbleTodoPage(store: todos, onBack: { menu.page = .main }, onClose: { menu.page = nil })
+                .frame(width: 210)
         case nil:
             // A due reminder takes priority; the timer shows again once it's closed.
             if let reminder = reminders.due.first {
@@ -401,6 +415,12 @@ struct BubbleView: View {
                 upcomingCount > 0 ? "Reminders (\(upcomingCount))" : "Reminders",
                 systemImage: "bell"
             ) { menu.page = .reminders }
+
+            let remainingTodos = todos.remainingCount
+            BubbleButton(
+                remainingTodos > 0 ? "To-dos (\(remainingTodos))" : "To-dos",
+                systemImage: "checklist"
+            ) { menu.page = .todos }
 
             BubbleButton("Customize", systemImage: "paintpalette", action: actions.customize)
             BubbleButton("Hide", systemImage: "eye.slash", action: actions.hide)
