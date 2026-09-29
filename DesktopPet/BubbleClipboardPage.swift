@@ -19,14 +19,17 @@ struct BubbleClipboardPage: View {
             } else if history.entries.isEmpty {
                 note("Copy something and it'll show up here.")
             } else {
+                let isFull = history.entries.count >= ClipboardHistory.limit
                 VStack(spacing: 1) {
                     Text("\(history.entries.count)/\(ClipboardHistory.limit) · New copies appear at the top")
-                    if history.entries.count >= ClipboardHistory.limit {
+                    if isFull {
                         Text("The next copy will remove the bottom item")
                     }
                 }
-                .font(.system(size: 10, weight: .medium, design: .rounded).monospacedDigit())
-                .opacity(0.5)
+                // Red and bold once full, so it's clear a copy will push something out.
+                .font(.system(size: 10, weight: isFull ? .bold : .medium, design: .rounded).monospacedDigit())
+                .foregroundStyle(isFull ? Color.red : .black)
+                .opacity(isFull ? 1 : 0.5)
                 .padding(.top, -4)
                 ForEach(history.entries) { entry in
                     row(entry)
