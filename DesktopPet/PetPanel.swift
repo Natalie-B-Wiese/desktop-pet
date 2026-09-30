@@ -108,9 +108,9 @@ final class PetPanel: NSPanel {
     }
 
     /// The top of the pet's head, in screen coordinates (where the speech bubble points).
-    /// Tied to the cat images: the head spans image columns 1–12 and its ear tips sit on row 1.
+    /// Tied to the cat images: the head spans image columns 1–12 and its ear tips sit on row 2.
     var headTop: NSPoint {
-        NSPoint(x: frame.minX + 6.5 * scale, y: frame.maxY - 1 * scale)
+        NSPoint(x: frame.minX + 6.5 * scale, y: frame.maxY - 2 * scale)
     }
 
     private static func size(forScale scale: CGFloat) -> NSSize {

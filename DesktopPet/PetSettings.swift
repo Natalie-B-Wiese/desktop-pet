@@ -47,8 +47,8 @@ final class PetSettings {
         "main": "E8893A",
         "secondary": "F6E3C4",
         "detail": "4CAF50",
-        "eye1": "4CAF50",
-        "eye2": "3A7BD5",
+        "eye1": "3A7BD5",
+        "eye2": "4CAF50",
     ]
 
     /// How many points each image pixel is drawn as. Whole numbers keep the pixel art crisp.

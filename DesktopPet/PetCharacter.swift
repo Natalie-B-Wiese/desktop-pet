@@ -15,6 +15,8 @@ struct PetCharacter: Identifiable, Equatable {
     /// Where each part's color is saved. Characters that share a part (like Body) share its color,
     /// so switching between them keeps the colors you picked.
     let partKeys: [String]
+    /// The order Customize shows the parts in, as slots (0 red, 1 green, 2 blue).
+    var partOrder = [0, 1, 2]
 
     private static let catParts = ["Body", "Accents", "Eyes"]
     private static let catKeys = ["main", "secondary", "detail"]
@@ -23,10 +25,11 @@ struct PetCharacter: Identifiable, Equatable {
     static let calico = PetCharacter(id: "calico", imageName: "cat calico", partNames: catParts, partKeys: catKeys)
     static let colorpoint = PetCharacter(id: "colorpoint", imageName: "cat colorpoint", partNames: catParts, partKeys: catKeys)
     static let tortie = PetCharacter(id: "tortie", imageName: "cat tortie", partNames: catParts, partKeys: catKeys)
-    /// An odd-eyed van: each eye gets its own color.
+    /// An odd-eyed van: each eye gets its own color. The blue eye is on the left of the image,
+    /// so it's Eye1 and is listed before the green one, matching the eyes' positions.
     static let van = PetCharacter(
         id: "van", imageName: "cat van",
-        partNames: ["Body", "Eye1", "Eye2"], partKeys: ["main", "eye1", "eye2"]
+        partNames: ["Body", "Eye2", "Eye1"], partKeys: ["main", "eye2", "eye1"], partOrder: [0, 2, 1]
     )
 
     /// In the order Customize's arrows cycle through them.

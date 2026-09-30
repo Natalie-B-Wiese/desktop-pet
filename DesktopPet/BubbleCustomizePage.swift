@@ -52,13 +52,13 @@ struct BubbleCustomizePage: View {
     private var character: PetCharacter { settings.character }
     private var slots: [Int] {
         let used = PetRenderer.usedSlots(for: character)
-        return (0..<3).filter { used[$0] }
+        return character.partOrder.filter { used[$0] }
     }
 
     init(settings: PetSettings) {
         self.settings = settings
         let used = PetRenderer.usedSlots(for: settings.character)
-        let first = (0..<3).first { used[$0] } ?? 0
+        let first = settings.character.partOrder.first { used[$0] } ?? 0
         _selectedSlot = State(initialValue: first)
         _selectedFamily = State(initialValue: ColorFamily.containing(
             settings.palette[keyPath: Self.slotKeyPaths[first]].hexString
@@ -79,6 +79,7 @@ struct BubbleCustomizePage: View {
             .focused($nameFocused)
 
             characterPicker
+            slotPicker
             familyRow
             shadeRow
 
@@ -111,19 +112,26 @@ struct BubbleCustomizePage: View {
         }
     }
 
-    /// Arrows either side of the parts flip through the cat patterns, wrapping around at the ends.
+    /// A boxed row of pickers, as wide as the color family box. For now it only has the pattern
+    /// stepper ("‹ 3/5 ›"); a species stepper will sit to its left once there are dogs.
     private var characterPicker: some View {
-        HStack(spacing: 4) {
+        let all = PetCharacter.all
+        let position = (all.firstIndex(of: character) ?? 0) + 1
+        return HStack(spacing: 2) {
             HeaderIconButton(systemImage: "chevron.left", help: "Previous pattern") {
                 settings.cycleCharacter(by: -1)
             }
-            slotPicker
-                .frame(maxWidth: .infinity)
+            Text("\(position)/\(all.count)")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .frame(minWidth: 30)
             HeaderIconButton(systemImage: "chevron.right", help: "Next pattern") {
                 settings.cycleCharacter(by: 1)
             }
         }
+        .padding(.vertical, 3)
         .frame(width: Self.familyBoxWidth)
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.black.opacity(0.15), lineWidth: 1))
     }
 
     /// The character's parts, each showing its current color. The selected one gets a ring.
