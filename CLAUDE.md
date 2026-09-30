@@ -90,6 +90,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - A blank "New note" sits at the top. Typing on it makes it a real note (it keeps the blank's ID so the same TextEditor stays focused) and a fresh blank appears above.
   - Clicking a note edits it in place. Everything autosaves as it's typed, Return adds a line, and there's no cancel. Esc closes the menu.
   - When a note loses focus, it's trimmed, or deleted if empty (`NoteStore.tidy`).
+  - ⚠️ Each `NoteRow` binds its TextEditor to its own `@State` copy of the text and syncs it to the store with `onChange`. Binding a macOS TextEditor straight to the store makes the cursor jump to the end after every keystroke.
   - Each editor sizes itself with a hidden copy of its text. The list is always a `ScrollView` (capped at 260pt) so rows are never rebuilt mid-typing.
 - **Math:** operators `+ - * / ^` and parentheses. Typing `=` or pressing Return calculates. It keeps the last 5 results. The ~26 test cases in `MathEvaluator.swift` pass.
 - **Convert** (a tab on Math): categories Length, Weight, Temperature, Volume (US cups etc.) and Screen (px, pt = 4/3 px, rem = 16px).
