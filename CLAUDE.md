@@ -28,7 +28,7 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
 ## Verifying UI (important)
 The agent has no Screen Recording permission, so the app has test launch arguments. They're handled in `AppController.handleTestingArguments()`, which documents them.
 - `--snapshot /path/x.png` saves each visible app window as `x-<n>.png` after 1.5s. Read the PNG to check a layout. If it misses the bubble, just run it again (it's a timing issue).
-- `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|notes]` opens the bubble on that page. `--customize` opens the Customize page.
+- `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|colors|notes]` opens the bubble on that page. `--customize` opens the Customize page.
 - The following set up a timer state:
   - `--timer <sec>`, optionally with `--label <text>` and/or `--pause`
   - `--pomodoro <work> <break>`
@@ -37,11 +37,12 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.
 - **Snapshot every UI change** and check it before telling Natalie it's done.
 - **Protect her real data.** Before testing with fake data, back it up, and restore it afterwards (check with `cmp`). Her real data:
-  - UserDefaults for to-dos, notes, reminders, math history, `startPage.mode`, and pet settings
+  - UserDefaults for to-dos, notes, reminders, math history, picked colors (`colorPicks`), `startPage.mode`, and pet settings
+  - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
 - Her current settings: name "Topsy", scale 5 (M), and a grey body palette.
-- To snapshot another pattern, quit the app, back up with `defaults export`, `defaults write com.nataliewiese.DesktopPet character <id>`, run, then `defaults import` the backup.
+- To snapshot another pattern, quit the app, back up with `defaults export`, `defaults write com.nataliewiese.DesktopPet character <id>`, run, then restore the backup (see the warning above).
 
 ## Architecture (files in `DesktopPet/`)
 - `DesktopPetApp.swift`: `@main` app with the `MenuBarExtra` menu (Show/Hide, timers, Pomodoro, stopwatch, screenshot, pages, Launch at Login via `SMAppService`, Quit).
@@ -60,7 +61,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - `SpeechBubble.swift` (large): `SpeechBubbleController`, `BubbleView`, `BubbleMenu.Page`, and the shared components `BubbleButton`, `MenuTile`, `BubbleTabs`, `CaretStepper`, `HeaderIconButton`, `bubbleFieldStyle` and `BubbleShape`.
   - The bubble is a child window of the pet panel and resizes to fit its content with `.onGeometryChange`.
   - Each page has a fixed width in `width(of:)` and a header with a **‹ back** icon and an **✕ close** icon. Pages don't draw their own titles or Back buttons.
-  - Main menu: a 3×3 icon grid (Timer/Reminders/To-dos, Notes/Clipboard/Math, Customize/Hide).
+  - Main menu: rows of icon tiles, each row centered: Timer/Reminders/To-dos, Notes/Clipboard/Math, Colors, then Customize/Hide. Natalie is saving the bottom row for a future Settings tile, so new tools don't go there.
   - Keyboard: some pages take the keyboard as soon as they open (startTimer, addReminder, math). Others only take it when a field is clicked (timerControls, todos, notes, customize). The bubble gives keyboard focus back to the previous app when it closes.
   - When the menu is closed, clicking the bubble does one of these:
     - dismisses a due reminder
@@ -69,8 +70,9 @@ The agent has no Screen Recording permission, so the app has test launch argumen
     - otherwise, pauses or resumes the timer
 - One page file per tool:
   - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/pattern row, part circles, 12 color families × 6 shades each, and Reset colors.
+  - `BubbleColorsPage.swift`: a Pick a color button (macOS's `NSColorSampler` magnifier; the bubble hides while picking and then reopens), and the last 5 picked colors. Clicking one copies `#RRGGBB`.
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleMathPage.swift`, `BubbleClipboardPage.swift`.
-- Model files: `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
+- Model files: `ColorPicks.swift`, `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
 - `SetTimerView.swift` is the Custom… timer window. `RemindersView.swift` is the Reminders window.
 
 ## Features and their rules
