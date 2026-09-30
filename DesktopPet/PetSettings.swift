@@ -2,28 +2,54 @@ import AppKit
 import Observation
 
 /// The three replaceable colors in the pet image.
-/// Pure red, green and blue pixels in pet.png are swapped for these; everything else is left alone.
+/// Pure red, green and blue pixels in the image are swapped for these; everything else is left alone.
 struct PetPalette: Equatable {
     var main: NSColor      // pure red: body
-    var secondary: NSColor // pure green: inner ears, muzzle, paws, tail tip
-    var detail: NSColor    // pure blue: eyes
-
-    static let `default` = PetPalette(
-        main: NSColor(hex: "E8893A")!,
-        secondary: NSColor(hex: "F6E3C4")!,
-        detail: NSColor(hex: "4CAF50")!
-    )
+    var secondary: NSColor // pure green: inner ears, muzzle, paws, tail tip (the van's first eye)
+    var detail: NSColor    // pure blue: eyes (the van's second eye)
 }
 
 @Observable
 final class PetSettings {
-    var palette: PetPalette {
+    /// Which cat pattern is showing.
+    var character: PetCharacter {
         didSet {
-            guard palette != oldValue else { return }
-            save()
+            guard character != oldValue else { return }
+            defaults.set(character.id, forKey: "character")
             onChange?()
         }
     }
+
+    /// Every part's color, by `PetCharacter.partKeys`, so characters that share a part share its color.
+    private var colors: [String: NSColor]
+
+    /// The current character's three colors.
+    var palette: PetPalette {
+        get { palette(for: character.partKeys) }
+        set {
+            let old = palette
+            guard newValue != old else { return }
+            for (key, color) in zip(character.partKeys, [newValue.main, newValue.secondary, newValue.detail]) {
+                colors[key] = color
+                defaults.set(color.hexString, forKey: "color.\(key)")
+            }
+            onChange?()
+        }
+    }
+
+    /// Whether the current character's colors are all their defaults.
+    var isDefaultPalette: Bool {
+        palette == palette(for: character.partKeys, from: Self.defaultColors)
+    }
+
+    /// Default colors for each part key.
+    private static let defaultColors: [String: String] = [
+        "main": "E8893A",
+        "secondary": "F6E3C4",
+        "detail": "4CAF50",
+        "eye1": "4CAF50",
+        "eye2": "3A7BD5",
+    ]
 
     /// How many points each image pixel is drawn as. Whole numbers keep the pixel art crisp.
     /// Callers keep it within `scaleRange`; don't reassign it in `didSet` (with @Observable that recurses forever).
@@ -57,25 +83,40 @@ final class PetSettings {
     private let defaults = UserDefaults.standard
 
     init() {
-        let fallback = PetPalette.default
-        palette = PetPalette(
-            main: Self.load("color.main", defaults: .standard) ?? fallback.main,
-            secondary: Self.load("color.secondary", defaults: .standard) ?? fallback.secondary,
-            detail: Self.load("color.detail", defaults: .standard) ?? fallback.detail
-        )
-        let savedScale = UserDefaults.standard.integer(forKey: "scale") // 0 when never saved
+        let stored = UserDefaults.standard
+        character = PetCharacter.withID(stored.string(forKey: "character")) ?? .tuxedo
+        colors = Self.defaultColors.reduce(into: [:]) { result, entry in
+            result[entry.key] = Self.load("color.\(entry.key)", defaults: stored) ?? NSColor(hex: entry.value)!
+        }
+        let savedScale = stored.integer(forKey: "scale") // 0 when never saved
         scale = Self.scaleRange.contains(savedScale) ? savedScale : Self.defaultScale
-        name = UserDefaults.standard.string(forKey: "name") ?? ""
+        name = stored.string(forKey: "name") ?? ""
     }
 
+    /// Resets the current character's colors. Parts it shares with other characters reset for them too.
     func reset() {
-        palette = .default
+        palette = palette(for: character.partKeys, from: Self.defaultColors)
     }
 
-    private func save() {
-        defaults.set(palette.main.hexString, forKey: "color.main")
-        defaults.set(palette.secondary.hexString, forKey: "color.secondary")
-        defaults.set(palette.detail.hexString, forKey: "color.detail")
+    /// Switches to the next (+1) or previous (-1) character, wrapping around at either end.
+    func cycleCharacter(by step: Int) {
+        let all = PetCharacter.all
+        let index = all.firstIndex(of: character) ?? 0
+        character = all[((index + step) % all.count + all.count) % all.count]
+    }
+
+    private func palette(for keys: [String]) -> PetPalette {
+        let fallback = palette(for: keys, from: Self.defaultColors)
+        return PetPalette(
+            main: colors[keys[0]] ?? fallback.main,
+            secondary: colors[keys[1]] ?? fallback.secondary,
+            detail: colors[keys[2]] ?? fallback.detail
+        )
+    }
+
+    private func palette(for keys: [String], from hexes: [String: String]) -> PetPalette {
+        let color = { NSColor(hex: hexes[keys[$0]] ?? "") ?? .gray }
+        return PetPalette(main: color(0), secondary: color(1), detail: color(2))
     }
 
     private static func load(_ key: String, defaults: UserDefaults) -> NSColor? {

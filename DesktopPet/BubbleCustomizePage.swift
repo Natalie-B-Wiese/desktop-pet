@@ -49,12 +49,16 @@ struct BubbleCustomizePage: View {
     private static let sizes: [(scale: Int, title: String)] = [(4, "S"), (5, "M"), (6, "L")]
     private static let slotKeyPaths: [WritableKeyPath<PetPalette, NSColor>] = [\.main, \.secondary, \.detail]
 
-    private let character = PetCharacter.current
-    private let slots: [Int] = (0..<3).filter { PetRenderer.usedSlots[$0] }
+    private var character: PetCharacter { settings.character }
+    private var slots: [Int] {
+        let used = PetRenderer.usedSlots(for: character)
+        return (0..<3).filter { used[$0] }
+    }
 
     init(settings: PetSettings) {
         self.settings = settings
-        let first = (0..<3).first { PetRenderer.usedSlots[$0] } ?? 0
+        let used = PetRenderer.usedSlots(for: settings.character)
+        let first = (0..<3).first { used[$0] } ?? 0
         _selectedSlot = State(initialValue: first)
         _selectedFamily = State(initialValue: ColorFamily.containing(
             settings.palette[keyPath: Self.slotKeyPaths[first]].hexString
@@ -74,7 +78,7 @@ struct BubbleCustomizePage: View {
             .bubbleFieldStyle()
             .focused($nameFocused)
 
-            slotPicker
+            characterPicker
             familyRow
             shadeRow
 
@@ -94,12 +98,32 @@ struct BubbleCustomizePage: View {
                 settings.reset()
                 selectedFamily = ColorFamily.containing(currentHex)?.name
             }
-            .disabled(settings.palette == .default)
-            .opacity(settings.palette == .default ? 0.4 : 1)
+            .disabled(settings.isDefaultPalette)
+            .opacity(settings.isDefaultPalette ? 0.4 : 1)
         }
         .onAppear {
             DispatchQueue.main.async { nameFocused = false }
         }
+        .onChange(of: settings.character) {
+            // Keep the same part selected if the new pattern has it, and show its color's family.
+            if !slots.contains(selectedSlot) { selectedSlot = slots.first ?? 0 }
+            selectedFamily = ColorFamily.containing(currentHex)?.name
+        }
+    }
+
+    /// Arrows either side of the parts flip through the cat patterns, wrapping around at the ends.
+    private var characterPicker: some View {
+        HStack(spacing: 4) {
+            HeaderIconButton(systemImage: "chevron.left", help: "Previous pattern") {
+                settings.cycleCharacter(by: -1)
+            }
+            slotPicker
+                .frame(maxWidth: .infinity)
+            HeaderIconButton(systemImage: "chevron.right", help: "Next pattern") {
+                settings.cycleCharacter(by: 1)
+            }
+        }
+        .frame(width: Self.familyBoxWidth)
     }
 
     /// The character's parts, each showing its current color. The selected one gets a ring.

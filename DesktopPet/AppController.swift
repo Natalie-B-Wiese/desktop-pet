@@ -35,7 +35,7 @@ final class AppController {
     }
 
     func start() {
-        let panel = PetPanel(image: PetRenderer.render(settings.palette), scale: CGFloat(settings.scale))
+        let panel = PetPanel(image: PetRenderer.render(settings.character, settings.palette), scale: CGFloat(settings.scale))
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
         let bubble = SpeechBubbleController(
@@ -82,7 +82,7 @@ final class AppController {
     }
 
     private func refreshPetImage() {
-        petPanel?.setImage(PetRenderer.render(settings.palette))
+        petPanel?.setImage(PetRenderer.render(settings.character, settings.palette))
     }
 
     /// The cat's right-click menu.

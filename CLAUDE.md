@@ -41,6 +41,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
 - Her current settings: name "Topsy", scale 5 (M), and a grey body palette.
+- To snapshot another pattern, quit the app, back up with `defaults export`, `defaults write com.nataliewiese.DesktopPet character <id>`, run, then `defaults import` the backup.
 
 ## Architecture (files in `DesktopPet/`)
 - `DesktopPetApp.swift`: `@main` app with the `MenuBarExtra` menu (Show/Hide, timers, Pomodoro, stopwatch, screenshot, pages, Launch at Login via `SMAppService`, Quit).
@@ -50,9 +51,10 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - resizing anchored at the bottom center
   - the position saved as "PetWindow"
   - the `hop()` animation
-- `PetRenderer.swift`: recolors `pet.png`. Pure **red / green / blue** pixels are three recolorable parts (matched with some tolerance). **Black, white and every other color never change.** It draws nearest-neighbor so pixels stay crisp. `usedSlots` detects which parts an image uses.
-- `PetCharacter.swift`: image name plus part names (cat: Body / Accents / Eyes). Parts the image doesn't use are hidden in Customize. It's built so a **dog** can be added later, where blue may mean a different part.
-- `PetSettings.swift`: palette, scale (2…12; the UI offers S=4, M=5, L=6), and name (max 20 characters), saved to UserDefaults.
+- `PetRenderer.swift`: recolors the current character's PNG (cached per image). Pure **red / green / blue** pixels are three recolorable parts (matched with some tolerance). **Black, white and every other color never change.** It draws nearest-neighbor so pixels stay crisp. `usedSlots(for:)` detects which parts an image uses.
+- `PetCharacter.swift`: five cat patterns, in cycle order: tuxedo, calico, colorpoint, tortie, van (`Resources/cat <id>.png`, all 24×24). Each has part names (Body / Accents / Eyes; the van is Body / Eye1 / Eye2) and `partKeys`, where colors are saved as `color.<key>`. Patterns that share a key share its color, so switching keeps her colors. Parts the image doesn't use are hidden in Customize. A **dog** can be added the same way.
+  - The pattern names are deliberately never shown to the user. Customize has ‹ › arrows either side of the part circles that cycle through them, wrapping around.
+- `PetSettings.swift`: character (saved as `character`), per-part colors (`palette` is the current character's three), scale (2…12; the UI offers S=4, M=5, L=6), and name (max 20 characters), saved to UserDefaults.
   - ⚠️ Never reassign an `@Observable` property inside its own `didSet`. It recurses forever; this crashed the app once.
   - Clamp values in the callers instead.
 - `SpeechBubble.swift` (large): `SpeechBubbleController`, `BubbleView`, `BubbleMenu.Page`, and the shared components `BubbleButton`, `MenuTile`, `BubbleTabs`, `CaretStepper`, `HeaderIconButton`, `bubbleFieldStyle` and `BubbleShape`.
@@ -96,7 +98,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - A tall hat needs spare transparent rows above the cat, which also means moving the bubble up.
   - Each animal needs its own version of each accessory.
   - The agent offered to draw placeholder art, or Natalie may draw her own.
-- A dog character and a character picker.
+- A dog character (the cat patterns and their picker are built).
 - Sound or notification when a timer ends.
 - Countdown in the menu bar.
 - App icon and a real app name.

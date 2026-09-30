@@ -790,7 +790,7 @@ extension View {
 }
 
 /// The small ‹ and ✕ in a page's header.
-private struct HeaderIconButton: View {
+struct HeaderIconButton: View {
     let systemImage: String
     let help: String
     let action: () -> Void

@@ -2,17 +2,22 @@ import AppKit
 
 /// Recolors the pixel-art pet by swapping its pure red, green and blue pixels.
 enum PetRenderer {
-    private static let source: CGImage = {
-        let name = PetCharacter.current.imageName
+    private static var sources: [String: CGImage] = [:]
+
+    private static func source(for character: PetCharacter) -> CGImage {
+        if let image = sources[character.imageName] { return image }
+        let name = character.imageName
         guard let url = Bundle.main.url(forResource: name, withExtension: "png"),
               let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
         else { fatalError("\(name).png is missing from the app bundle") }
+        sources[name] = image
         return image
-    }()
+    }
 
-    /// Which of the three recolorable parts (red, green, blue) the image actually contains.
-    static let usedSlots: [Bool] = {
+    /// Which of the three recolorable parts (red, green, blue) the character's image actually contains.
+    static func usedSlots(for character: PetCharacter) -> [Bool] {
+        let source = source(for: character)
         var used = [false, false, false]
         let width = source.width, height = source.height
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -33,13 +38,16 @@ enum PetRenderer {
             }
         }
         return used
-    }()
-
-    static var pixelSize: CGSize {
-        CGSize(width: source.width, height: source.height)
     }
 
-    static func render(_ palette: PetPalette) -> NSImage {
+    /// Every character's image is the same size, so the first one stands for them all.
+    static var pixelSize: CGSize {
+        let source = source(for: PetCharacter.all[0])
+        return CGSize(width: source.width, height: source.height)
+    }
+
+    static func render(_ character: PetCharacter, _ palette: PetPalette) -> NSImage {
+        let source = source(for: character)
         let width = source.width
         let height = source.height
         let bytesPerRow = width * 4
