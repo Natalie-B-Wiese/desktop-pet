@@ -51,7 +51,8 @@ final class AppController {
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
             hide: { [weak self] in self?.setPetVisible(false) },
             openRemindersWindow: { [weak self] in self?.showRemindersWindow() },
-            takeScreenshot: { [weak self] in self?.takeScreenshot() }
+            takeScreenshot: { [weak self] in self?.takeScreenshot() },
+            pickColor: { [weak self] in self?.pickColor() }
         ))
         panel.onClick = { [weak bubble] in bubble?.toggleMenu() }
         self.bubble = bubble
@@ -260,6 +261,36 @@ final class AppController {
         }
     }
 
+    // MARK: - Color picker
+
+    @ObservationIgnored private var colorSampler: NSColorSampler?
+
+    /// Shows macOS's magnifier to pick a color from anywhere on screen (Esc cancels).
+    /// Its hex ("#E8893A") goes on the clipboard, so clipboard history saves it as a slot.
+    func pickColor() {
+        guard colorSampler == nil else { return }
+        // A moment for the bubble to close before the magnifier appears.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            let sampler = NSColorSampler()
+            colorSampler = sampler
+            sampler.show { [weak self] color in
+                guard let self else { return }
+                colorSampler = nil
+                guard let color else {
+                    showPage(.clipboard) // cancelled: just come back
+                    return
+                }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString("#\(color.hexString)", forType: .string)
+                // Give clipboard history a moment to save it, then show it in the top slot.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+                    self?.showPage(.clipboard)
+                }
+            }
+        }
+    }
+
     // MARK: - To-dos
 
     /// Shows the cat (if hidden) with its bubble open on the to-do list.
@@ -332,7 +363,7 @@ final class AppController {
     /// `--customize` opens that bubble page; `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
-    /// `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|colors|notes]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|notes]` opens the cat's click menu (on that page);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
@@ -361,7 +392,6 @@ final class AppController {
             case "todos": .todos
             case "math": .math
             case "clipboard": .clipboard
-            case "colors": .colors
             case "notes": .notes
             default: .main
             }

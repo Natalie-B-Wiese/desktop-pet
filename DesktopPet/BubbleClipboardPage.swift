@@ -1,9 +1,11 @@
+import AppKit
 import SwiftUI
 
 /// The bubble's clipboard history: click a slot to copy it again, ready to paste.
 struct BubbleClipboardPage: View {
     let history: ClipboardHistory
     var onScreenshot: () -> Void
+    var onPickColor: () -> Void
 
     /// The slot that was just copied, to show "Copied!" on it for a moment.
     @State private var justCopied: ClipboardEntry.ID?
@@ -46,6 +48,8 @@ struct BubbleClipboardPage: View {
                 }
                 BubbleButton("Take screenshot", systemImage: "camera.viewfinder", action: onScreenshot)
                     .help("Select part of the screen; it's copied into the top slot")
+                BubbleButton("Pick a color", systemImage: "eyedropper", action: onPickColor)
+                    .help("Click anywhere on screen; its hex code is copied into the top slot")
             }
             if !history.entries.isEmpty {
                 BubbleButton("Clear all", systemImage: "trash", action: history.clear)
@@ -141,6 +145,16 @@ struct BubbleClipboardPage: View {
     @ViewBuilder
     private func preview(_ entry: ClipboardEntry) -> some View {
         switch entry.kind {
+        case .text(let text) where Self.hexColor(in: text) != nil:
+            // A hex color, like "#E8893A", gets a swatch.
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color(nsColor: Self.hexColor(in: text)!))
+                    .frame(width: 22, height: 22)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.black.opacity(0.3), lineWidth: 1))
+                Text(text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            }
         case .text(let text):
             let flattened = Self.flatten(text)
             VStack(alignment: .leading, spacing: 1) {
@@ -194,6 +208,14 @@ struct BubbleClipboardPage: View {
         Text(text)
             .font(.system(size: 10, weight: .medium, design: .rounded))
             .opacity(0.5)
+    }
+
+    /// The color when the text is just a "#RRGGBB" hex code. The "#" is required,
+    /// so a plain six-digit number like 123456 isn't mistaken for a color.
+    private static func hexColor(in text: String) -> NSColor? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 7, trimmed.hasPrefix("#") else { return nil }
+        return NSColor(hex: trimmed)
     }
 
     /// Squeezes line breaks and runs of spaces so the two preview lines show real content.

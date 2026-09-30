@@ -16,7 +16,7 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, colors, customize }
+    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -39,6 +39,7 @@ struct BubbleActions {
     var hide: () -> Void
     var openRemindersWindow: () -> Void
     var takeScreenshot: () -> Void
+    var pickColor: () -> Void
 }
 
 /// A small floating window above the pet's head that shows the timer or the click menu.
@@ -49,7 +50,6 @@ final class SpeechBubbleController {
     private let reminders: ReminderStore
     private let todos: TodoStore
     private let mathHistory = MathHistory()
-    private let colorPicks = ColorPicks()
     private let clipboard: ClipboardHistory
     private let notes: NoteStore
     private let layout = BubbleLayout()
@@ -84,22 +84,14 @@ final class SpeechBubbleController {
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
             hide: { menu.page = nil; actions.hide() },
             openRemindersWindow: { menu.page = nil; actions.openRemindersWindow() },
-            takeScreenshot: { menu.page = nil; actions.takeScreenshot() }
+            takeScreenshot: { menu.page = nil; actions.takeScreenshot() },
+            pickColor: { menu.page = nil; actions.pickColor() }
         )
-
-        // The bubble gets out of the way while you pick, then comes back with the color at the top.
-        let colorPicks = self.colorPicks
-        let pickColor = {
-            menu.page = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                colorPicks.pickFromScreen { menu.page = .colors }
-            }
-        }
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
             timer: timer, reminders: reminders, todos: todos, mathHistory: mathHistory,
-            notes: notes, clipboard: clipboard, colorPicks: colorPicks, settings: settings,
-            layout: layout, menu: menu, actions: closingActions, pickColor: pickColor
+            notes: notes, clipboard: clipboard, settings: settings,
+            layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
         container.addSubview(hostingView)
@@ -255,12 +247,10 @@ struct BubbleView: View {
     let mathHistory: MathHistory
     let notes: NoteStore
     let clipboard: ClipboardHistory
-    let colorPicks: ColorPicks
     let settings: PetSettings
     let layout: BubbleLayout
     let menu: BubbleMenu
     let actions: BubbleActions
-    let pickColor: () -> Void
 
     private static let tailHeight: CGFloat = 8
 
@@ -320,7 +310,6 @@ struct BubbleView: View {
         case .math, .todos: 210
         case .notes: 220
         case .clipboard: 250
-        case .colors: 190
         case .customize: 272
         }
     }
@@ -343,7 +332,6 @@ struct BubbleView: View {
         case .notes: "Notes"
         case .math: "Math"
         case .clipboard: "Clipboard"
-        case .colors: "Colors"
         case .customize: "Customize"
         }
     }
@@ -403,14 +391,11 @@ struct BubbleView: View {
             BubbleNotesPage(store: notes, onClose: { menu.page = nil })
                 .frame(width: 220)
         case .clipboard:
-            BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot)
+            BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot, onPickColor: actions.pickColor)
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
         case .math:
             BubbleMathPage(history: mathHistory, onClose: { menu.page = nil })
                 .frame(width: 210)
-        case .colors:
-            BubbleColorsPage(picks: colorPicks, onPick: pickColor)
-                .frame(width: 190)
         case .customize:
             BubbleCustomizePage(settings: settings)
         case .todos:
@@ -494,7 +479,7 @@ struct BubbleView: View {
 
     private var mainMenu: some View {
         VStack(spacing: 6) {
-            // Grouped rows: time things, tools, more tools, and the pet itself.
+            // Grouped rows: time things, tools, and the pet itself.
             HStack(spacing: Self.tileSpacing) {
                 timerTile
                 MenuTile("Reminders", systemImage: "bell", badge: reminders.upcoming.count) { menu.page = .reminders }
@@ -504,9 +489,6 @@ struct BubbleView: View {
                 MenuTile("Notes", systemImage: "note.text", badge: notes.notes.count) { menu.page = .notes }
                 MenuTile("Clipboard", systemImage: "doc.on.clipboard") { menu.page = .clipboard }
                 MenuTile("Math", systemImage: "plus.forwardslash.minus") { menu.page = .math }
-            }
-            HStack(spacing: Self.tileSpacing) {
-                MenuTile("Colors", systemImage: "eyedropper") { menu.page = .colors }
             }
             HStack(spacing: Self.tileSpacing) {
                 MenuTile("Customize", systemImage: "paintpalette") { menu.page = .customize }
