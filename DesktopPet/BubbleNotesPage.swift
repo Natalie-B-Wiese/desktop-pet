@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The bubble's notes. A multi-line box at the top writes new notes; clicking a note loads it
-/// into the same box to edit. Return adds a line; the button (or ⌘Return) adds or saves.
+/// The bubble's notes. A box at the top grows as you type; Return saves the note and ⇧Return
+/// (or ⌥Return) starts a new line. Clicking a note loads it into the same box, where edits save
+/// as you type; Return, Esc or clicking away finishes.
 struct BubbleNotesPage: View {
     let store: NoteStore
     var onClose: () -> Void
@@ -14,7 +15,8 @@ struct BubbleNotesPage: View {
     /// Past this many notes the list scrolls instead of making the bubble taller.
     private static let maxVisibleNotes = 5
     private static let scrollHeight: CGFloat = 230
-    private static let editorHeight: CGFloat = 72 // about 4 lines
+    /// The box grows up to this many lines, then scrolls.
+    private static let maxEditorLines = 6
 
     private var isDraftEmpty: Bool {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -25,21 +27,8 @@ struct BubbleNotesPage: View {
 
             editor
 
-            if editingID == nil {
-                BubbleButton("Add note", systemImage: "plus", centered: true, action: submit)
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(isDraftEmpty)
-                    .opacity(isDraftEmpty ? 0.4 : 1)
-            } else {
-                HStack(spacing: 6) {
-                    BubbleButton("Cancel", style: .quiet, centered: true, action: stopEditing)
-                    BubbleButton("Save", systemImage: "checkmark", centered: true, action: submit)
-                        .keyboardShortcut(.return, modifiers: .command)
-                }
-            }
-
             if store.notes.isEmpty {
-                Text("Jot something down so you don't forget.")
+                Text("Jot something down so you don't forget.\nReturn saves, ⇧Return adds a line.")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .multilineTextAlignment(.center)
                     .opacity(0.55)
@@ -56,34 +45,34 @@ struct BubbleNotesPage: View {
             }
 
         }
+        .onDisappear(perform: finish) // closing the page keeps a half-written note
     }
 
     private var editor: some View {
-        TextEditor(text: Binding(
+        TextField(editingID == nil ? "Write a note" : "Edit note", text: Binding(
             get: { draft },
-            set: { draft = String($0.prefix(NoteStore.maxLength)) }
-        ))
-        .font(.system(size: 12, weight: .medium, design: .rounded))
-        .scrollContentBackground(.hidden)
-        .focused($editorFocused)
-        .padding(.horizontal, 3)
-        .padding(.vertical, 4)
-        .frame(height: Self.editorHeight)
-        .background(RoundedRectangle(cornerRadius: 7).fill(.white))
-        .overlay(alignment: .topLeading) {
-            // Placeholder where typing starts (TextEditor has none of its own).
-            if draft.isEmpty {
-                Text("Write a note")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .opacity(0.35)
-                    .padding(.leading, 8)
-                    .padding(.top, 4)
-                    .allowsHitTesting(false)
+            set: { text in
+                draft = String(text.prefix(NoteStore.maxLength))
+                if let id = editingID, !isDraftEmpty { store.update(id, text: draft) }
             }
+        ), axis: .vertical)
+        .lineLimit(1...Self.maxEditorLines)
+        .bubbleFieldStyle()
+        .focused($editorFocused)
+        .onSubmit {
+            // ⇧Return adds a line where the cursor is (⌥Return already does); Return saves.
+            if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
+                NSApp.sendAction(#selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: nil)
+            } else {
+                finish()
+            }
+            editorFocused = true
         }
-        .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+        .onChange(of: editorFocused) { _, focused in
+            if !focused && editingID != nil { finish() } // clicking away finishes an edit
+        }
         .onExitCommand { // Esc: stop editing, or close the menu if not editing
-            if editingID != nil { stopEditing() } else { onClose() }
+            if editingID != nil { finish() } else { onClose() }
         }
     }
 
@@ -112,7 +101,7 @@ struct BubbleNotesPage: View {
             .help("Edit note")
 
             Button {
-                if isEditing { stopEditing() }
+                if isEditing { editingID = nil; draft = "" }
                 store.delete(note.id)
             } label: {
                 Image(systemName: "xmark")
@@ -135,30 +124,24 @@ struct BubbleNotesPage: View {
     }
 
     private func startEditing(_ note: Note) {
+        finish()
         editingID = note.id
         draft = note.text
         editorFocused = true
     }
 
-    private func stopEditing() {
-        editingID = nil
-        draft = ""
-    }
-
-    /// Adds a new note, or saves the one being edited (removing it if it was emptied).
-    private func submit() {
+    /// Adds the draft as a new note, or finishes editing one (removing it if it was emptied).
+    private func finish() {
         if let id = editingID {
             if isDraftEmpty {
                 store.delete(id)
             } else {
                 store.update(id, text: draft.trimmingCharacters(in: .whitespacesAndNewlines))
             }
-            stopEditing()
+            editingID = nil
         } else {
-            guard !isDraftEmpty else { return }
-            store.add(draft)
-            draft = ""
+            store.add(draft) // ignores an empty draft
         }
-        editorFocused = true
+        draft = ""
     }
 }
