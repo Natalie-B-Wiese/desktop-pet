@@ -86,7 +86,11 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - **Stopwatch** counts up and takes an optional label. **Pomodoro** has work and break lengths, no long break, and waits for a click between periods. The bubble shows "Work"/"Break" with no session number.
 - **Reminders:** one-time, a time plus an optional message, available in the bubble and in a window.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
-- **Notes:** multi-line sticky notes, with no Add or Save buttons. The box starts one line tall and grows up to 6 lines. Return saves, and ⇧Return or ⌥Return adds a line. Click a note to edit it: edits save as you type, and Return, Esc or clicking away finishes. Emptying a note deletes it. Closing the page saves a half-written note. The list scrolls after 5.
+- **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.
+  - A blank "New note" sits at the top. Typing on it makes it a real note (it keeps the blank's ID so the same TextEditor stays focused) and a fresh blank appears above.
+  - Clicking a note edits it in place. Everything autosaves as it's typed, Return adds a line, and there's no cancel. Esc closes the menu.
+  - When a note loses focus, it's trimmed, or deleted if empty (`NoteStore.tidy`).
+  - Each editor sizes itself with a hidden copy of its text. The list is always a `ScrollView` (capped at 260pt) so rows are never rebuilt mid-typing.
 - **Math:** operators `+ - * / ^` and parentheses. Typing `=` or pressing Return calculates. It keeps the last 5 results. The ~26 test cases in `MathEvaluator.swift` pass.
 - **Convert** (a tab on Math): categories Length, Weight, Temperature, Volume (US cups etc.) and Screen (px, pt = 4/3 px, rem = 16px).
   - The answer updates as you type, rounded to 6 decimal places, and clicking it copies the number. The amount can be math, like `5+2`.

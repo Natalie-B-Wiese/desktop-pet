@@ -22,10 +22,10 @@ final class NoteStore {
         }
     }
 
-    func add(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        notes.insert(Note(text: String(trimmed.prefix(Self.maxLength))), at: 0)
+    /// Adds a note at the top as soon as something is typed on the blank note. Keeps the
+    /// blank note's ID so the note being typed on stays the same view.
+    func add(id: Note.ID, text: String) {
+        notes.insert(Note(id: id, text: String(text.prefix(Self.maxLength))), at: 0)
         save()
     }
 
@@ -34,6 +34,17 @@ final class NoteStore {
         guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
         notes[index].text = String(text.prefix(Self.maxLength))
         save()
+    }
+
+    /// Once a note is done being typed on: trims it, or deletes it if it was emptied.
+    func tidy(_ id: Note.ID) {
+        guard let note = notes.first(where: { $0.id == id }) else { return }
+        let trimmed = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            delete(id)
+        } else if trimmed != note.text {
+            update(id, text: trimmed)
+        }
     }
 
     func delete(_ id: Note.ID) {

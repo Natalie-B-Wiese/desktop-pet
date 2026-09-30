@@ -1,147 +1,124 @@
 import SwiftUI
 
-/// The bubble's notes. A box at the top grows as you type; Return saves the note and ⇧Return
-/// (or ⌥Return) starts a new line. Clicking a note loads it into the same box, where edits save
-/// as you type; Return, Esc or clicking away finishes.
+/// The bubble's notes, typed on directly. A blank note sits at the top; typing on it makes it a
+/// real note and a new blank one appears above it. Clicking a note edits it in place. Everything
+/// saves as it's typed, and Return adds a line.
 struct BubbleNotesPage: View {
     let store: NoteStore
     var onClose: () -> Void
 
-    @State private var draft = ""
-    /// The note being edited in the box, or nil when writing a new one.
-    @State private var editingID: Note.ID?
-    @FocusState private var editorFocused: Bool
+    /// The blank note's ID. It becomes the new note's ID once something is typed on it.
+    @State private var blankID = UUID()
+    @FocusState private var focusedID: Note.ID?
+    @State private var listHeight: CGFloat = 0
 
-    /// Past this many notes the list scrolls instead of making the bubble taller.
-    private static let maxVisibleNotes = 5
-    private static let scrollHeight: CGFloat = 230
-    /// The box grows up to this many lines, then scrolls.
-    private static let maxEditorLines = 6
-
-    private var isDraftEmpty: Bool {
-        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    /// Past this height the list scrolls instead of making the bubble taller.
+    private static let maxListHeight: CGFloat = 260
+    private static let font = Font.system(size: 12, weight: .medium, design: .rounded)
+    /// TextEditor's own inset before the text starts, matched by the sizing text.
+    private static let editorInset: CGFloat = 5
 
     var body: some View {
-        VStack(spacing: 6) {
-
-            editor
-
-            if store.notes.isEmpty {
-                Text("Jot something down so you don't forget.\nReturn saves, ⇧Return adds a line.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .opacity(0.55)
-                    .padding(.vertical, 4)
-            } else if store.notes.count > Self.maxVisibleNotes {
-                ScrollView {
-                    rows.padding(1) // keeps the outlines from being clipped at the edges
+        // Always a ScrollView (even when short) so the note being typed on is never rebuilt
+        // and never loses the keyboard when the list starts scrolling.
+        ScrollView {
+            VStack(spacing: 4) {
+                ForEach([Note(id: blankID, text: "")] + store.notes) { note in
+                    row(note)
                 }
-                .scrollIndicators(.never)
-                .frame(height: Self.scrollHeight)
-                .padding(.horizontal, -1)
-            } else {
-                rows
             }
-
+            .padding(1) // keeps the outlines from being clipped at the edges
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
         }
-        .onDisappear(perform: finish) // closing the page keeps a half-written note
-    }
-
-    private var editor: some View {
-        TextField(editingID == nil ? "Write a note" : "Edit note", text: Binding(
-            get: { draft },
-            set: { text in
-                draft = String(text.prefix(NoteStore.maxLength))
-                if let id = editingID, !isDraftEmpty { store.update(id, text: draft) }
-            }
-        ), axis: .vertical)
-        .lineLimit(1...Self.maxEditorLines)
-        .bubbleFieldStyle()
-        .focused($editorFocused)
-        .onSubmit {
-            // ⇧Return adds a line where the cursor is (⌥Return already does); Return saves.
-            if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
-                NSApp.sendAction(#selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: nil)
-            } else {
-                finish()
-            }
-            editorFocused = true
+        .scrollIndicators(.never)
+        .frame(height: min(listHeight, Self.maxListHeight))
+        .padding(.horizontal, -1)
+        .onChange(of: focusedID) { old, _ in
+            if let old { store.tidy(old) }
         }
-        .onChange(of: editorFocused) { _, focused in
-            if !focused && editingID != nil { finish() } // clicking away finishes an edit
-        }
-        .onExitCommand { // Esc: stop editing, or close the menu if not editing
-            if editingID != nil { finish() } else { onClose() }
-        }
-    }
-
-    private var rows: some View {
-        VStack(spacing: 4) {
-            ForEach(store.notes) { note in
-                row(note)
-            }
+        .onDisappear {
+            if let id = focusedID { store.tidy(id) }
         }
     }
 
     private func row(_ note: Note) -> some View {
-        let isEditing = editingID == note.id
+        let isBlank = note.id == blankID
+        let isFocused = focusedID == note.id
         return HStack(alignment: .top, spacing: 4) {
-            Button {
-                startEditing(note)
-            } label: {
-                Text(note.text)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .lineLimit(6)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Edit note")
+            editor(note, isBlank: isBlank)
 
-            Button {
-                if isEditing { editingID = nil; draft = "" }
-                store.delete(note.id)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .heavy))
-                    .opacity(0.5)
-                    .frame(width: 18, height: 18)
-                    .contentShape(Rectangle())
+            if isBlank {
+                Color.clear.frame(width: 18, height: 18) // lines up with the ✕ on real notes
+            } else {
+                Button {
+                    store.delete(note.id)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .heavy))
+                        .opacity(0.5)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Delete note")
             }
-            .buttonStyle(.plain)
-            .help("Delete note")
         }
-        .padding(.leading, 8)
+        .padding(.leading, 3)
         .padding(.trailing, 3)
         .padding(.vertical, 5)
-        .background(RoundedRectangle(cornerRadius: 7).fill(Color(red: 1, green: 0.97, blue: 0.8))) // sticky-note yellow
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(red: 1, green: 0.97, blue: 0.8)) // sticky-note yellow
+                .onTapGesture { focusedID = note.id } // clicking the note's margin types on it too
+        )
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(
-            isEditing ? Color.black : Color.black.opacity(0.25),
-            lineWidth: isEditing ? 2 : 1.5
+            isFocused ? Color.black : Color.black.opacity(0.25),
+            lineWidth: isFocused ? 2 : 1.5
         ))
     }
 
-    private func startEditing(_ note: Note) {
-        finish()
-        editingID = note.id
-        draft = note.text
-        editorFocused = true
+    /// A TextEditor exactly as tall as its text: an invisible copy of the text sets the height.
+    private func editor(_ note: Note, isBlank: Bool) -> some View {
+        Text(sizingText(note.text))
+            .font(Self.font)
+            .padding(.horizontal, Self.editorInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .hidden()
+            .overlay {
+                TextEditor(text: Binding(
+                    get: { note.text },
+                    set: { text in type(text, on: note.id) }
+                ))
+                .font(Self.font)
+                .scrollContentBackground(.hidden)
+                .scrollDisabled(true)
+                .focused($focusedID, equals: note.id)
+                .onExitCommand(perform: onClose) // Esc closes the menu
+            }
+            .overlay(alignment: .topLeading) {
+                if isBlank {
+                    Text("New note")
+                        .font(Self.font)
+                        .opacity(0.35)
+                        .padding(.leading, Self.editorInset)
+                        .allowsHitTesting(false)
+                }
+            }
     }
 
-    /// Adds the draft as a new note, or finishes editing one (removing it if it was emptied).
-    private func finish() {
-        if let id = editingID {
-            if isDraftEmpty {
-                store.delete(id)
-            } else {
-                store.update(id, text: draft.trimmingCharacters(in: .whitespacesAndNewlines))
-            }
-            editingID = nil
+    /// The text that sizes an editor. A trailing empty line (or no text at all) still takes a line.
+    private func sizingText(_ text: String) -> String {
+        text.isEmpty || text.hasSuffix("\n") ? text + " " : text
+    }
+
+    private func type(_ text: String, on id: Note.ID) {
+        let text = String(text.prefix(NoteStore.maxLength))
+        if id == blankID {
+            guard !text.isEmpty else { return }
+            store.add(id: id, text: text)
+            blankID = UUID() // a fresh blank note appears above; typing carries on here
         } else {
-            store.add(draft) // ignores an empty draft
+            store.update(id, text: text)
         }
-        draft = ""
     }
 }
