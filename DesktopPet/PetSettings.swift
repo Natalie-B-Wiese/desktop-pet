@@ -16,6 +16,8 @@ final class PetSettings {
         didSet {
             guard character != oldValue else { return }
             defaults.set(character.id, forKey: "character")
+            // Remembered per species, so flipping to dogs and back returns to the same cat.
+            defaults.set(character.id, forKey: "character.\(character.species.rawValue)")
             onChange?()
         }
     }
@@ -49,6 +51,7 @@ final class PetSettings {
         "detail": "4CAF50",
         "eye1": "3A7BD5",
         "eye2": "4CAF50",
+        "ears": "7A4E2E",
     ]
 
     /// How many points each image pixel is drawn as. Whole numbers keep the pixel art crisp.
@@ -98,11 +101,21 @@ final class PetSettings {
         palette = palette(for: character.partKeys, from: Self.defaultColors)
     }
 
-    /// Switches to the next (+1) or previous (-1) character, wrapping around at either end.
+    /// Switches to the species' next (+1) or previous (-1) pattern, wrapping around at either end.
     func cycleCharacter(by step: Int) {
-        let all = PetCharacter.all
-        let index = all.firstIndex(of: character) ?? 0
-        character = all[((index + step) % all.count + all.count) % all.count]
+        character = Self.step(character.species.characters, from: character, by: step)
+    }
+
+    /// Switches to the next (+1) or previous (-1) species, on the pattern it last had.
+    func cycleSpecies(by step: Int) {
+        let species = Self.step(PetSpecies.allCases, from: character.species, by: step)
+        character = PetCharacter.withID(defaults.string(forKey: "character.\(species.rawValue)"))
+            ?? species.characters[0]
+    }
+
+    private static func step<T: Equatable>(_ items: [T], from item: T, by step: Int) -> T {
+        let index = items.firstIndex(of: item) ?? 0
+        return items[((index + step) % items.count + items.count) % items.count]
     }
 
     private func palette(for keys: [String]) -> PetPalette {

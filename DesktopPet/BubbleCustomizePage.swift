@@ -112,26 +112,38 @@ struct BubbleCustomizePage: View {
         }
     }
 
-    /// A boxed row of pickers, as wide as the color family box. For now it only has the pattern
-    /// stepper ("‹ 3/5 ›"); a species stepper will sit to its left once there are dogs.
+    /// A boxed row as wide as the color family box: species arrows around its icon,
+    /// then pattern arrows around "3/5". Both wrap around at the ends.
     private var characterPicker: some View {
-        let all = PetCharacter.all
-        let position = (all.firstIndex(of: character) ?? 0) + 1
-        return HStack(spacing: 2) {
-            HeaderIconButton(systemImage: "chevron.left", help: "Previous pattern") {
-                settings.cycleCharacter(by: -1)
+        let patterns = character.species.characters
+        let position = (patterns.firstIndex(of: character) ?? 0) + 1
+        return HStack(spacing: 28) {
+            stepper(help: "species", step: settings.cycleSpecies) {
+                Image(nsImage: NSImage(named: character.species.iconName) ?? NSImage())
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 28, height: 24)
             }
-            Text("\(position)/\(all.count)")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .frame(minWidth: 30)
-            HeaderIconButton(systemImage: "chevron.right", help: "Next pattern") {
-                settings.cycleCharacter(by: 1)
+            stepper(help: "pattern", step: settings.cycleCharacter) {
+                Text("\(position)/\(patterns.count)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .frame(minWidth: 30)
             }
         }
         .padding(.vertical, 3)
         .frame(width: Self.familyBoxWidth)
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.black.opacity(0.15), lineWidth: 1))
+    }
+
+    /// "‹ label ›", where the arrows call `step` with -1 or +1.
+    private func stepper(help: String, step: @escaping (Int) -> Void, @ViewBuilder label: () -> some View) -> some View {
+        HStack(spacing: 2) {
+            HeaderIconButton(systemImage: "chevron.left", help: "Previous \(help)") { step(-1) }
+            label()
+            HeaderIconButton(systemImage: "chevron.right", help: "Next \(help)") { step(1) }
+        }
     }
 
     /// The character's parts, each showing its current color. The selected one gets a ring.

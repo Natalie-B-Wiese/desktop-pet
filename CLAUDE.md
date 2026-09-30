@@ -1,6 +1,6 @@
 # DesktopPet ("Topsy")
 
-A macOS **menu bar app** that shows a floating, draggable, always-on-top 24×24 pixel-art pet. The pet is a cat, and the user named her **Topsy**. Clicking her opens a speech-bubble menu of small tools. "DesktopPet" is a placeholder app name.
+A macOS **menu bar app** that shows a floating, draggable, always-on-top 24×24 pixel-art pet. The pet is a cat by default (dogs are also available), and the user named her **Topsy**. Clicking her opens a speech-bubble menu of small tools. "DesktopPet" is a placeholder app name.
 
 The user is Natalie. She vibecodes this app: she describes what she wants, and the agent writes all the code. She iterates closely on UI details and gives precise visual feedback.
 
@@ -52,8 +52,8 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - the position saved as "PetWindow"
   - the `hop()` animation
 - `PetRenderer.swift`: recolors the current character's PNG (cached per image). Pure **red / green / blue** pixels are three recolorable parts (matched with some tolerance). **Black, white and every other color never change.** It draws nearest-neighbor so pixels stay crisp. `usedSlots(for:)` detects which parts an image uses.
-- `PetCharacter.swift`: five cat patterns, in cycle order: tuxedo, calico, colorpoint, tortie, van (`Resources/cat <id>.png`, all 24×24, feet on the bottom row, ear tips on row 2). Each has part names (Body / Accents / Eyes; the van is Body / Eye1 / Eye2, where Eye1 is the blue pixels on the image's left and `partOrder` lists it before the green Eye2) and `partKeys`, where colors are saved as `color.<key>`. Patterns that share a key share its color, so switching keeps her colors. Parts the image doesn't use are hidden in Customize. A **dog** can be added the same way.
-  - The pattern names are deliberately never shown to the user. Customize has a boxed row under the name field with a `‹ 3/5 ›` pattern stepper that wraps around. A species stepper is meant to sit to its left in that row once dogs exist.
+- `PetCharacter.swift`: `PetSpecies` (cat, dog; each has a small pixel icon, `Resources/<species> icon.png`) and the patterns. Cats, in cycle order: tuxedo, calico, colorpoint, tortie, van (`Resources/cat <id>.png`, all 24×24, feet on the bottom row, ear tips on row 2). Dogs: dog (`dog default.png`) and beagle (`dog beagle.png`), ear tips on row 3, parts Body / Accents / Ears (blue is the ears, plus the beagle's saddle; dog eyes are black). Each has part names (Body / Accents / Eyes; the van is Body / Eye1 / Eye2, where Eye1 is the blue pixels on the image's left and `partOrder` lists it before the green Eye2) and `partKeys`, where colors are saved as `color.<key>`. Patterns that share a key share its color, so switching keeps her colors. Parts the image doesn't use are hidden in Customize. A **dog** can be added the same way.
+  - The pattern names are deliberately never shown to the user. Customize has a boxed row under the name field: `‹ [species icon] ›` then `‹ 3/5 ›` (patterns of that species). Both wrap around. Switching species returns to the pattern it last had (saved as `character.<species>`).
 - `PetSettings.swift`: character (saved as `character`), per-part colors (`palette` is the current character's three), scale (2…12; the UI offers S=4, M=5, L=6), and name (max 20 characters), saved to UserDefaults.
   - ⚠️ Never reassign an `@Observable` property inside its own `didSet`. It recurses forever; this crashed the app once.
   - Clamp values in the callers instead.
@@ -98,7 +98,6 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - A tall hat needs spare transparent rows above the cat, which also means moving the bubble up.
   - Each animal needs its own version of each accessory.
   - The agent offered to draw placeholder art, or Natalie may draw her own.
-- A dog character (the cat patterns and their picker are built).
 - Sound or notification when a timer ends.
 - Countdown in the menu bar.
 - App icon and a real app name.
