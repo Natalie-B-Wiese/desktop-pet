@@ -68,7 +68,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
     - clears "Time's up"
     - otherwise, pauses or resumes the timer
 - One page file per tool:
-  - `BubbleCustomizePage.swift`: 12 color families × 6 shades each, pet name, S/M/L size buttons as wide as the family box, and Reset colors.
+  - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/pattern row, part circles, 12 color families × 6 shades each, and Reset colors.
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleMathPage.swift`, `BubbleClipboardPage.swift`.
 - Model files: `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
 - `SetTimerView.swift` is the Custom… timer window. `RemindersView.swift` is the Reminders window.

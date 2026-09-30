@@ -308,7 +308,7 @@ struct BubbleView: View {
         case .math, .todos: 210
         case .notes: 220
         case .clipboard: 250
-        case .customize: 262
+        case .customize: 272
         }
     }
 

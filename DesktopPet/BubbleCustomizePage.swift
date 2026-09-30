@@ -71,29 +71,26 @@ struct BubbleCustomizePage: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            // The name box and the size buttons are as wide as the color family box, edges lined up,
+            // with their labels in the margin to the left.
             TextField("Name your pet", text: Binding(
                 get: { settings.name },
                 set: { settings.name = String($0.prefix(PetSettings.maxNameLength)) }
             ))
             .bubbleFieldStyle()
             .focused($nameFocused)
+            .labeled("Name", width: Self.familyBoxWidth)
+
+            BubbleTabs(
+                selection: Binding(get: { settings.scale }, set: { settings.scale = $0 }),
+                options: Self.sizes.map { ($0.scale, $0.title) }
+            )
+            .labeled("Size", width: Self.familyBoxWidth)
 
             characterPicker
             slotPicker
             familyRow
             shadeRow
-
-            // Same width as the color family box, edges lined up; "Size" sits in the margin to its left.
-            BubbleTabs(
-                selection: Binding(get: { settings.scale }, set: { settings.scale = $0 }),
-                options: Self.sizes.map { ($0.scale, $0.title) }
-            )
-            .frame(width: Self.familyBoxWidth)
-            .frame(maxWidth: .infinity)
-            .overlay(alignment: .leading) {
-                Text("Size")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-            }
 
             BubbleButton("Reset colors", systemImage: "arrow.counterclockwise", style: .quiet, centered: true) {
                 settings.reset()
@@ -232,5 +229,17 @@ struct BubbleCustomizePage: View {
             .overlay(Circle().stroke(.black, lineWidth: selected ? 2 : 0))
             .frame(width: size + 6, height: size + 6)
             .contentShape(Circle())
+    }
+}
+
+private extension View {
+    /// Sets the control's width and puts a small label in the margin to its left.
+    func labeled(_ label: String, width: CGFloat) -> some View {
+        frame(width: width)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .leading) {
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+            }
     }
 }
