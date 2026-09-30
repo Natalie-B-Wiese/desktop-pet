@@ -109,6 +109,7 @@ struct BubbleClipboardPage: View {
                     if justCopied == entry.id {
                         Text("Copied!")
                             .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .fixedSize()
                     }
                 }
                 .contentShape(Rectangle())
@@ -188,6 +189,8 @@ struct BubbleClipboardPage: View {
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                     caption("\(width)×\(height)")
                 }
+                // Keep "Image" on one line when "Copied!" appears beside it.
+                .fixedSize()
             }
         case .files(let urls):
             HStack(spacing: 6) {
