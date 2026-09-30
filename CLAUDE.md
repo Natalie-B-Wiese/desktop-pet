@@ -60,6 +60,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - ⚠️ Never reassign an `@Observable` property inside its own `didSet`. It recurses forever; this crashed the app once.
   - Clamp values in the callers instead.
 - `SpeechBubble.swift` (large): `SpeechBubbleController`, `BubbleView`, `BubbleMenu.Page`, and the shared components `BubbleButton`, `MenuTile`, `BubbleTabs`, `CaretStepper`, `HeaderIconButton`, `bubbleFieldStyle` and `BubbleShape`.
+  - Clicking outside the bubble closes it only on the main menu. Tool pages stay open (Natalie wants to keep her work and look things up in other apps); ✕ or clicking the pet closes them.
   - The bubble is a child window of the pet panel and resizes to fit its content with `.onGeometryChange`.
   - Each page has a fixed width in `width(of:)` and a header with a **‹ back** icon and an **✕ close** icon. Pages don't draw their own titles or Back buttons.
   - Main menu: rows of icon tiles, each row centered: Timer/Reminders/To-dos, Notes/Clipboard/Math, then Customize/Hide. Natalie is saving the bottom row for a future Settings tile, so new tools don't go there.

@@ -195,10 +195,13 @@ final class SpeechBubbleController {
 
     private func menuChanged() {
         if menu.isOpen, outsideClickMonitor == nil {
-            // Clicking anywhere in another app closes the menu.
+            // Clicking anywhere in another app closes the main menu. Tool pages stay open, so you
+            // don't lose what you typed and can look things up elsewhere; close them with ✕ or the pet.
             outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
                 matching: [.leftMouseDown, .rightMouseDown]
-            ) { [weak self] _ in self?.menu.page = nil }
+            ) { [weak self] _ in
+                if self?.menu.page == .main { self?.menu.page = nil }
+            }
         } else if !menu.isOpen, let monitor = outsideClickMonitor {
             NSEvent.removeMonitor(monitor)
             outsideClickMonitor = nil
