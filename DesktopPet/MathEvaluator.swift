@@ -44,7 +44,8 @@ enum MathEvaluator {
     }
 
     /// "16", "0.3333333333", "1.5e+20": up to 10 decimal places, no trailing zeros.
-    static func format(_ value: Double) -> String {
+    /// Rounds to at most `maxFractionDigits` decimal places.
+    static func format(_ value: Double, maxFractionDigits: Int = 10) -> String {
         if value == 0 { return "0" } // also turns -0 into 0
         let magnitude = abs(value)
         if magnitude >= 1e15 || magnitude < 1e-9 {
@@ -53,7 +54,7 @@ enum MathEvaluator {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.usesGroupingSeparator = false
-        formatter.maximumFractionDigits = 10
+        formatter.maximumFractionDigits = maxFractionDigits
         formatter.decimalSeparator = "."
         return formatter.string(from: value as NSNumber) ?? String(value)
     }

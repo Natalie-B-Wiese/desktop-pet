@@ -31,8 +31,28 @@ final class MathHistory {
     }
 }
 
-/// The bubble's calculator: type an equation, press Return, see the answer.
+/// The bubble's Math page: a calculator tab and a unit converter tab.
 struct BubbleMathPage: View {
+    enum Mode: String { case calculator, convert }
+
+    let history: MathHistory
+    var onClose: () -> Void
+
+    @AppStorage("mathPage.mode") private var mode = Mode.calculator
+
+    var body: some View {
+        VStack(spacing: 8) {
+            BubbleTabs(selection: $mode, options: [(.calculator, "Calculator"), (.convert, "Convert")])
+            switch mode {
+            case .calculator: CalculatorTab(history: history, onClose: onClose)
+            case .convert: BubbleConvertTab(onClose: onClose)
+            }
+        }
+    }
+}
+
+/// Type an equation, press Return, see the answer.
+private struct CalculatorTab: View {
     let history: MathHistory
     var onClose: () -> Void
 

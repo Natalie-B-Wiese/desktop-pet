@@ -33,11 +33,12 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - `--timer <sec>`, optionally with `--label <text>` and/or `--pause`
   - `--pomodoro <work> <break>`
   - `--stopwatch`
+- `--convert-input <amount>` fills in the Math page's Convert tab (set `mathPage.mode` to `convert` first).
 - `--set-timer` and `--reminders` open those windows. `--flip-start-mode` switches the Start page tab after 1 second.
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.
 - **Snapshot every UI change** and check it before telling Natalie it's done.
 - **Protect her real data.** Before testing with fake data, back it up, and restore it afterwards (check with `cmp`). Her real data:
-  - UserDefaults for to-dos, notes, reminders, math history, `startPage.mode`, and pet settings
+  - UserDefaults for to-dos, notes, reminders, math history, `startPage.mode`, `mathPage.mode`, `convert.*`, and pet settings
   - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
@@ -70,7 +71,8 @@ The agent has no Screen Recording permission, so the app has test launch argumen
     - otherwise, pauses or resumes the timer
 - One page file per tool:
   - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/pattern row, part circles, 12 color families × 6 shades each, and Reset colors.
-  - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleMathPage.swift`, `BubbleClipboardPage.swift`.
+  - `BubbleMathPage.swift`: Calculator / Convert tabs (saved as `mathPage.mode`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter.
+  - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleClipboardPage.swift`.
 - Model files: `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
 - `SetTimerView.swift` is the Custom… timer window. `RemindersView.swift` is the Reminders window.
 
@@ -85,6 +87,10 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes. Click one to edit it. ⌘Return saves. The list scrolls after 5.
 - **Math:** operators `+ - * / ^` and parentheses. Typing `=` or pressing Return calculates. It keeps the last 5 results. The ~26 test cases in `MathEvaluator.swift` pass.
+- **Convert** (a tab on Math): categories Length, Weight, Temperature, Volume (US cups etc.) and Screen (px, pt = 4/3 px, rem = 16px).
+  - The answer updates as you type, rounded to 6 decimal places, and clicking it copies the number. The amount can be math, like `5+2`.
+  - ⇅ swaps the units. Each category remembers its last two units (`convert.<category>.units`).
+  - The pop-up menus are a private `BubblePopUp` (the name `BubbleMenu` is taken by the bubble's page model).
 - **Clipboard:** the last 5 copies, including text, images as thumbnails, and files.
   - A copy button on each item keeps its position.
   - Reorder arrows sit outside the item on the left.

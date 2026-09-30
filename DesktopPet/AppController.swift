@@ -364,6 +364,7 @@ final class AppController {
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|notes]` opens the cat's click menu (on that page);
+    /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
