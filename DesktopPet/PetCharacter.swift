@@ -45,8 +45,8 @@ struct PetCharacter: Identifiable, Equatable {
     )
 
     /// Dogs have black eyes, so their blue part is something else: the default dog's ears,
-    /// or the other patterns' markings (a patch, stripes, or the body under a masked face).
-    /// They all save blue as "ears", so switching patterns keeps its color.
+    /// or the spots' patch and the brindle's stripes. These save blue as "ears", so switching
+    /// patterns keeps its color.
     private static let dogKeys = ["main", "secondary", "ears"]
 
     static let dog = PetCharacter(
@@ -55,7 +55,12 @@ struct PetCharacter: Identifiable, Equatable {
     )
     static let spots = markedDog("spots")
     static let brindle = markedDog("brindle")
-    static let mask = markedDog("mask")
+    /// The mask's red is the head and its blue is the body, so blue saves as "main" and is listed
+    /// first, keeping the body's color when switching from another dog.
+    static let mask = PetCharacter(
+        id: "mask", species: .dog, imageName: "dog mask",
+        partNames: ["Head", "Accents", "Body"], partKeys: ["ears", "secondary", "main"], partOrder: [2, 0, 1]
+    )
 
     static let all = [tuxedo, calico, colorpoint, tortie, van, dog, spots, brindle, mask]
 
