@@ -85,6 +85,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - Start is hidden while a timer is busy
 - **Stopwatch** counts up and takes an optional label. **Pomodoro** has work and break lengths, no long break, and waits for a click between periods. The bubble shows "Work"/"Break" with no session number.
 - **Reminders:** one-time, a time plus an optional message, only in the bubble (Natalie removed the separate Reminders window). The list scrolls after 4. Clicking a reminder opens the `editReminder(id)` page, which reuses the add page with a Save button.
+  - The time is an hour box `:` a minute box (same big bold style as the Timer's minutes, `bubbleNumberBoxStyle`) with AM stacked over PM beside them (`BubbleTabs(vertical: true)`). Typing in a box works like a digital clock: the last two digits win if valid, else the last one.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.
   - A blank "New note" sits at the top. Typing on it makes it a real note (it keeps the blank's ID so the same TextEditor stays focused) and a fresh blank appears above.

@@ -93,7 +93,10 @@ struct BubbleAddReminderPage: View {
     var onAdded: () -> Void
     var onClose: () -> Void
 
-    @State private var time: Date
+    /// 1…12, as shown in the hour box.
+    @State private var hour: Int
+    @State private var minute: Int
+    @State private var isPM: Bool
     @State private var message: String
     @FocusState private var timeFocused: Bool
 
@@ -102,19 +105,37 @@ struct BubbleAddReminderPage: View {
         self.editing = editing
         self.onAdded = onAdded
         self.onClose = onClose
-        _time = State(initialValue: editing?.date ?? ReminderStore.defaultTime())
+        let start = Calendar.current.dateComponents([.hour, .minute], from: editing?.date ?? ReminderStore.defaultTime())
+        let hour24 = start.hour ?? 12
+        _hour = State(initialValue: hour24 % 12 == 0 ? 12 : hour24 % 12)
+        _minute = State(initialValue: start.minute ?? 0)
+        _isPM = State(initialValue: hour24 >= 12)
         _message = State(initialValue: editing?.message ?? "")
+    }
+
+    /// The picked time, today; the store moves it to tomorrow if it has already passed.
+    private var time: Date {
+        let hour24 = hour % 12 + (isPM ? 12 : 0)
+        return Calendar.current.date(bySettingHour: hour24, minute: minute, second: 0, of: Date()) ?? Date()
     }
 
     var body: some View {
         VStack(spacing: 8) {
 
             VStack(spacing: 2) {
-                DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-                    .datePickerStyle(.field)
-                    .controlSize(.large)
-                    .focused($timeFocused)
+                HStack(spacing: 4) {
+                    numberBox(Self.clockDigits($hour, in: 1...12, padded: false))
+                        .focused($timeFocused)
+                    Text(":")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .offset(y: -2) // sits a touch high, like a clock's colon
+                    numberBox(Self.clockDigits($minute, in: 0...59, padded: true))
+                    BubbleTabs(selection: $isPM, options: [(false, "AM"), (true, "PM")], vertical: true)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.leading, 6)
+                }
+                .fixedSize(horizontal: false, vertical: true) // AM/PM matches the boxes' height
+
                 Text(ReminderStore.dayWord(for: time))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .opacity(0.55)
@@ -138,6 +159,30 @@ struct BubbleAddReminderPage: View {
             DispatchQueue.main.async { timeFocused = true }
         }
         .onExitCommand(perform: onClose) // Esc closes the menu
+    }
+
+    private func numberBox(_ text: Binding<String>) -> some View {
+        TextField("", text: text)
+            .bubbleNumberBoxStyle(width: 46, fontSize: 22)
+            .onSubmit(save) // Return adds or saves it
+    }
+
+    /// A text binding for one clock box. Typing works like a digital clock: the last two digits
+    /// typed win if they make a valid number, otherwise just the last one (so "12" then "3" is 3).
+    private static func clockDigits(_ value: Binding<Int>, in range: ClosedRange<Int>, padded: Bool) -> Binding<String> {
+        Binding(
+            get: { padded ? String(format: "%02d", value.wrappedValue) : String(value.wrappedValue) },
+            set: { text in
+                let digits = text.filter(\.isNumber)
+                if digits.isEmpty {
+                    if range.contains(0) { value.wrappedValue = 0 }
+                } else if let two = Int(digits.suffix(2)), range.contains(two) {
+                    value.wrappedValue = two
+                } else if let one = Int(digits.suffix(1)), range.contains(one) {
+                    value.wrappedValue = one
+                }
+            }
+        )
     }
 
     private func save() {

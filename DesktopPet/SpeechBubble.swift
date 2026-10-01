@@ -742,13 +742,7 @@ private struct BubbleTimerPage: View {
 
     private func numberBox(_ value: Binding<Int>, range: ClosedRange<Int>, width: CGFloat, fontSize: CGFloat) -> some View {
         TextField("", text: TimerDraft.digits(value, in: range))
-            .textFieldStyle(.plain)
-            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
-            .multilineTextAlignment(.center)
-            .frame(width: width)
-            .padding(.vertical, 3)
-            .background(RoundedRectangle(cornerRadius: 7).fill(.white))
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+            .bubbleNumberBoxStyle(width: width, fontSize: fontSize)
             .onSubmit(start) // Return starts
     }
 
@@ -778,22 +772,26 @@ private struct BubbleTimerPage: View {
 struct BubbleTabs<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [(Value, String)]
+    /// Stacks the tabs top to bottom (like AM over PM), each filling the height it's given.
+    var vertical = false
 
     var body: some View {
-        HStack(spacing: 0) {
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+        layout {
             ForEach(options, id: \.0) { value, title in
                 let selected = value == selection
                 Button {
                     selection = value
                 } label: {
                     Text(title)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.system(size: vertical ? 11 : 12, weight: .semibold, design: .rounded))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8) // three tabs share a narrow bubble
                         .foregroundStyle(selected ? Color.white : .black)
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, vertical ? 7 : 4)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, vertical ? 2 : 5)
+                        .frame(maxHeight: vertical ? .infinity : nil)
                         .background(selected ? Color.black : .white)
                         .contentShape(Rectangle())
                 }
@@ -812,6 +810,17 @@ extension View {
             .font(.system(size: 12, weight: .medium, design: .rounded))
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+    }
+
+    /// A big, bold, centered number box, like the Timer's minutes.
+    func bubbleNumberBoxStyle(width: CGFloat, fontSize: CGFloat) -> some View {
+        textFieldStyle(.plain)
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .multilineTextAlignment(.center)
+            .frame(width: width)
+            .padding(.vertical, 3)
             .background(RoundedRectangle(cornerRadius: 7).fill(.white))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
     }
