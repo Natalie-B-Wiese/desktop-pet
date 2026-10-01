@@ -44,14 +44,24 @@ struct PetCharacter: Identifiable, Equatable {
         partNames: ["Body", "Eye2", "Eye1"], partKeys: ["main", "eye2", "eye1"], partOrder: [0, 2, 1]
     )
 
-    /// Dogs have black eyes, so their blue part is the ears (and the beagle's saddle patch).
-    private static let dogParts = ["Body", "Accents", "Ears"]
+    /// Dogs have black eyes, so their blue part is something else: the default dog's ears,
+    /// or the other patterns' markings (a patch, stripes, or the body under a masked face).
+    /// They all save blue as "ears", so switching patterns keeps its color.
     private static let dogKeys = ["main", "secondary", "ears"]
 
-    static let dog = PetCharacter(id: "dog", species: .dog, imageName: "dog default", partNames: dogParts, partKeys: dogKeys)
-    static let beagle = PetCharacter(id: "beagle", species: .dog, imageName: "dog beagle", partNames: dogParts, partKeys: dogKeys)
+    static let dog = PetCharacter(
+        id: "dog", species: .dog, imageName: "dog default",
+        partNames: ["Body", "Accents", "Ears"], partKeys: dogKeys
+    )
+    static let spots = markedDog("spots")
+    static let brindle = markedDog("brindle")
+    static let mask = markedDog("mask")
 
-    static let all = [tuxedo, calico, colorpoint, tortie, van, dog, beagle]
+    static let all = [tuxedo, calico, colorpoint, tortie, van, dog, spots, brindle, mask]
+
+    private static func markedDog(_ id: String) -> PetCharacter {
+        PetCharacter(id: id, species: .dog, imageName: "dog \(id)", partNames: ["Body", "Accents", "Markings"], partKeys: dogKeys)
+    }
 
     private static func cat(_ id: String) -> PetCharacter {
         PetCharacter(id: id, species: .cat, imageName: "cat \(id)", partNames: catParts, partKeys: catKeys)
