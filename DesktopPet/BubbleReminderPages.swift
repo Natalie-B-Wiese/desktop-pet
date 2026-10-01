@@ -98,7 +98,8 @@ struct BubbleAddReminderPage: View {
     @State private var minute: Int
     @State private var isPM: Bool
     @State private var message: String
-    @FocusState private var timeFocused: Bool
+    private enum Field { case hour, minute }
+    @FocusState private var focusedField: Field?
 
     init(store: ReminderStore, editing: Reminder? = nil, onAdded: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.store = store
@@ -124,12 +125,18 @@ struct BubbleAddReminderPage: View {
 
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
+                    // Space or ":" in the hour box jumps to the minutes, like Tab.
                     numberBox(Self.clockDigits($hour, in: 1...12, padded: false))
-                        .focused($timeFocused)
+                        .focused($focusedField, equals: .hour)
+                        .onKeyPress(characters: CharacterSet(charactersIn: " :")) { _ in
+                            focusedField = .minute
+                            return .handled
+                        }
                     Text(":")
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .offset(y: -2) // sits a touch high, like a clock's colon
                     numberBox(Self.clockDigits($minute, in: 0...59, padded: true))
+                        .focused($focusedField, equals: .minute)
                     BubbleTabs(selection: $isPM, options: [(false, "AM"), (true, "PM")], vertical: true)
                         .fixedSize(horizontal: true, vertical: false)
                         .padding(.leading, 6)
@@ -156,7 +163,7 @@ struct BubbleAddReminderPage: View {
         }
         .onAppear {
             // Wait a moment for the bubble to become the key window before focusing.
-            DispatchQueue.main.async { timeFocused = true }
+            DispatchQueue.main.async { focusedField = .hour }
         }
         .onExitCommand(perform: onClose) // Esc closes the menu
     }

@@ -349,6 +349,7 @@ final class AppController {
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes]` opens the cat's click menu (on that page);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
+    /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s;
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
@@ -388,6 +389,22 @@ final class AppController {
                 let defaults = UserDefaults.standard
                 let current = defaults.string(forKey: "startPage.mode") ?? "timer"
                 defaults.set(current == "timer" ? "pomodoro" : "timer", forKey: "startPage.mode")
+            }
+        }
+        if let text = value(after: "--type") {
+            for (n, character) in text.enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1 + 0.1 * Double(n)) {
+                    guard let window = NSApp.keyWindow else { return }
+                    for type in [NSEvent.EventType.keyDown, .keyUp] {
+                        guard let event = NSEvent.keyEvent(
+                            with: type, location: .zero, modifierFlags: [], timestamp: 0,
+                            windowNumber: window.windowNumber, context: nil,
+                            characters: String(character), charactersIgnoringModifiers: String(character),
+                            isARepeat: false, keyCode: 0
+                        ) else { continue }
+                        NSApp.postEvent(event, atStart: false)
+                    }
+                }
             }
         }
         if let path = value(after: "--snapshot") {
