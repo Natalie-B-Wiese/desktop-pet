@@ -43,7 +43,8 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
-- Her current settings: name "Topsy", scale 5 (M), and a grey body palette.
+- Her current settings: name "Topsy", scale 5 (M), a grey body palette, and Military time **on**.
+- When restoring after a test, put back what the backup had (`defaults write` its value). Don't assume a setting was at its default; `defaults delete` only keys the backup didn't have.
 - To snapshot another pattern, quit the app, back up with `defaults export`, `defaults write com.nataliewiese.DesktopPet character <id>`, run, then restore the backup (see the warning above).
 
 ## Architecture (files in `DesktopPet/`)
@@ -88,7 +89,8 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - **Stopwatch** counts up and takes an optional label. **Pomodoro** has work and break lengths, no long break, and waits for a click between periods. The bubble shows "Work"/"Break" with no session number.
 - **Reminders:** one-time, a time plus an optional message, only in the bubble (Natalie removed the separate Reminders window). The list scrolls after 4. Clicking a reminder opens the `editReminder(id)` page, which reuses the add page with a Save button.
   - The time is an hour box `:` a minute box (same big bold style as the Timer's minutes, `bubbleNumberBoxStyle`) with AM stacked over PM beside them (`BubbleTabs(vertical: true)`). Typing in a box works like a digital clock: the last two digits win if valid, else the last one. Space or `:` in the hour box jumps to the minute box, like Tab (`onKeyPress`, so the character is never inserted). Backspace in an empty minute box jumps back to the hour box with its text selected (Natalie tried the cursor-at-the-end version first and preferred this). The minutes are kept as typed text (`minuteText`, may be empty) and padded to two digits when the box loses focus.
-  - **Military time** (Settings): no AM/PM, the hour box takes 00…23 (padded to two digits), and reminder times everywhere show as 24-hour (`AppPreferences.clockText`). The page keeps one `hour24` state either way.
+  - **Military time** (Settings): no AM/PM, the hour box takes 00…23 (padded to two digits), the line under the time says "Today · Military time is on", and reminder times everywhere show as 24-hour (`AppPreferences.clockText`). The page keeps one `hour24` state either way.
+  - The hour box jumps to the minutes on its own once the hour is complete: after two digits, or after one digit that no valid hour continues (2–9 with AM/PM, 3–9 in military), so "1430" or "730" can be typed straight through. Digits in the hour box are handled by `typeHourDigit` via `onKeyPress`, not by the text field. The minutes box ignores space and `:`, so a habitual "12:45" still works after the jump.
   - ⚠️ `.onKeyPress(.delete)` never fires for the Delete key on macOS (it arrives as U+007F). Match the characters `"\u{7F}\u{8}"` instead.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.

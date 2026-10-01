@@ -98,6 +98,9 @@ struct BubbleAddReminderPage: View {
     /// The minutes as typed, so the box can be empty while editing; padded to "05" when it loses focus.
     @State private var minuteText: String
     @State private var message: String
+    /// Digits typed into the hour box since it was focused; two of them (or one that can't
+    /// start a two-digit hour) complete it and move on to the minutes.
+    @State private var hourTyped = ""
     private enum Field { case hour, minute }
     @FocusState private var focusedField: Field?
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
@@ -132,6 +135,10 @@ struct BubbleAddReminderPage: View {
                             focusedField = .minute
                             return .handled
                         }
+                        .onKeyPress(characters: .decimalDigits) { press in
+                            typeHourDigit(press.characters)
+                            return .handled
+                        }
                     Text(":")
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .offset(y: -2) // sits a touch high, like a clock's colon
@@ -144,6 +151,8 @@ struct BubbleAddReminderPage: View {
                             focusedField = .hour
                             return .handled
                         }
+                        // The hour may have already jumped here, so a habitual "12:45" or "12 45" still works.
+                        .onKeyPress(characters: CharacterSet(charactersIn: " :")) { _ in .handled }
                     if !militaryTime {
                         BubbleTabs(selection: isPM, options: [(false, "AM"), (true, "PM")], vertical: true)
                             .fixedSize(horizontal: true, vertical: false)
@@ -152,7 +161,7 @@ struct BubbleAddReminderPage: View {
                 }
                 .fixedSize(horizontal: false, vertical: true) // AM/PM matches the boxes' height
 
-                Text(ReminderStore.dayWord(for: time))
+                Text(militaryTime ? "\(ReminderStore.dayWord(for: time)) · Military time is on" : ReminderStore.dayWord(for: time))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .opacity(0.55)
             }
@@ -174,24 +183,37 @@ struct BubbleAddReminderPage: View {
             // Wait a moment for the bubble to become the key window before focusing.
             DispatchQueue.main.async { focusedField = .hour }
         }
-        .onChange(of: focusedField) { old, _ in
+        .onChange(of: focusedField) { old, new in
             if old == .minute { minuteText = String(format: "%02d", minute) }
+            if new == .hour { hourTyped = "" } // its text is selected, so typing starts over
         }
         .onExitCommand(perform: onClose) // Esc closes the menu
     }
 
+    private var hourRange: ClosedRange<Int> { militaryTime ? 0...23 : 1...12 }
+
+    /// Types one digit into the hour box, then jumps to the minutes once the hour is complete:
+    /// after two digits, or after one that no valid hour continues (like "3" with AM/PM).
+    private func typeHourDigit(_ digit: String) {
+        hourTyped = String((hourTyped + digit).suffix(2))
+        if let hour = Self.clockValue(hourTyped, in: hourRange) { setHour(hour) }
+        let canContinue = hourTyped.count < 2 && (Int(hourTyped) ?? 0) * 10 <= hourRange.upperBound
+        if !canContinue { focusedField = .minute }
+    }
+
+    /// Sets the hour as shown in the box (0…23, or 1…12 keeping AM/PM).
+    private func setHour(_ hour: Int) {
+        hour24 = militaryTime ? hour : hour % 12 + (hour24 >= 12 ? 12 : 0)
+    }
+
     /// The hour box's text: 00…23 with military time, otherwise 1…12 (AM/PM is picked separately).
     private var hourBinding: Binding<String> {
-        if militaryTime {
-            return Binding(
-                get: { String(format: "%02d", hour24) },
-                set: { text in if let hour = Self.clockValue(text, in: 0...23) { hour24 = hour } }
-            )
-        }
-        return Binding(
-            get: { String(hour24 % 12 == 0 ? 12 : hour24 % 12) },
+        // Digits are typed by `typeHourDigit`; this handles everything else, like Backspace or pasting.
+        Binding(
+            get: { militaryTime ? String(format: "%02d", hour24) : String(hour24 % 12 == 0 ? 12 : hour24 % 12) },
             set: { text in
-                if let hour = Self.clockValue(text, in: 1...12) { hour24 = hour % 12 + (hour24 >= 12 ? 12 : 0) }
+                hourTyped = String(text.filter(\.isNumber).suffix(2))
+                if let hour = Self.clockValue(text, in: hourRange) { setHour(hour) }
             }
         )
     }
