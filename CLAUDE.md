@@ -28,7 +28,7 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
 ## Verifying UI (important)
 The agent has no Screen Recording permission, so the app has test launch arguments. They're handled in `AppController.handleTestingArguments()`, which documents them.
 - `--snapshot /path/x.png` saves each visible app window as `x-<n>.png` after 1.5s. Read the PNG to check a layout. If it misses the bubble, just run it again (it's a timing issue).
-- `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes]` opens the bubble on that page. `--customize` opens the Customize page.
+- `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the bubble on that page. `--customize` opens the Customize page.
 - The following set up a timer state:
   - `--timer <sec>`, optionally with `--label <text>` and/or `--pause`
   - `--pomodoro <work> <break>`
@@ -39,7 +39,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.
 - **Snapshot every UI change** and check it before telling Natalie it's done.
 - **Protect her real data.** Before testing with fake data, back it up, and restore it afterwards (check with `cmp`). Her real data:
-  - UserDefaults for to-dos, notes, reminders, math history, `startPage.mode`, `mathPage.mode`, `convert.*`, and pet settings
+  - UserDefaults for to-dos, notes, reminders, math history, `startPage.mode`, `mathPage.mode`, `convert.*`, `settings.*` (e.g. `settings.militaryTime`), and pet settings
   - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
@@ -64,7 +64,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - Clicking outside the bubble closes it only on the main menu. Tool pages stay open (Natalie wants to keep her work and look things up in other apps); ✕ or clicking the pet closes them.
   - The bubble is a child window of the pet panel and resizes to fit its content with `.onGeometryChange`.
   - Each page has a fixed width in `width(of:)` and a header with a **‹ back** icon and an **✕ close** icon. Pages don't draw their own titles or Back buttons.
-  - Main menu: rows of icon tiles, each row centered: Timer/Reminders/To-dos, Notes/Clipboard/Math, then Customize/Hide. Natalie is saving the bottom row for a future Settings tile, so new tools don't go there.
+  - Main menu: rows of icon tiles, each row centered: Timer/Reminders/To-dos, Notes/Clipboard/Math, then Customize/Settings/Hide. The bottom row is for the pet and the app itself, so new tools don't go there.
   - Keyboard: some pages take the keyboard as soon as they open (startTimer, addReminder, editReminder, math). Others only take it when a field is clicked (timerControls, todos, notes, customize). The bubble gives keyboard focus back to the previous app when it closes.
   - When the menu is closed, clicking the bubble does one of these:
     - dismisses a due reminder
@@ -74,6 +74,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - One page file per tool:
   - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/pattern row, part circles, 12 color families × 6 shades each, and Reset colors.
   - `BubbleMathPage.swift`: Calculator / Convert tabs (saved as `mathPage.mode`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter.
+  - `BubbleSettingsPage.swift`: the Settings page (page width 190), `AppPreferences` (app-wide preferences in UserDefaults under `settings.*`, plus `clockText(_:)` for showing a time), and `BubbleSwitchStyle`, a black-outlined on/off switch that matches the bubble (the system switch looked faint grey). Settings so far: **Military time**.
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleClipboardPage.swift`.
 - Model files: `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
 - `SetTimerView.swift` is the Custom… timer window.
@@ -87,6 +88,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - **Stopwatch** counts up and takes an optional label. **Pomodoro** has work and break lengths, no long break, and waits for a click between periods. The bubble shows "Work"/"Break" with no session number.
 - **Reminders:** one-time, a time plus an optional message, only in the bubble (Natalie removed the separate Reminders window). The list scrolls after 4. Clicking a reminder opens the `editReminder(id)` page, which reuses the add page with a Save button.
   - The time is an hour box `:` a minute box (same big bold style as the Timer's minutes, `bubbleNumberBoxStyle`) with AM stacked over PM beside them (`BubbleTabs(vertical: true)`). Typing in a box works like a digital clock: the last two digits win if valid, else the last one. Space or `:` in the hour box jumps to the minute box, like Tab (`onKeyPress`, so the character is never inserted). Backspace in an empty minute box jumps back to the hour box with its text selected (Natalie tried the cursor-at-the-end version first and preferred this). The minutes are kept as typed text (`minuteText`, may be empty) and padded to two digits when the box loses focus.
+  - **Military time** (Settings): no AM/PM, the hour box takes 00…23 (padded to two digits), and reminder times everywhere show as 24-hour (`AppPreferences.clockText`). The page keeps one `hour24` state either way.
   - ⚠️ `.onKeyPress(.delete)` never fires for the Delete key on macOS (it arrives as U+007F). Match the characters `"\u{7F}\u{8}"` instead.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.

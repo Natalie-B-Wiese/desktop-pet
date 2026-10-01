@@ -347,7 +347,7 @@ final class AppController {
     /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
-    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (plus any typing time).
@@ -379,6 +379,7 @@ final class AppController {
             case "math": .math
             case "clipboard": .clipboard
             case "notes": .notes
+            case "settings": .settings
             default: .main
             }
         }

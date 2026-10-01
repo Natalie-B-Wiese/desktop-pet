@@ -121,9 +121,9 @@ final class ReminderStore {
         Calendar.current.isDateInToday(nextOccurrence(of: time)) ? "Today" : "Tomorrow"
     }
 
-    /// "3:00 PM", or "Tomorrow 3:00 PM" / "Mon 3:00 PM" when it isn't today.
+    /// "3:00 PM", or "Tomorrow 3:00 PM" / "Mon 3:00 PM" when it isn't today (24-hour with military time on).
     static func timeText(_ date: Date) -> String {
-        let time = date.formatted(date: .omitted, time: .shortened)
+        let time = AppPreferences.clockText(date)
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return time }
         if calendar.isDateInTomorrow(date) { return "Tomorrow \(time)" }

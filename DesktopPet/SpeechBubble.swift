@@ -17,7 +17,7 @@ final class BubbleLayout {
 @Observable
 final class BubbleMenu {
     enum Page: Equatable {
-        case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize
+        case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
         case editReminder(Reminder.ID)
     }
 
@@ -313,7 +313,7 @@ struct BubbleView: View {
         switch page {
         case .main: 3 * MenuTile.width + 2 * tileSpacing
         case .startTimer: 228
-        case .timerControls, .reminders, .addReminder, .editReminder: 190
+        case .timerControls, .reminders, .addReminder, .editReminder, .settings: 190
         case .math, .todos: 210
         case .notes: 220
         case .clipboard: 250
@@ -341,6 +341,7 @@ struct BubbleView: View {
         case .math: "Math"
         case .clipboard: "Clipboard"
         case .customize: "Customize"
+        case .settings: "Settings"
         }
     }
 
@@ -424,6 +425,9 @@ struct BubbleView: View {
                 .frame(width: 210)
         case .customize:
             BubbleCustomizePage(settings: settings)
+        case .settings:
+            BubbleSettingsPage()
+                .frame(width: 190)
         case .todos:
             BubbleTodoPage(store: todos, onClose: { menu.page = nil })
                 .frame(width: 210)
@@ -518,6 +522,7 @@ struct BubbleView: View {
             }
             HStack(spacing: Self.tileSpacing) {
                 MenuTile("Customize", systemImage: "paintpalette") { menu.page = .customize }
+                MenuTile("Settings", systemImage: "gearshape") { menu.page = .settings }
                 MenuTile("Hide", systemImage: "eye.slash", action: actions.hide)
             }
 

@@ -93,14 +93,14 @@ struct BubbleAddReminderPage: View {
     var onAdded: () -> Void
     var onClose: () -> Void
 
-    /// 1…12, as shown in the hour box.
-    @State private var hour: Int
+    /// 0…23. The hour box shows 1…12 plus AM/PM, or 00…23 with military time on.
+    @State private var hour24: Int
     /// The minutes as typed, so the box can be empty while editing; padded to "05" when it loses focus.
     @State private var minuteText: String
-    @State private var isPM: Bool
     @State private var message: String
     private enum Field { case hour, minute }
     @FocusState private var focusedField: Field?
+    @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
 
     init(store: ReminderStore, editing: Reminder? = nil, onAdded: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.store = store
@@ -108,10 +108,8 @@ struct BubbleAddReminderPage: View {
         self.onAdded = onAdded
         self.onClose = onClose
         let start = Calendar.current.dateComponents([.hour, .minute], from: editing?.date ?? ReminderStore.defaultTime())
-        let hour24 = start.hour ?? 12
-        _hour = State(initialValue: hour24 % 12 == 0 ? 12 : hour24 % 12)
+        _hour24 = State(initialValue: start.hour ?? 12)
         _minuteText = State(initialValue: String(format: "%02d", start.minute ?? 0))
-        _isPM = State(initialValue: hour24 >= 12)
         _message = State(initialValue: editing?.message ?? "")
     }
 
@@ -119,8 +117,7 @@ struct BubbleAddReminderPage: View {
 
     /// The picked time, today; the store moves it to tomorrow if it has already passed.
     private var time: Date {
-        let hour24 = hour % 12 + (isPM ? 12 : 0)
-        return Calendar.current.date(bySettingHour: hour24, minute: minute, second: 0, of: Date()) ?? Date()
+        Calendar.current.date(bySettingHour: hour24, minute: minute, second: 0, of: Date()) ?? Date()
     }
 
     var body: some View {
@@ -129,7 +126,7 @@ struct BubbleAddReminderPage: View {
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
                     // Space or ":" in the hour box jumps to the minutes, like Tab.
-                    numberBox(Self.clockDigits($hour, in: 1...12))
+                    numberBox(hourBinding)
                         .focused($focusedField, equals: .hour)
                         .onKeyPress(characters: CharacterSet(charactersIn: " :")) { _ in
                             focusedField = .minute
@@ -147,9 +144,11 @@ struct BubbleAddReminderPage: View {
                             focusedField = .hour
                             return .handled
                         }
-                    BubbleTabs(selection: $isPM, options: [(false, "AM"), (true, "PM")], vertical: true)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.leading, 6)
+                    if !militaryTime {
+                        BubbleTabs(selection: isPM, options: [(false, "AM"), (true, "PM")], vertical: true)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.leading, 6)
+                    }
                 }
                 .fixedSize(horizontal: false, vertical: true) // AM/PM matches the boxes' height
 
@@ -181,6 +180,29 @@ struct BubbleAddReminderPage: View {
         .onExitCommand(perform: onClose) // Esc closes the menu
     }
 
+    /// The hour box's text: 00…23 with military time, otherwise 1…12 (AM/PM is picked separately).
+    private var hourBinding: Binding<String> {
+        if militaryTime {
+            return Binding(
+                get: { String(format: "%02d", hour24) },
+                set: { text in if let hour = Self.clockValue(text, in: 0...23) { hour24 = hour } }
+            )
+        }
+        return Binding(
+            get: { String(hour24 % 12 == 0 ? 12 : hour24 % 12) },
+            set: { text in
+                if let hour = Self.clockValue(text, in: 1...12) { hour24 = hour % 12 + (hour24 >= 12 ? 12 : 0) }
+            }
+        )
+    }
+
+    private var isPM: Binding<Bool> {
+        Binding(
+            get: { hour24 >= 12 },
+            set: { pm in hour24 = hour24 % 12 + (pm ? 12 : 0) }
+        )
+    }
+
     /// The minutes box's text, using the same digital-clock typing as the hour box but
     /// keeping exactly what was typed ("0", "07", or empty) until the box loses focus.
     private var minuteBinding: Binding<String> {
@@ -205,22 +227,15 @@ struct BubbleAddReminderPage: View {
             .onSubmit(save) // Return adds or saves it
     }
 
-    /// A text binding for the hour box. Typing works like a digital clock: the last two digits
-    /// typed win if they make a valid number, otherwise just the last one (so "12" then "3" is 3).
-    private static func clockDigits(_ value: Binding<Int>, in range: ClosedRange<Int>) -> Binding<String> {
-        Binding(
-            get: { String(value.wrappedValue) },
-            set: { text in
-                let digits = text.filter(\.isNumber)
-                if digits.isEmpty {
-                    if range.contains(0) { value.wrappedValue = 0 }
-                } else if let two = Int(digits.suffix(2)), range.contains(two) {
-                    value.wrappedValue = two
-                } else if let one = Int(digits.suffix(1)), range.contains(one) {
-                    value.wrappedValue = one
-                }
-            }
-        )
+    /// The number typed into the hour box, or nil to keep the old one. Typing works like a digital
+    /// clock: the last two digits typed win if they're in `range`, otherwise just the last one
+    /// (so "12" then "3" is 3).
+    private static func clockValue(_ text: String, in range: ClosedRange<Int>) -> Int? {
+        let digits = text.filter(\.isNumber)
+        if digits.isEmpty { return range.contains(0) ? 0 : nil }
+        if let two = Int(digits.suffix(2)), range.contains(two) { return two }
+        if let one = Int(digits.suffix(1)), range.contains(one) { return one }
+        return nil
     }
 
     private func save() {
@@ -245,7 +260,7 @@ struct BubbleReminderAlert: View {
             HStack(spacing: 4) {
                 Image(systemName: "bell.fill")
                     .font(.system(size: 9, weight: .bold))
-                Text(reminder.date.formatted(date: .omitted, time: .shortened))
+                Text(AppPreferences.clockText(reminder.date))
                     .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
             }
             Text(reminder.message ?? "Reminder!")
