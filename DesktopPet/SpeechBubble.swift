@@ -16,7 +16,10 @@ final class BubbleLayout {
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
 @Observable
 final class BubbleMenu {
-    enum Page { case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize }
+    enum Page: Equatable {
+        case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize
+        case editReminder(Reminder.ID)
+    }
 
     /// `nil` when the menu is closed.
     var page: Page? {
@@ -37,7 +40,6 @@ struct BubbleActions {
     var togglePause: () -> Void
     var startNextPomodoroPeriod: () -> Void
     var hide: () -> Void
-    var openRemindersWindow: () -> Void
     var takeScreenshot: () -> Void
     var pickColor: () -> Void
 }
@@ -83,7 +85,6 @@ final class SpeechBubbleController {
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
             hide: { menu.page = nil; actions.hide() },
-            openRemindersWindow: { menu.page = nil; actions.openRemindersWindow() },
             takeScreenshot: { menu.page = nil; actions.takeScreenshot() },
             pickColor: { menu.page = nil; actions.pickColor() }
         )
@@ -162,7 +163,10 @@ final class SpeechBubbleController {
 
         // Only pages with text fields may take the keyboard. The Start page grabs it right away
         // (you're about to type minutes); the Timer page only when you click its label box.
-        let grabsKeyboard = menu.page == .startTimer || menu.page == .addReminder || menu.page == .math
+        let grabsKeyboard = switch menu.page {
+        case .startTimer, .addReminder, .editReminder, .math: true
+        default: false
+        }
         let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .customize].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
@@ -309,7 +313,7 @@ struct BubbleView: View {
         switch page {
         case .main: 3 * MenuTile.width + 2 * tileSpacing
         case .startTimer: 228
-        case .timerControls, .reminders, .addReminder: 190
+        case .timerControls, .reminders, .addReminder, .editReminder: 190
         case .math, .todos: 210
         case .notes: 220
         case .clipboard: 250
@@ -331,6 +335,7 @@ struct BubbleView: View {
             }
         case .reminders: "Reminders"
         case .addReminder: "Remind me at…"
+        case .editReminder: "Edit reminder"
         case .todos: "To-dos"
         case .notes: "Notes"
         case .math: "Math"
@@ -343,7 +348,7 @@ struct BubbleView: View {
     private func backDestination(for page: BubbleMenu.Page) -> BubbleMenu.Page? {
         switch page {
         case .main: nil
-        case .addReminder: .reminders
+        case .addReminder, .editReminder: .reminders
         default: .main
         }
     }
@@ -380,7 +385,7 @@ struct BubbleView: View {
             BubbleRemindersPage(
                 store: reminders,
                 onAdd: { menu.page = .addReminder },
-                onOpenWindow: actions.openRemindersWindow
+                onEdit: { menu.page = .editReminder($0) }
             )
             .frame(width: 190)
         case .addReminder:
@@ -390,6 +395,24 @@ struct BubbleView: View {
                 onClose: { menu.page = nil }
             )
             .frame(width: 190)
+        case .editReminder(let id):
+            // If it came due or was deleted meanwhile, there's nothing left to edit.
+            if let reminder = reminders.upcoming.first(where: { $0.id == id }) {
+                BubbleAddReminderPage(
+                    store: reminders,
+                    editing: reminder,
+                    onAdded: { menu.page = .reminders },
+                    onClose: { menu.page = nil }
+                )
+                .id(id)
+                .frame(width: 190)
+            } else {
+                Text("That reminder is gone")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+                    .frame(width: 190)
+                    .padding(.vertical, 4)
+            }
         case .notes:
             BubbleNotesPage(store: notes, onClose: { menu.page = nil })
                 .frame(width: 220)

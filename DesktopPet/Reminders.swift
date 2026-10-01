@@ -52,6 +52,17 @@ final class ReminderStore {
         onChange?()
     }
 
+    /// Moves a reminder to the next time the clock shows `time`'s hour and minute, and changes its message.
+    func update(_ id: Reminder.ID, at time: Date, message: String?) {
+        guard let index = reminders.firstIndex(where: { $0.id == id }) else { return }
+        reminders[index].date = Self.nextOccurrence(of: time)
+        reminders[index].message = message
+        reminders.sort { $0.date < $1.date }
+        save()
+        refresh()
+        onChange?()
+    }
+
     func delete(_ id: Reminder.ID) {
         reminders.removeAll { $0.id == id }
         save()

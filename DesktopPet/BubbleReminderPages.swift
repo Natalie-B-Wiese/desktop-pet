@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// The bubble's "Reminders" page: the next few reminders, with Add and a link to the full window.
+/// The bubble's "Reminders" page: every upcoming reminder (click one to edit it), and Add.
 struct BubbleRemindersPage: View {
     let store: ReminderStore
     var onAdd: () -> Void
-    var onOpenWindow: () -> Void
+    var onEdit: (Reminder.ID) -> Void
 
-    /// More than this and the bubble gets too tall; the rest are in the Reminders window.
-    private static let maxShown = 4
+    /// Past this many rows the list scrolls instead of making the bubble taller.
+    private static let maxVisibleRows = 4
+    private static let rowHeight: CGFloat = 38
+    private static let rowSpacing: CGFloat = 6
 
     var body: some View {
         let upcoming = store.upcoming
@@ -18,36 +20,52 @@ struct BubbleRemindersPage: View {
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .opacity(0.55)
                     .padding(.vertical, 4)
+            } else if upcoming.count > Self.maxVisibleRows {
+                ScrollView {
+                    rows(upcoming)
+                        .padding(1) // keeps the row outlines from being clipped at the edges
+                }
+                .scrollIndicators(.never) // a scroll bar would squeeze the rows narrower
+                .frame(height: CGFloat(Self.maxVisibleRows) * (Self.rowHeight + Self.rowSpacing))
+                .padding(.horizontal, -1)
             } else {
-                ForEach(upcoming.prefix(Self.maxShown)) { reminder in
-                    row(reminder)
-                }
-                if upcoming.count > Self.maxShown {
-                    Text("+\(upcoming.count - Self.maxShown) more in the Reminders window")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .opacity(0.55)
-                }
+                rows(upcoming)
             }
 
             BubbleButton("Add reminder", systemImage: "plus", action: onAdd)
-            BubbleButton("Open Reminders window", systemImage: "list.bullet", action: onOpenWindow)
+        }
+    }
+
+    private func rows(_ reminders: [Reminder]) -> some View {
+        VStack(spacing: Self.rowSpacing) {
+            ForEach(reminders) { reminder in
+                row(reminder)
+            }
         }
     }
 
     private func row(_ reminder: Reminder) -> some View {
         HStack(spacing: 6) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(ReminderStore.timeText(reminder.date))
-                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
-                if let text = reminder.message {
-                    Text(text)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .opacity(0.65)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+            Button {
+                onEdit(reminder.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(ReminderStore.timeText(reminder.date))
+                        .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                    if let text = reminder.message {
+                        Text(text)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .opacity(0.65)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
+            .help("Edit reminder")
+
             Button {
                 store.delete(reminder.id)
             } label: {
@@ -62,19 +80,31 @@ struct BubbleRemindersPage: View {
         .padding(.leading, 10)
         .padding(.trailing, 4)
         .padding(.vertical, 5)
+        .frame(minHeight: Self.rowHeight)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
     }
 }
 
-/// The bubble's "Remind me at…" page.
+/// The bubble's "Remind me at…" page, also used to edit an existing reminder.
 struct BubbleAddReminderPage: View {
     let store: ReminderStore
+    /// The reminder being changed, or nil when adding a new one.
+    var editing: Reminder? = nil
     var onAdded: () -> Void
     var onClose: () -> Void
 
-    @State private var time = ReminderStore.defaultTime()
-    @State private var message = ""
+    @State private var time: Date
+    @State private var message: String
     @FocusState private var timeFocused: Bool
+
+    init(store: ReminderStore, editing: Reminder? = nil, onAdded: @escaping () -> Void, onClose: @escaping () -> Void) {
+        self.store = store
+        self.editing = editing
+        self.onAdded = onAdded
+        self.onClose = onClose
+        _time = State(initialValue: editing?.date ?? ReminderStore.defaultTime())
+        _message = State(initialValue: editing?.message ?? "")
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -95,9 +125,13 @@ struct BubbleAddReminderPage: View {
                 set: { message = String($0.prefix(ReminderStore.maxMessageLength)) }
             ))
             .bubbleFieldStyle()
-            .onSubmit(add) // Return adds it
+            .onSubmit(save) // Return adds or saves it
 
-            BubbleButton("Add", systemImage: "bell.badge", action: add)
+            if editing == nil {
+                BubbleButton("Add", systemImage: "bell.badge", action: save)
+            } else {
+                BubbleButton("Save", systemImage: "checkmark", action: save)
+            }
         }
         .onAppear {
             // Wait a moment for the bubble to become the key window before focusing.
@@ -106,8 +140,13 @@ struct BubbleAddReminderPage: View {
         .onExitCommand(perform: onClose) // Esc closes the menu
     }
 
-    private func add() {
-        store.add(at: time, message: ReminderStore.cleanMessage(message))
+    private func save() {
+        let text = ReminderStore.cleanMessage(message)
+        if let editing {
+            store.update(editing.id, at: time, message: text)
+        } else {
+            store.add(at: time, message: text)
+        }
         onAdded()
     }
 }

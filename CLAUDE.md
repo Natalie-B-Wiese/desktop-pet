@@ -28,13 +28,13 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
 ## Verifying UI (important)
 The agent has no Screen Recording permission, so the app has test launch arguments. They're handled in `AppController.handleTestingArguments()`, which documents them.
 - `--snapshot /path/x.png` saves each visible app window as `x-<n>.png` after 1.5s. Read the PNG to check a layout. If it misses the bubble, just run it again (it's a timing issue).
-- `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|notes]` opens the bubble on that page. `--customize` opens the Customize page.
+- `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes]` opens the bubble on that page. `--customize` opens the Customize page.
 - The following set up a timer state:
   - `--timer <sec>`, optionally with `--label <text>` and/or `--pause`
   - `--pomodoro <work> <break>`
   - `--stopwatch`
 - `--convert-input <amount>` fills in the Math page's Convert tab (set `mathPage.mode` to `convert` first).
-- `--set-timer` and `--reminders` open those windows. `--flip-start-mode` switches the Start page tab after 1 second.
+- `--set-timer` opens that window. `--flip-start-mode` switches the Start page tab after 1 second.
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.
 - **Snapshot every UI change** and check it before telling Natalie it's done.
 - **Protect her real data.** Before testing with fake data, back it up, and restore it afterwards (check with `cmp`). Her real data:
@@ -64,7 +64,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - The bubble is a child window of the pet panel and resizes to fit its content with `.onGeometryChange`.
   - Each page has a fixed width in `width(of:)` and a header with a **‹ back** icon and an **✕ close** icon. Pages don't draw their own titles or Back buttons.
   - Main menu: rows of icon tiles, each row centered: Timer/Reminders/To-dos, Notes/Clipboard/Math, then Customize/Hide. Natalie is saving the bottom row for a future Settings tile, so new tools don't go there.
-  - Keyboard: some pages take the keyboard as soon as they open (startTimer, addReminder, math). Others only take it when a field is clicked (timerControls, todos, notes, customize). The bubble gives keyboard focus back to the previous app when it closes.
+  - Keyboard: some pages take the keyboard as soon as they open (startTimer, addReminder, editReminder, math). Others only take it when a field is clicked (timerControls, todos, notes, customize). The bubble gives keyboard focus back to the previous app when it closes.
   - When the menu is closed, clicking the bubble does one of these:
     - dismisses a due reminder
     - starts the next Pomodoro period
@@ -75,7 +75,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - `BubbleMathPage.swift`: Calculator / Convert tabs (saved as `mathPage.mode`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter.
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleClipboardPage.swift`.
 - Model files: `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
-- `SetTimerView.swift` is the Custom… timer window. `RemindersView.swift` is the Reminders window.
+- `SetTimerView.swift` is the Custom… timer window.
 
 ## Features and their rules
 - **Timer:** a countdown with minutes input, caret steppers (holding repeats), and an optional label. While it runs:
@@ -84,7 +84,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - clicking the bubble pauses or resumes
   - Start is hidden while a timer is busy
 - **Stopwatch** counts up and takes an optional label. **Pomodoro** has work and break lengths, no long break, and waits for a click between periods. The bubble shows "Work"/"Break" with no session number.
-- **Reminders:** one-time, a time plus an optional message, available in the bubble and in a window.
+- **Reminders:** one-time, a time plus an optional message, only in the bubble (Natalie removed the separate Reminders window). The list scrolls after 4. Clicking a reminder opens the `editReminder(id)` page, which reuses the add page with a Save button.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.
   - A blank "New note" sits at the top. Typing on it makes it a real note (it keeps the blank's ID so the same TextEditor stays focused) and a fresh blank appears above.

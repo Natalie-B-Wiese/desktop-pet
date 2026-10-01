@@ -20,7 +20,6 @@ final class AppController {
     @ObservationIgnored private var petPanel: PetPanel?
     @ObservationIgnored private var bubble: SpeechBubbleController?
     @ObservationIgnored private var setTimerWindow: NSWindow?
-    @ObservationIgnored private var remindersWindow: NSWindow?
 
     private static let visibleKey = "petVisible"
 
@@ -50,7 +49,6 @@ final class AppController {
             togglePause: { [weak self] in self?.timer.togglePause() },
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
             hide: { [weak self] in self?.setPetVisible(false) },
-            openRemindersWindow: { [weak self] in self?.showRemindersWindow() },
             takeScreenshot: { [weak self] in self?.takeScreenshot() },
             pickColor: { [weak self] in self?.pickColor() }
         ))
@@ -131,7 +129,7 @@ final class AppController {
         menu.addItem(ClosureMenuItem("To-dos") { [weak self] in self?.showTodos() })
         menu.addItem(ClosureMenuItem("Notes") { [weak self] in self?.showPage(.notes) })
         menu.addItem(ClosureMenuItem("Take Screenshot") { [weak self] in self?.takeScreenshot() })
-        menu.addItem(ClosureMenuItem("Reminders…") { [weak self] in self?.showRemindersWindow() })
+        menu.addItem(ClosureMenuItem("Reminders") { [weak self] in self?.showPage(.reminders) })
         menu.addItem(ClosureMenuItem("Customize") { [weak self] in self?.showCustomize() })
         menu.addItem(ClosureMenuItem("Hide Pet") { [weak self] in self?.setPetVisible(false) })
         return menu
@@ -320,20 +318,6 @@ final class AppController {
         lastDueCount = reminders.due.count
     }
 
-    func showRemindersWindow() {
-        if remindersWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(
-                rootView: RemindersView(store: reminders)
-            ))
-            window.title = "Reminders"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.center()
-            remindersWindow = window
-        }
-        NSApp.activate()
-        remindersWindow?.makeKeyAndOrderFront(nil)
-    }
 
     // MARK: - Customize
 
@@ -360,10 +344,10 @@ final class AppController {
     // MARK: - Testing
 
     /// Launch arguments that let Claude check windows without screen-recording permission:
-    /// `--customize` opens that bubble page; `--set-timer` or `--reminders` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
+    /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
-    /// `--menu [start|controls|reminders|add-reminder|todos|math|clipboard|notes]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes]` opens the cat's click menu (on that page);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s.
     private func handleTestingArguments() {
@@ -374,7 +358,6 @@ final class AppController {
 
         if args.contains("--customize") { showCustomize() }
         if args.contains("--set-timer") { showSetTimerWindow() }
-        if args.contains("--reminders") { showRemindersWindow() }
         if let i = args.firstIndex(of: "--pomodoro"), i + 2 < args.count,
            let work = TimeInterval(args[i + 1]), let rest = TimeInterval(args[i + 2]) {
             timer.startPomodoro(workLength: work, breakLength: rest)
@@ -390,6 +373,7 @@ final class AppController {
             case "controls": .timerControls
             case "reminders": .reminders
             case "add-reminder": .addReminder
+            case "edit-reminder": reminders.upcoming.first.map { .editReminder($0.id) } ?? .reminders
             case "todos": .todos
             case "math": .math
             case "clipboard": .clipboard

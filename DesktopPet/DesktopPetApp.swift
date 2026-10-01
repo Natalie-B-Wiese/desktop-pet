@@ -93,8 +93,8 @@ struct MenuContent: View {
             controller.showPage(.notes)
         }
 
-        Button("Reminders…") {
-            controller.showRemindersWindow()
+        Button("Reminders") {
+            controller.showPage(.reminders)
         }
 
         Button("Customize") {
