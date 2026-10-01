@@ -101,6 +101,9 @@ struct BubbleAddReminderPage: View {
     /// Digits typed into the hour box since it was focused; two of them (or one that can't
     /// start a two-digit hour) complete it and move on to the minutes.
     @State private var hourTyped = ""
+    /// Set when Backspace goes back to the hour box, so the next digit adds to the hour
+    /// that's there ("1" then "3" is 13) instead of starting over.
+    @State private var resumeHourTyping = false
     private enum Field { case hour, minute }
     @FocusState private var focusedField: Field?
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
@@ -126,6 +129,14 @@ struct BubbleAddReminderPage: View {
     var body: some View {
         VStack(spacing: 8) {
 
+            if militaryTime {
+                // Red and bold like the Clipboard's "full" warning, so a 12-hour habit doesn't slip through.
+                Text("Military time is on")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.red)
+                    .padding(.top, -4)
+            }
+
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
                     // Space or ":" in the hour box jumps to the minutes, like Tab.
@@ -148,6 +159,7 @@ struct BubbleAddReminderPage: View {
                         // The Delete key arrives as U+007F, which `.onKeyPress(.delete)` doesn't match.
                         .onKeyPress(characters: CharacterSet(charactersIn: "\u{7F}\u{8}")) { _ in
                             guard minuteText.isEmpty else { return .ignored }
+                            resumeHourTyping = true
                             focusedField = .hour
                             return .handled
                         }
@@ -161,7 +173,7 @@ struct BubbleAddReminderPage: View {
                 }
                 .fixedSize(horizontal: false, vertical: true) // AM/PM matches the boxes' height
 
-                Text(militaryTime ? "\(ReminderStore.dayWord(for: time)) · Military time is on" : ReminderStore.dayWord(for: time))
+                Text(ReminderStore.dayWord(for: time))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .opacity(0.55)
             }
@@ -185,12 +197,19 @@ struct BubbleAddReminderPage: View {
         }
         .onChange(of: focusedField) { old, new in
             if old == .minute { minuteText = String(format: "%02d", minute) }
-            if new == .hour { hourTyped = "" } // its text is selected, so typing starts over
+            if new == .hour {
+                // Tabbing or clicking in starts the hour over; Backspace from the minutes picks up where it was.
+                hourTyped = resumeHourTyping ? String(shownHour) : ""
+                resumeHourTyping = false
+            }
         }
         .onExitCommand(perform: onClose) // Esc closes the menu
     }
 
     private var hourRange: ClosedRange<Int> { militaryTime ? 0...23 : 1...12 }
+
+    /// The hour as the box shows it: 0…23, or 1…12 with AM/PM.
+    private var shownHour: Int { militaryTime ? hour24 : (hour24 % 12 == 0 ? 12 : hour24 % 12) }
 
     /// Types one digit into the hour box, then jumps to the minutes once the hour is complete:
     /// after two digits, or after one that no valid hour continues (like "3" with AM/PM).
@@ -210,7 +229,7 @@ struct BubbleAddReminderPage: View {
     private var hourBinding: Binding<String> {
         // Digits are typed by `typeHourDigit`; this handles everything else, like Backspace or pasting.
         Binding(
-            get: { militaryTime ? String(format: "%02d", hour24) : String(hour24 % 12 == 0 ? 12 : hour24 % 12) },
+            get: { militaryTime ? String(format: "%02d", shownHour) : String(shownHour) },
             set: { text in
                 hourTyped = String(text.filter(\.isNumber).suffix(2))
                 if let hour = Self.clockValue(text, in: hourRange) { setHour(hour) }
