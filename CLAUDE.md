@@ -33,7 +33,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - `--timer <sec>`, optionally with `--label <text>` and/or `--pause`
   - `--pomodoro <work> <break>`
   - `--stopwatch`
-- `--type <text>` types that text into the focused window after 1s, one key every 0.1s (macOS blocks outside keystrokes, so this is how to test keyboard behavior). Snapshot after it, e.g. `--menu add-reminder --type "3 45" --snapshot …`.
+- `--type <text>` types that text into the focused window after 1s, one key every 0.1s; `⌫` in the text is Backspace (macOS blocks outside keystrokes, so this is how to test keyboard behavior). `--snapshot` waits until the typing is done. Snapshot after it, e.g. `--menu add-reminder --type "3 45" --snapshot …`.
 - `--convert-input <amount>` fills in the Math page's Convert tab (set `mathPage.mode` to `convert` first).
 - `--set-timer` opens that window. `--flip-start-mode` switches the Start page tab after 1 second.
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.
@@ -86,7 +86,8 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - Start is hidden while a timer is busy
 - **Stopwatch** counts up and takes an optional label. **Pomodoro** has work and break lengths, no long break, and waits for a click between periods. The bubble shows "Work"/"Break" with no session number.
 - **Reminders:** one-time, a time plus an optional message, only in the bubble (Natalie removed the separate Reminders window). The list scrolls after 4. Clicking a reminder opens the `editReminder(id)` page, which reuses the add page with a Save button.
-  - The time is an hour box `:` a minute box (same big bold style as the Timer's minutes, `bubbleNumberBoxStyle`) with AM stacked over PM beside them (`BubbleTabs(vertical: true)`). Typing in a box works like a digital clock: the last two digits win if valid, else the last one. Space or `:` in the hour box jumps to the minute box, like Tab (`onKeyPress`, so the character is never inserted).
+  - The time is an hour box `:` a minute box (same big bold style as the Timer's minutes, `bubbleNumberBoxStyle`) with AM stacked over PM beside them (`BubbleTabs(vertical: true)`). Typing in a box works like a digital clock: the last two digits win if valid, else the last one. Space or `:` in the hour box jumps to the minute box, like Tab (`onKeyPress`, so the character is never inserted). Backspace in an empty minute box jumps back to the hour box with the cursor after its last digit. The minutes are kept as typed text (`minuteText`, may be empty) and padded to two digits when the box loses focus.
+  - ⚠️ `.onKeyPress(.delete)` never fires for the Delete key on macOS (it arrives as U+007F). Match the characters `"\u{7F}\u{8}"` instead.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.
   - A blank "New note" sits at the top. Typing on it makes it a real note (it keeps the blank's ID so the same TextEditor stays focused) and a fresh blank appears above.
