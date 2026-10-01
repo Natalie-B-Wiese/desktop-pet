@@ -138,13 +138,13 @@ struct BubbleAddReminderPage: View {
                     Text(":")
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .offset(y: -2) // sits a touch high, like a clock's colon
-                    // Backspace in an empty minutes box goes back to the end of the hour box.
+                    // Backspace in an empty minutes box goes back to the hour box, selected.
                     numberBox(minuteBinding)
                         .focused($focusedField, equals: .minute)
                         // The Delete key arrives as U+007F, which `.onKeyPress(.delete)` doesn't match.
                         .onKeyPress(characters: CharacterSet(charactersIn: "\u{7F}\u{8}")) { _ in
                             guard minuteText.isEmpty else { return .ignored }
-                            focusHourAtEnd()
+                            focusedField = .hour
                             return .handled
                         }
                     BubbleTabs(selection: $isPM, options: [(false, "AM"), (true, "PM")], vertical: true)
@@ -179,15 +179,6 @@ struct BubbleAddReminderPage: View {
             if old == .minute { minuteText = String(format: "%02d", minute) }
         }
         .onExitCommand(perform: onClose) // Esc closes the menu
-    }
-
-    /// Focuses the hour box with the cursor after its last digit, instead of selecting it all.
-    private func focusHourAtEnd() {
-        focusedField = .hour
-        // Once the hour box has taken focus (which selects its text), move the cursor to the end.
-        DispatchQueue.main.async {
-            (NSApp.keyWindow?.firstResponder as? NSTextView)?.moveToEndOfDocument(nil)
-        }
     }
 
     /// The minutes box's text, using the same digital-clock typing as the hour box but
