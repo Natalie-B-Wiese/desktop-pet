@@ -9,9 +9,11 @@ enum AppPreferences {
 
     /// "2:30 PM", or "14:30" with military time on.
     static func clockText(_ date: Date) -> String {
-        usesMilitaryTime
-            ? date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-            : date.formatted(date: .omitted, time: .shortened)
+        guard usesMilitaryTime else { return date.formatted(date: .omitted, time: .shortened) }
+        // Built by hand: `.hour(.twoDigits(amPM: .omitted))` still gives 12-hour hours ("02:30" for 14:30)
+        // when the Mac is set to a 12-hour clock.
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 }
 
