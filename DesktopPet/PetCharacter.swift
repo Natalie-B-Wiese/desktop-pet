@@ -46,8 +46,8 @@ struct PetCharacter: Identifiable, Equatable {
     private static let catParts = ["Body", "Accents", "Eyes"]
     private static let catKeys = ["main", "secondary", "detail"]
 
-    /// Cat shapes, in cycle order: ears up or down, with a long tail. The first is the original cat.
-    static let catShapes = ["up-long", "down-long"]
+    /// Cat shapes, in cycle order: ears up or down, with a long or bob tail. The first is the original cat.
+    static let catShapes = ["up-long", "up-bob", "down-long", "down-bob"]
 
     /// Each cat pattern in every shape. Images are "cat <shape> <pattern>.png" and IDs "<pattern>.<shape>".
     static let cats: [PetCharacter] = catShapes.flatMap { shape in
