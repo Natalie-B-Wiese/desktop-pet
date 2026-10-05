@@ -82,7 +82,7 @@ final class PetSettings {
 
     init() {
         let stored = UserDefaults.standard
-        character = PetCharacter.withID(stored.string(forKey: "character")) ?? .tuxedo
+        character = PetCharacter.withID(stored.string(forKey: "character")) ?? PetCharacter.cats[0]
         colors = Self.defaultColors.reduce(into: [:]) { result, entry in
             result[entry.key] = Self.load("color.\(entry.key)", defaults: stored) ?? NSColor(hex: entry.value)!
         }

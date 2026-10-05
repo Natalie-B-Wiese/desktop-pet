@@ -29,8 +29,8 @@ enum PetSpecies: String, CaseIterable {
 struct PetCharacter: Identifiable, Equatable {
     let id: String
     let species: PetSpecies
-    /// The body shape, like "up-stub" (ears up, stub tail). Cats have just one.
-    var shape = "cat"
+    /// The body shape, like "up-stub" (ears up, stub tail).
+    let shape: String
     /// The markings, shared across shapes, like "spots". Switching shape keeps the pattern.
     var pattern: String { id.components(separatedBy: ".")[0] }
     /// The PNG's name in the app bundle, without ".png".
@@ -46,16 +46,24 @@ struct PetCharacter: Identifiable, Equatable {
     private static let catParts = ["Body", "Accents", "Eyes"]
     private static let catKeys = ["main", "secondary", "detail"]
 
-    static let tuxedo = cat("tuxedo")
-    static let calico = cat("calico")
-    static let colorpoint = cat("colorpoint")
-    static let tortie = cat("tortie")
-    /// An odd-eyed van: each eye gets its own color. The blue eye is on the left of the image,
-    /// so it's Eye1 and is listed before the green one, matching the eyes' positions.
-    static let van = PetCharacter(
-        id: "van", species: .cat, imageName: "cat van",
-        partNames: ["Body", "Eye2", "Eye1"], partKeys: ["main", "eye2", "eye1"], partOrder: [0, 2, 1]
-    )
+    /// Cat shapes, in cycle order: ears up or down, with a long tail. The first is the original cat.
+    static let catShapes = ["up-long", "down-long"]
+
+    /// Each cat pattern in every shape. Images are "cat <shape> <pattern>.png" and IDs "<pattern>.<shape>".
+    static let cats: [PetCharacter] = catShapes.flatMap { shape in
+        [
+            cat("tuxedo", shape: shape),
+            cat("calico", shape: shape),
+            cat("colorpoint", shape: shape),
+            cat("tortie", shape: shape),
+            // An odd-eyed van: each eye gets its own color. The blue eye is on the left of the image,
+            // so it's Eye1 and is listed before the green one, matching the eyes' positions.
+            PetCharacter(
+                id: "van.\(shape)", species: .cat, shape: shape, imageName: "cat \(shape) van",
+                partNames: ["Body", "Eye2", "Eye1"], partKeys: ["main", "eye2", "eye1"], partOrder: [0, 2, 1]
+            ),
+        ]
+    }
 
     /// Dogs have black eyes, so their blue part is something else: the default dog's ears,
     /// or the spots' patch and the brindle's stripes. These save blue as "ears", so switching
@@ -80,7 +88,7 @@ struct PetCharacter: Identifiable, Equatable {
         ]
     }
 
-    static let all = [tuxedo, calico, colorpoint, tortie, van] + dogs
+    static let all = cats + dogs
 
     private static let markedParts = ["Body", "Accents", "Markings"]
 
@@ -91,13 +99,17 @@ struct PetCharacter: Identifiable, Equatable {
         )
     }
 
-    private static func cat(_ id: String) -> PetCharacter {
-        PetCharacter(id: id, species: .cat, imageName: "cat \(id)", partNames: catParts, partKeys: catKeys)
+    private static func cat(_ pattern: String, shape: String) -> PetCharacter {
+        PetCharacter(
+            id: "\(pattern).\(shape)", species: .cat, shape: shape,
+            imageName: "cat \(shape) \(pattern)", partNames: catParts, partKeys: catKeys
+        )
     }
 
-    /// Dogs saved before shapes existed have IDs like "spots"; those are the original "down-long" shape.
+    /// IDs saved before shapes existed, like "spots" or "tortie", are that pattern in its species' original shape.
     static func withID(_ id: String?) -> PetCharacter? {
         guard let id else { return nil }
-        return all.first { $0.id == id } ?? all.first { $0.id == "\(id).\(dogShapes[0])" }
+        return all.first { $0.id == id }
+            ?? all.first { $0.pattern == id && $0.shape == $0.species.shapes.first }
     }
 }
