@@ -835,13 +835,15 @@ extension View {
 struct HeaderIconButton: View {
     let systemImage: String
     let help: String
+    /// Narrower for steppers packed side by side.
+    var width: CGFloat = 22
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 12, weight: .bold))
-                .frame(width: 22, height: 22)
+                .frame(width: width, height: 22)
                 .contentShape(Rectangle())
         }
         .buttonStyle(HeaderIconButtonStyle())

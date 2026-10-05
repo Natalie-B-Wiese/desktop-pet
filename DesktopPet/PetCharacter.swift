@@ -7,11 +7,20 @@ enum PetSpecies: String, CaseIterable {
     /// The small pixel-art icon in the app bundle, without ".png".
     var iconName: String { "\(rawValue) icon" }
 
-    /// This species' patterns, in the order Customize's pattern arrows cycle through them.
+    /// Every shape and pattern of this species, shape by shape, each in Customize's cycle order.
     var characters: [PetCharacter] { PetCharacter.all.filter { $0.species == self } }
+
+    /// This species' body shapes, in the order Customize's shape arrows cycle through them.
+    var shapes: [String] {
+        characters.map(\.shape).reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
+    }
+
+    /// The patterns drawn in one shape, in the order Customize's pattern arrows cycle through them.
+    func characters(shape: String) -> [PetCharacter] { characters.filter { $0.shape == shape } }
 }
 
 /// A pet's look: its pixel-art image and what its recolorable parts are called.
+/// Each one is a shape (the outline, like a dog's ears and tail) drawn in a pattern (the markings).
 ///
 /// In the image, pure red, green and blue pixels are the three recolorable parts (slots 0, 1, 2);
 /// every other color is fixed. A part the image doesn't use is simply hidden in Customize.
@@ -20,6 +29,10 @@ enum PetSpecies: String, CaseIterable {
 struct PetCharacter: Identifiable, Equatable {
     let id: String
     let species: PetSpecies
+    /// The body shape, like "up-stub" (ears up, stub tail). Cats have just one.
+    var shape = "cat"
+    /// The markings, shared across shapes, like "spots". Switching shape keeps the pattern.
+    var pattern: String { id.components(separatedBy: ".")[0] }
     /// The PNG's name in the app bundle, without ".png".
     let imageName: String
     /// Names for the red, green and blue parts, in that order.
@@ -49,30 +62,42 @@ struct PetCharacter: Identifiable, Equatable {
     /// patterns keeps its color.
     private static let dogKeys = ["main", "secondary", "ears"]
 
-    static let dog = PetCharacter(
-        id: "dog", species: .dog, imageName: "dog default",
-        partNames: ["Body", "Accents", "Ears"], partKeys: dogKeys
-    )
-    static let spots = markedDog("spots")
-    static let brindle = markedDog("brindle")
-    /// The mask's red is the head and its blue is the body, so blue saves as "main" and is listed
-    /// first, keeping the body's color when switching from another dog.
-    static let mask = PetCharacter(
-        id: "mask", species: .dog, imageName: "dog mask",
-        partNames: ["Head", "Accents", "Body"], partKeys: ["ears", "secondary", "main"], partOrder: [2, 0, 1]
-    )
+    /// Dog shapes, in cycle order: ears down or up, with a long or stub tail. The first is the original dog.
+    static let dogShapes = ["down-long", "down-stub", "up-long", "up-stub"]
 
-    static let all = [tuxedo, calico, colorpoint, tortie, van, dog, spots, brindle, mask]
+    /// Each dog pattern in every shape. Images are "dog <shape> <pattern>.png" and IDs "<pattern>.<shape>".
+    static let dogs: [PetCharacter] = dogShapes.flatMap { shape in
+        [
+            dog("dog", image: "default", shape: shape, parts: ["Body", "Accents", "Ears"]),
+            dog("spots", shape: shape, parts: markedParts),
+            dog("brindle", shape: shape, parts: markedParts),
+            // The mask's red is the head and its blue is the body, so blue saves as "main" and is listed
+            // first, keeping the body's color when switching from another dog.
+            PetCharacter(
+                id: "mask.\(shape)", species: .dog, shape: shape, imageName: "dog \(shape) mask",
+                partNames: ["Head", "Accents", "Body"], partKeys: ["ears", "secondary", "main"], partOrder: [2, 0, 1]
+            ),
+        ]
+    }
 
-    private static func markedDog(_ id: String) -> PetCharacter {
-        PetCharacter(id: id, species: .dog, imageName: "dog \(id)", partNames: ["Body", "Accents", "Markings"], partKeys: dogKeys)
+    static let all = [tuxedo, calico, colorpoint, tortie, van] + dogs
+
+    private static let markedParts = ["Body", "Accents", "Markings"]
+
+    private static func dog(_ pattern: String, image: String? = nil, shape: String, parts: [String]) -> PetCharacter {
+        PetCharacter(
+            id: "\(pattern).\(shape)", species: .dog, shape: shape,
+            imageName: "dog \(shape) \(image ?? pattern)", partNames: parts, partKeys: dogKeys
+        )
     }
 
     private static func cat(_ id: String) -> PetCharacter {
         PetCharacter(id: id, species: .cat, imageName: "cat \(id)", partNames: catParts, partKeys: catKeys)
     }
 
+    /// Dogs saved before shapes existed have IDs like "spots"; those are the original "down-long" shape.
     static func withID(_ id: String?) -> PetCharacter? {
-        all.first { $0.id == id }
+        guard let id else { return nil }
+        return all.first { $0.id == id } ?? all.first { $0.id == "\(id).\(dogShapes[0])" }
     }
 }

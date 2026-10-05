@@ -11,7 +11,7 @@ struct PetPalette: Equatable {
 
 @Observable
 final class PetSettings {
-    /// Which cat pattern is showing.
+    /// Which species, shape and pattern is showing.
     var character: PetCharacter {
         didSet {
             guard character != oldValue else { return }
@@ -101,9 +101,17 @@ final class PetSettings {
         palette = palette(for: character.partKeys, from: Self.defaultColors)
     }
 
-    /// Switches to the species' next (+1) or previous (-1) pattern, wrapping around at either end.
+    /// Switches to the next (+1) or previous (-1) pattern in the same shape, wrapping around at either end.
     func cycleCharacter(by step: Int) {
-        character = Self.step(character.species.characters, from: character, by: step)
+        character = Self.step(character.species.characters(shape: character.shape), from: character, by: step)
+    }
+
+    /// Switches to the species' next (+1) or previous (-1) shape, keeping the pattern, wrapping around.
+    func cycleShape(by step: Int) {
+        let species = character.species
+        let shape = Self.step(species.shapes, from: character.shape, by: step)
+        let patterns = species.characters(shape: shape)
+        character = patterns.first { $0.pattern == character.pattern } ?? patterns[0]
     }
 
     /// Switches to the next (+1) or previous (-1) species, on the pattern it last had.

@@ -109,24 +109,26 @@ struct BubbleCustomizePage: View {
         }
     }
 
-    /// A boxed row as wide as the color family box: species arrows around its icon,
-    /// then pattern arrows around "3/5". Both wrap around at the ends.
+    /// A boxed row as wide as the color family box with three captioned steppers:
+    /// species (its icon), then shape and pattern (like "2/4"). All wrap around at the ends.
     private var characterPicker: some View {
-        let patterns = character.species.characters
-        let position = (patterns.firstIndex(of: character) ?? 0) + 1
-        return HStack(spacing: 28) {
-            stepper(help: "species", step: settings.cycleSpecies) {
+        let shapes = character.species.shapes
+        let patterns = character.species.characters(shape: character.shape)
+        return HStack(spacing: 0) {
+            stepper("Species", step: settings.cycleSpecies) {
                 Image(nsImage: NSImage(named: character.species.iconName) ?? NSImage())
                     .interpolation(.none)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 28, height: 24)
+                    .frame(width: 24, height: 24)
             }
-            stepper(help: "pattern", step: settings.cycleCharacter) {
-                Text("\(position)/\(patterns.count)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .frame(minWidth: 30)
+            divider
+            stepper("Shape", step: settings.cycleShape) {
+                count(shapes.firstIndex(of: character.shape) ?? 0, of: shapes.count)
+            }
+            divider
+            stepper("Pattern", step: settings.cycleCharacter) {
+                count(patterns.firstIndex(of: character) ?? 0, of: patterns.count)
             }
         }
         .padding(.vertical, 3)
@@ -134,13 +136,31 @@ struct BubbleCustomizePage: View {
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.black.opacity(0.15), lineWidth: 1))
     }
 
-    /// "‹ label ›", where the arrows call `step` with -1 or +1.
-    private func stepper(help: String, step: @escaping (Int) -> Void, @ViewBuilder label: () -> some View) -> some View {
-        HStack(spacing: 2) {
-            HeaderIconButton(systemImage: "chevron.left", help: "Previous \(help)") { step(-1) }
-            label()
-            HeaderIconButton(systemImage: "chevron.right", help: "Next \(help)") { step(1) }
+    private var divider: some View {
+        Rectangle().fill(Color.black.opacity(0.12)).frame(width: 1, height: 30)
+    }
+
+    /// "2/4", for the item at `index`.
+    private func count(_ index: Int, of total: Int) -> some View {
+        Text("\(index + 1)/\(total)")
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .frame(width: 24, height: 24)
+    }
+
+    /// "‹ label ›" with a caption underneath, where the arrows call `step` with -1 or +1.
+    private func stepper(_ caption: String, step: @escaping (Int) -> Void, @ViewBuilder label: () -> some View) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                HeaderIconButton(systemImage: "chevron.left", help: "Previous \(caption.lowercased())", width: 18) { step(-1) }
+                label()
+                HeaderIconButton(systemImage: "chevron.right", help: "Next \(caption.lowercased())", width: 18) { step(1) }
+            }
+            Text(caption)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .opacity(0.6)
         }
+        .frame(maxWidth: .infinity)
     }
 
     /// The character's parts, each showing its current color. The selected one gets a ring.
