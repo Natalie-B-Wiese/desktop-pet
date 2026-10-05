@@ -39,11 +39,6 @@ final class PetSettings {
         }
     }
 
-    /// Whether the current character's colors are all their defaults.
-    var isDefaultPalette: Bool {
-        palette == palette(for: character.partKeys, from: Self.defaultColors)
-    }
-
     /// Default colors for each part key.
     private static let defaultColors: [String: String] = [
         "main": "E8893A",
@@ -94,11 +89,6 @@ final class PetSettings {
         let savedScale = stored.integer(forKey: "scale") // 0 when never saved
         scale = Self.scaleRange.contains(savedScale) ? savedScale : Self.defaultScale
         name = stored.string(forKey: "name") ?? ""
-    }
-
-    /// Resets the current character's colors. Parts it shares with other characters reset for them too.
-    func reset() {
-        palette = palette(for: character.partKeys, from: Self.defaultColors)
     }
 
     /// Switches to the next (+1) or previous (-1) pattern in the same shape, wrapping around at either end.

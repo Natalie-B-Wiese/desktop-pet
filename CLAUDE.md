@@ -73,7 +73,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
     - clears "Time's up"
     - otherwise, pauses or resumes the timer
 - One page file per tool:
-  - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/shape/pattern row, part circles, 12 color families × 6 shades each, and Reset colors.
+  - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/shape/pattern row, part circles, and 12 color families × 6 shades each. (Natalie removed the Reset colors button; users don't need it.)
   - `BubbleMathPage.swift`: Calculator / Convert tabs (saved as `mathPage.mode`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter.
   - `BubbleSettingsPage.swift`: the Settings page (page width 190), `AppPreferences` (app-wide preferences in UserDefaults under `settings.*`, plus `clockText(_:)` for showing a time), and `BubbleSwitchStyle`, a black-outlined on/off switch that matches the bubble (the system switch looked faint grey). Settings so far: **Military time**.
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleClipboardPage.swift`.

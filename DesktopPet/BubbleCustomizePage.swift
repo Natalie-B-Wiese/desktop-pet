@@ -91,13 +91,6 @@ struct BubbleCustomizePage: View {
             slotPicker
             familyRow
             shadeRow
-
-            BubbleButton("Reset colors", systemImage: "arrow.counterclockwise", style: .quiet, centered: true) {
-                settings.reset()
-                selectedFamily = ColorFamily.containing(currentHex)?.name
-            }
-            .disabled(settings.isDefaultPalette)
-            .opacity(settings.isDefaultPalette ? 0.4 : 1)
         }
         .onAppear {
             DispatchQueue.main.async { nameFocused = false }
