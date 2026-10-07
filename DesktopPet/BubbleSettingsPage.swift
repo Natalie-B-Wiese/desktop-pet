@@ -53,8 +53,14 @@ struct BubbleSettingsPage: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Meeting reminders")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    HStack(spacing: 4) {
+                        // The same calendar mark as meeting rows on the Reminders page.
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11, weight: .bold))
+                            .opacity(0.55)
+                        Text("Meeting reminders")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
                     Text("Google Calendar meetings only")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .opacity(0.55)
@@ -73,6 +79,7 @@ struct BubbleSettingsPage: View {
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .opacity(0.55)
                 }
+                .frame(maxWidth: .infinity) // centered in the box
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
