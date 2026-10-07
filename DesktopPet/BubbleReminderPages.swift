@@ -1,10 +1,15 @@
 import SwiftUI
 
-/// The bubble's "Reminders" page: every upcoming reminder (click one to edit it), and Add.
+/// The bubble's "Reminders" page: every upcoming reminder (click one to edit it), Add, and Pull meetings.
 struct BubbleRemindersPage: View {
     let store: ReminderStore
     var onAdd: () -> Void
     var onEdit: (Reminder.ID) -> Void
+
+    /// What the last pull did, like "Added 2 meetings".
+    @State private var pullStatus: String?
+    @State private var isPulling = false
+    @State private var needsCalendarAccess = false
 
     /// Past this many rows the list scrolls instead of making the bubble taller.
     private static let maxVisibleRows = 4
@@ -33,7 +38,48 @@ struct BubbleRemindersPage: View {
             }
 
             BubbleButton("Add reminder", systemImage: "plus", action: onAdd)
+            BubbleButton(isPulling ? "Pulling…" : "Pull meetings", systemImage: "calendar.badge.plus", action: pullMeetings)
+                .disabled(isPulling)
+
+            if let pullStatus {
+                Text(pullStatus)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if needsCalendarAccess {
+                BubbleButton("Open Settings", systemImage: "gearshape", style: .quiet, action: CalendarMeetings.openPrivacySettings)
+            }
         }
+    }
+
+    /// Adds a reminder for each of today's remaining meetings from the Calendar app (which syncs Google Calendar).
+    private func pullMeetings() {
+        isPulling = true
+        Task { @MainActor in
+            defer { isPulling = false }
+            do {
+                let meetings = try await CalendarMeetings.todaysUpcoming()
+                let result = store.syncMeetings(meetings)
+                needsCalendarAccess = false
+                pullStatus = Self.statusText(found: meetings.count, added: result.added, changed: result.changed)
+            } catch CalendarMeetings.PullError.noAccess {
+                needsCalendarAccess = true
+                pullStatus = "Topsy can't see your calendar. Turn on Desktop Pet under Calendars."
+            } catch {
+                pullStatus = "Couldn't read your calendar."
+            }
+        }
+    }
+
+    private static func statusText(found: Int, added: Int, changed: Int) -> String {
+        if found == 0 && added == 0 && changed == 0 { return "No more meetings today" }
+        var parts: [String] = []
+        if added > 0 { parts.append("Added \(added) meeting\(added == 1 ? "" : "s")") }
+        if changed > 0 { parts.append("updated \(changed)") }
+        if parts.isEmpty { return "Meetings are up to date" }
+        return parts.joined(separator: ", ")
     }
 
     private func rows(_ reminders: [Reminder]) -> some View {
@@ -50,8 +96,16 @@ struct BubbleRemindersPage: View {
                 onEdit(reminder.id)
             } label: {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(ReminderStore.timeText(reminder.date))
-                        .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                    HStack(spacing: 4) {
+                        Text(ReminderStore.timeText(reminder.date))
+                            .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                        if reminder.meetingID != nil {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 9, weight: .bold))
+                                .opacity(0.55)
+                                .help("From your calendar")
+                        }
+                    }
                     if let text = reminder.message {
                         Text(text)
                             .font(.system(size: 10, weight: .medium, design: .rounded))

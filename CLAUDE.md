@@ -77,6 +77,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - `BubbleMathPage.swift`: Calculator / Convert tabs (saved as `mathPage.mode`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter.
   - `BubbleSettingsPage.swift`: the Settings page (page width 190), `AppPreferences` (app-wide preferences in UserDefaults under `settings.*`, plus `clockText(_:)` for showing a time), and `BubbleSwitchStyle`, a black-outlined on/off switch that matches the bubble (the system switch looked faint grey). Settings so far: **Military time**.
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleClipboardPage.swift`.
+- `CalendarMeetings.swift`: reads today's meetings with EventKit (the Mac's Calendar app, which syncs Google Calendar via Internet Accounts). Needs the `com.apple.security.personal-information.calendars` entitlement (hardened runtime) and `NSCalendarsFullAccessUsageDescription`, both in `project.yml`.
 - Model files: `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
 - `SetTimerView.swift` is the Custom… timer window.
 
@@ -93,6 +94,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - Both boxes keep their text exactly as typed (`hourText`, `minuteText`; may be empty or a lone "0") so the text never changes under the cursor, and are tidied when they lose focus (hour "2" → "02" in military, minutes "5" → "05", empty → the previous hour / "00"). Selecting the hour and typing replaces it, and the hour never moves to the minutes on its own. The minutes box ignores space and `:`.
   - ⚠️ Tried and removed, because Natalie found them glitchy: auto-jumping to the minutes after two hour digits; catching hour digits with `onKeyPress` (the text field lost its cursor); Backspace "resuming" the hour so 01 then 3 made 13; padding the hour while typing. Natalie wants: select the hour, type, and it's replaced.
   - ⚠️ `AppPreferences.clockText` builds military times by hand (`%02d:%02d`). `.dateTime.hour(.twoDigits(amPM: .omitted))` still gives 12-hour hours ("02:30" for 14:30) on a Mac set to a 12-hour clock.
+  - **Pull meetings** (button under Add reminder) adds a reminder at the start of each of today's remaining meetings, titled with the meeting name, with a small calendar icon in its row. It skips all-day, canceled and declined meetings. Each reminder keeps `meetingID` (event ID + occurrence date) and `meetingStart`. Pulling again doesn't duplicate; it moves a reminder only if the meeting itself moved, so her edits stick, and it removes reminders for today's meetings that disappeared. A line under the buttons says what happened; if Calendar access is off, an Open Settings button appears.
   - ⚠️ `.onKeyPress(.delete)` never fires for the Delete key on macOS (it arrives as U+007F). Match the characters `"\u{7F}\u{8}"` instead.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.

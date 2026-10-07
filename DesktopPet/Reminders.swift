@@ -7,6 +7,10 @@ struct Reminder: Codable, Identifiable, Equatable {
     var date: Date
     /// Optional text, like "Call mom". Nil means the cat just says "Reminder!".
     var message: String?
+    /// Set when it was pulled from a calendar meeting, so pulling again updates it instead of adding another.
+    var meetingID: String?
+    /// The meeting's start when it was last pulled. Only a change here moves the reminder, so editing it sticks.
+    var meetingStart: Date?
 }
 
 /// All reminders, saved across launches. A reminder stays in the list until it's closed,
@@ -61,6 +65,42 @@ final class ReminderStore {
         save()
         refresh()
         onChange?()
+    }
+
+    /// Adds a reminder at the start of each meeting, moves ones whose meeting moved, and removes ones
+    /// for today's meetings that are gone (canceled, declined or moved to another day).
+    @discardableResult
+    func syncMeetings(_ meetings: [Meeting]) -> (added: Int, changed: Int) {
+        var added = 0, changed = 0
+        for meeting in meetings {
+            if let index = reminders.firstIndex(where: { $0.meetingID == meeting.id }) {
+                guard reminders[index].meetingStart != meeting.start else { continue }
+                reminders[index].date = meeting.start
+                reminders[index].meetingStart = meeting.start
+                changed += 1
+            } else {
+                reminders.append(Reminder(
+                    date: meeting.start, message: Self.cleanMessage(meeting.title),
+                    meetingID: meeting.id, meetingStart: meeting.start
+                ))
+                added += 1
+            }
+        }
+
+        let now = Date()
+        let pulledIDs = Set(meetings.map(\.id))
+        let before = reminders.count
+        reminders.removeAll { reminder in
+            guard let id = reminder.meetingID, let start = reminder.meetingStart else { return false }
+            return start > now && Calendar.current.isDateInToday(start) && !pulledIDs.contains(id)
+        }
+        changed += before - reminders.count
+
+        reminders.sort { $0.date < $1.date }
+        save()
+        refresh()
+        onChange?()
+        return (added, changed)
     }
 
     func delete(_ id: Reminder.ID) {

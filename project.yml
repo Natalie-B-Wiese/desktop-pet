@@ -17,6 +17,11 @@ targets:
     platform: macOS
     sources:
       - DesktopPet
+    entitlements:
+      path: DesktopPet/DesktopPet.entitlements
+      properties:
+        # Hardened runtime blocks Calendar access without this (Reminders → Pull meetings).
+        com.apple.security.personal-information.calendars: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nataliewiese.DesktopPet
@@ -24,4 +29,5 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Desktop Pet
         INFOPLIST_KEY_LSUIElement: YES # menu bar only, no Dock icon
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: Topsy reads today's meetings from your calendars to set reminders for them.
         ENABLE_HARDENED_RUNTIME: YES
