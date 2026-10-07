@@ -62,6 +62,7 @@ final class PetPanel: NSPanel {
     /// A couple of quick hops to get your attention, landing back where it started.
     func hop(times: Int = 2) {
         guard hopTimer == nil, isVisible else { return }
+        AppPreferences.playHopSound()
         let base = frame.origin
         hopBaseOrigin = base
         let height = 3 * scale // about 3 pixels of the pixel art, at any size

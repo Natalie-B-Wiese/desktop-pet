@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// App-wide preferences that aren't about how the pet looks.
@@ -22,6 +23,23 @@ enum AppPreferences {
         UserDefaults.standard.object(forKey: morningGreetingKey) as? Bool ?? true
     }
 
+    /// The sound Topsy makes whenever she hops (time's up, a reminder, the morning greeting).
+    static let hopSoundKey = "settings.hopSound"
+    /// Silent first, then macOS's built-in alert sounds, played by name.
+    static let hopSounds = ["Silent", "Pop", "Purr", "Ping", "Frog", "Hero"]
+    static let defaultHopSound = "Pop"
+
+    static var hopSound: String {
+        UserDefaults.standard.string(forKey: hopSoundKey) ?? defaultHopSound
+    }
+
+    /// Plays `name` (the chosen hop sound by default) from the start. Silent plays nothing.
+    static func playHopSound(_ name: String = hopSound) {
+        guard name != "Silent", let sound = NSSound(named: name) else { return }
+        sound.stop() // a shared instance: restart it if it's still playing
+        sound.play()
+    }
+
     /// "2:30 PM", or "14:30" with military time on.
     static func clockText(_ date: Date) -> String {
         guard usesMilitaryTime else { return date.formatted(date: .omitted, time: .shortened) }
@@ -39,6 +57,7 @@ struct BubbleSettingsPage: View {
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
     @AppStorage(AppPreferences.meetingLeadKey) private var meetingLead = 0
     @AppStorage(AppPreferences.morningGreetingKey) private var morningGreeting = true
+    @AppStorage(AppPreferences.hopSoundKey) private var hopSound = AppPreferences.defaultHopSound
     /// Kept unfocused on open (like Customize's name), so a stray keypress can't change the minutes.
     @FocusState private var leadFocused: Bool
 
@@ -73,6 +92,8 @@ struct BubbleSettingsPage: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            hopSoundPicker
 
             VStack(alignment: .leading, spacing: 5) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -118,6 +139,40 @@ struct BubbleSettingsPage: View {
                 if !Task.isCancelled { reminders.applyMeetingLead() }
             }
         }
+    }
+}
+
+extension BubbleSettingsPage {
+    /// "‹ Pop ›", like Customize's steppers. Wraps around, and plays each sound as you land on it.
+    private var hopSoundPicker: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Hop sound")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                Text("When she hops")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 0) {
+                HeaderIconButton(systemImage: "chevron.left", help: "Previous sound", width: 18) { stepHopSound(-1) }
+                Text(hopSound)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .frame(width: 44)
+                HeaderIconButton(systemImage: "chevron.right", help: "Next sound", width: 18) { stepHopSound(1) }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    private func stepHopSound(_ step: Int) {
+        let sounds = AppPreferences.hopSounds
+        let index = sounds.firstIndex(of: hopSound) ?? 0
+        hopSound = sounds[(index + step + sounds.count) % sounds.count]
+        AppPreferences.playHopSound(hopSound)
     }
 }
 
