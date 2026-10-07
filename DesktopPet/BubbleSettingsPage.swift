@@ -26,11 +26,15 @@ enum AppPreferences {
     /// The sound Topsy makes whenever she hops (time's up, a reminder, the morning greeting).
     static let hopSoundKey = "settings.hopSound"
     /// Silent first, then macOS's built-in alert sounds, played by name.
-    static let hopSounds = ["Silent", "Pop", "Purr", "Ping", "Frog", "Hero"]
-    static let defaultHopSound = "Pop"
+    static let hopSounds = ["Silent", "Purr", "Ping", "Hero"]
+    static let defaultHopSound = "Purr"
 
-    static var hopSound: String {
-        UserDefaults.standard.string(forKey: hopSoundKey) ?? defaultHopSound
+    /// A saved sound that's since been removed from the list falls back to the default.
+    static var hopSound: String { validHopSound(UserDefaults.standard.string(forKey: hopSoundKey)) }
+
+    static func validHopSound(_ name: String?) -> String {
+        guard let name, hopSounds.contains(name) else { return defaultHopSound }
+        return name
     }
 
     /// Plays `name` (the chosen hop sound by default) from the start. Silent plays nothing.
@@ -143,25 +147,26 @@ struct BubbleSettingsPage: View {
 }
 
 extension BubbleSettingsPage {
-    /// "Notification 🔊  ‹ Pop ›": the arrows step through the sounds like Customize's steppers
+    /// "Notification 🔊  ‹ Purr ›": the arrows step through the sounds like Customize's steppers
     /// (wrapping around) and play each one; the speaker plays the current one again.
     private var hopSoundPicker: some View {
-        HStack(spacing: 0) {
+        let sound = AppPreferences.validHopSound(hopSound)
+        return HStack(spacing: 0) {
             Text("Notification")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .lineLimit(1)
                 .fixedSize()
             HeaderIconButton(
-                systemImage: hopSound == "Silent" ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                systemImage: sound == "Silent" ? "speaker.slash.fill" : "speaker.wave.2.fill",
                 help: "Play sound",
                 width: 22
-            ) { AppPreferences.playHopSound(hopSound) }
-            .disabled(hopSound == "Silent")
-            .opacity(hopSound == "Silent" ? 0.35 : 0.7)
+            ) { AppPreferences.playHopSound(sound) }
+            .disabled(sound == "Silent")
+            .opacity(sound == "Silent" ? 0.35 : 0.7)
             Spacer(minLength: 0)
             HStack(spacing: 0) {
                 HeaderIconButton(systemImage: "chevron.left", help: "Previous sound", width: 18) { stepHopSound(-1) }
-                Text(hopSound)
+                Text(sound)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .frame(width: 44)
                 HeaderIconButton(systemImage: "chevron.right", help: "Next sound", width: 18) { stepHopSound(1) }
@@ -174,7 +179,7 @@ extension BubbleSettingsPage {
 
     private func stepHopSound(_ step: Int) {
         let sounds = AppPreferences.hopSounds
-        let index = sounds.firstIndex(of: hopSound) ?? 0
+        let index = sounds.firstIndex(of: AppPreferences.validHopSound(hopSound)) ?? 0
         hopSound = sounds[(index + step + sounds.count) % sounds.count]
         AppPreferences.playHopSound(hopSound)
     }
