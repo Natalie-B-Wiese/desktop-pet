@@ -37,6 +37,13 @@ final class ReminderStore {
 
     static let maxMessageLength = 40
     private static let storageKey = "reminders"
+    /// When meetings were last pulled (by the button or the daily pull), so the daily pull runs once a day.
+    private static let lastMeetingPullKey = "reminders.lastMeetingPull"
+
+    var pulledMeetingsToday: Bool {
+        guard let last = UserDefaults.standard.object(forKey: Self.lastMeetingPullKey) as? Date else { return false }
+        return Calendar.current.isDateInToday(last)
+    }
 
     init() {
         load()
@@ -104,6 +111,7 @@ final class ReminderStore {
 
         reminders.sort { $0.date < $1.date }
         save()
+        UserDefaults.standard.set(Date(), forKey: Self.lastMeetingPullKey)
         refresh()
         onChange?()
         return (added, changed)

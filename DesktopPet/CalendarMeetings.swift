@@ -17,7 +17,7 @@ enum CalendarMeetings {
 
     /// The rest of today's meetings, soonest first: not started yet, not all-day, not canceled or declined.
     static func todaysUpcoming() async throws -> [Meeting] {
-        guard try await hasAccess() else { throw PullError.noAccess }
+        guard try await requestAccess() else { throw PullError.noAccess }
 
         let now = Date()
         let calendar = Calendar.current
@@ -41,6 +41,9 @@ enum CalendarMeetings {
             }
     }
 
+    /// True once Calendar access was allowed. The daily pull checks this so it never pops up the permission dialog itself.
+    static var hasAccess: Bool { EKEventStore.authorizationStatus(for: .event) == .fullAccess }
+
     /// Opens System Settings at Privacy → Calendars, to turn access back on after saying no.
     static func openPrivacySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
@@ -49,7 +52,7 @@ enum CalendarMeetings {
     }
 
     /// Asks the first time; after that macOS remembers the answer.
-    private static func hasAccess() async throws -> Bool {
+    private static func requestAccess() async throws -> Bool {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess:
             return true

@@ -58,6 +58,7 @@ final class AppController {
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
         setPetVisible(wasVisible)
         remindersChanged() // show any reminders that came due while the app was closed
+        startDailyMeetingPull()
 
         handleTestingArguments()
     }
@@ -318,6 +319,34 @@ final class AppController {
         lastDueCount = reminders.due.count
     }
 
+
+    // MARK: - Daily meeting pull
+
+    @ObservationIgnored private var dailyPullObservers: [NSObjectProtocol] = []
+
+    /// Pulls today's meetings once a day: at launch, when the Mac wakes, and at midnight if it's awake then.
+    private func startDailyMeetingPull() {
+        pullMeetingsIfNewDay()
+        // Waits a little after waking so the Calendar app can sync any overnight changes from Google first.
+        dailyPullObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self?.pullMeetingsIfNewDay() }
+        })
+        dailyPullObservers.append(NotificationCenter.default.addObserver(
+            forName: .NSCalendarDayChanged, object: nil, queue: .main
+        ) { [weak self] _ in self?.pullMeetingsIfNewDay() })
+    }
+
+    /// Only when Calendar access is already on (so it never shows the permission dialog by itself)
+    /// and meetings haven't been pulled today, by this or by the Pull meetings button.
+    private func pullMeetingsIfNewDay() {
+        guard CalendarMeetings.hasAccess, !reminders.pulledMeetingsToday else { return }
+        Task { @MainActor [weak self] in
+            guard let meetings = try? await CalendarMeetings.todaysUpcoming() else { return }
+            self?.reminders.syncMeetings(meetings)
+        }
+    }
 
     // MARK: - Customize
 
