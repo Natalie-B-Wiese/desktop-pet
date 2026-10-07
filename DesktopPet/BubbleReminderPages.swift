@@ -346,14 +346,32 @@ struct BubbleReminderAlert: View {
                 Text(AppPreferences.clockText(reminder.shownDate))
                     .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
             }
-            Text(reminder.message ?? "Reminder!")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 180)
-                .fixedSize(horizontal: false, vertical: true)
+            // Wraps at 180pt. The bubble measures itself with no width limit, which made a plain
+            // `.frame(maxWidth:)` report one line's height for a wrapped message ("Click to close" spilled out).
+            WrappingWidth(maxWidth: 180) {
+                Text(reminder.message ?? "Reminder!")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+            }
             Text(moreCount > 0 ? "Click to close · \(moreCount) more" : "Click to close")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)
         }
+    }
+}
+
+/// Gives its content its natural width up to `maxWidth`, and the height it needs when wrapped at that width,
+/// even when the parent offers no width (the bubble sizes itself to its content's ideal size).
+private struct WrappingWidth: Layout {
+    let maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let width = min(content.sizeThatFits(.unspecified).width, proposal.width ?? maxWidth, maxWidth)
+        return content.sizeThatFits(ProposedViewSize(width: width, height: nil))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }
