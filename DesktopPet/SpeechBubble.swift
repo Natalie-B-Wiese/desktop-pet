@@ -300,14 +300,20 @@ struct BubbleView: View {
             .frame(width: Self.width(of: page))
         } else if let reminder = reminders.due.first {
             // A due reminder takes priority; the timer shows again once it's closed.
-            BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1)
+            BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1 + waitingAfterReminders)
         } else if let greeting = greetings.current {
             // Ahead of the timer too; the timer shows again once it's closed.
-            BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount)
+            BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount, moreCount: waitingAfterGreeting)
         } else {
             timerContent
         }
     }
+
+    /// What's queued behind the greeting: "Time's up!" or a finished Pomodoro period, which waits for a click.
+    private var waitingAfterGreeting: Int { timer.state == .finished ? 1 : 0 }
+
+    /// What's queued behind the due reminders: the greeting, then a finished timer. "· 2 more" counts them all.
+    private var waitingAfterReminders: Int { (greetings.current != nil ? 1 : 0) + waitingAfterGreeting }
 
     /// The Timer page falls back to the main menu if there's no longer anything to show on it.
     private func effectivePage(_ page: BubbleMenu.Page) -> BubbleMenu.Page {

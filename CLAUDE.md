@@ -69,7 +69,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - Main menu: rows of icon tiles, each row centered: Timer/Reminders/To-dos, Notes/Clipboard/Math, then Customize/Settings/Hide. The bottom row is for the pet and the app itself, so new tools don't go there.
   - Keyboard: some pages take the keyboard as soon as they open (startTimer, addReminder, editReminder, math). Others only take it when a field is clicked (timerControls, todos, notes, customize, settings). The bubble gives keyboard focus back to the previous app when it closes.
   - When the menu is closed, clicking the bubble does one of these:
-    - dismisses a due reminder
+    - dismisses a due reminder (its "· N more" counts everything queued behind it: other due reminders, the greeting, and a finished timer or Pomodoro period; the greeting counts a finished timer the same way)
     - closes the morning greeting
     - starts the next Pomodoro period
     - clears "Time's up"

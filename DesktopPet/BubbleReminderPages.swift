@@ -335,7 +335,7 @@ struct BubbleAddReminderPage: View {
 /// What the bubble shows when a reminder comes due.
 struct BubbleReminderAlert: View {
     let reminder: Reminder
-    /// How many more are waiting after this one.
+    /// How many more are waiting after this one: other due reminders, the greeting and a finished timer.
     let moreCount: Int
 
     var body: some View {

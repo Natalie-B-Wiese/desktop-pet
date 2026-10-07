@@ -73,6 +73,8 @@ struct BubbleGreeting: View {
     let greeting: MorningGreeting
     /// Live, so checking one off while the greeting is up changes the count.
     let todosLeft: Int
+    /// How many more are waiting behind it, like a finished timer.
+    let moreCount: Int
 
     private static let maxAllDayShown = 3
 
@@ -106,7 +108,7 @@ struct BubbleGreeting: View {
             }
             .frame(maxWidth: 180, alignment: .leading)
 
-            Text("Click to close")
+            Text(moreCount > 0 ? "Click to close · \(moreCount) more" : "Click to close")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)
         }
