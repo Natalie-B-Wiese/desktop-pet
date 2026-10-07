@@ -143,18 +143,22 @@ struct BubbleSettingsPage: View {
 }
 
 extension BubbleSettingsPage {
-    /// "‹ Pop ›", like Customize's steppers. Wraps around, and plays each sound as you land on it.
+    /// "Notification 🔊  ‹ Pop ›": the arrows step through the sounds like Customize's steppers
+    /// (wrapping around) and play each one; the speaker plays the current one again.
     private var hopSoundPicker: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Hop sound")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                Text("When she hops")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .opacity(0.55)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 0) {
+            Text("Notification")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .fixedSize()
+            HeaderIconButton(
+                systemImage: hopSound == "Silent" ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                help: "Play sound",
+                width: 22
+            ) { AppPreferences.playHopSound(hopSound) }
+            .disabled(hopSound == "Silent")
+            .opacity(hopSound == "Silent" ? 0.35 : 0.7)
+            Spacer(minLength: 0)
             HStack(spacing: 0) {
                 HeaderIconButton(systemImage: "chevron.left", help: "Previous sound", width: 18) { stepHopSound(-1) }
                 Text(hopSound)
