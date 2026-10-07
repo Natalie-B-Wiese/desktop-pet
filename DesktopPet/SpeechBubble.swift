@@ -397,8 +397,8 @@ struct BubbleView: View {
             )
             .frame(width: 190)
         case .editReminder(let id):
-            // If it came due or was deleted meanwhile, there's nothing left to edit.
-            if let reminder = reminders.upcoming.first(where: { $0.id == id }) {
+            // If it came due or was deleted meanwhile, there's nothing left to edit. Meeting reminders never open here.
+            if let reminder = reminders.upcoming.first(where: { $0.id == id && $0.meetingID == nil }) {
                 BubbleAddReminderPage(
                     store: reminders,
                     editing: reminder,
@@ -426,7 +426,7 @@ struct BubbleView: View {
         case .customize:
             BubbleCustomizePage(settings: settings)
         case .settings:
-            BubbleSettingsPage()
+            BubbleSettingsPage(reminders: reminders)
                 .frame(width: 190)
         case .todos:
             BubbleTodoPage(store: todos, onClose: { menu.page = nil })

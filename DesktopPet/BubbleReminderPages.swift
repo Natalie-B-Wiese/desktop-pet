@@ -82,6 +82,29 @@ struct BubbleRemindersPage: View {
         return parts.joined(separator: ", ")
     }
 
+    private func rowText(_ reminder: Reminder) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                Text(ReminderStore.timeText(reminder.shownDate))
+                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                if reminder.meetingID != nil {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 9, weight: .bold))
+                        .opacity(0.55)
+                }
+            }
+            if let text = reminder.message {
+                Text(text)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .opacity(0.65)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
     private func rows(_ reminders: [Reminder]) -> some View {
         VStack(spacing: Self.rowSpacing) {
             ForEach(reminders) { reminder in
@@ -92,33 +115,19 @@ struct BubbleRemindersPage: View {
 
     private func row(_ reminder: Reminder) -> some View {
         HStack(spacing: 6) {
-            Button {
-                onEdit(reminder.id)
-            } label: {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 4) {
-                        Text(ReminderStore.timeText(reminder.date))
-                            .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
-                        if reminder.meetingID != nil {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 9, weight: .bold))
-                                .opacity(0.55)
-                                .help("From your calendar")
-                        }
-                    }
-                    if let text = reminder.message {
-                        Text(text)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .opacity(0.65)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
+            if reminder.meetingID != nil {
+                // Synced from the calendar, so it can't be edited here; change the meeting instead.
+                rowText(reminder)
+                    .help("From your calendar")
+            } else {
+                Button {
+                    onEdit(reminder.id)
+                } label: {
+                    rowText(reminder)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .help("Edit reminder")
             }
-            .buttonStyle(.plain)
-            .help("Edit reminder")
 
             Button {
                 store.delete(reminder.id)
@@ -334,7 +343,7 @@ struct BubbleReminderAlert: View {
             HStack(spacing: 4) {
                 Image(systemName: "bell.fill")
                     .font(.system(size: 9, weight: .bold))
-                Text(AppPreferences.clockText(reminder.date))
+                Text(AppPreferences.clockText(reminder.shownDate))
                     .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
             }
             Text(reminder.message ?? "Reminder!")

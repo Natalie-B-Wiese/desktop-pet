@@ -374,7 +374,7 @@ final class AppController {
             case "controls": .timerControls
             case "reminders": .reminders
             case "add-reminder": .addReminder
-            case "edit-reminder": reminders.upcoming.first.map { .editReminder($0.id) } ?? .reminders
+            case "edit-reminder": reminders.upcoming.first(where: { $0.meetingID == nil }).map { .editReminder($0.id) } ?? .reminders
             case "todos": .todos
             case "math": .math
             case "clipboard": .clipboard

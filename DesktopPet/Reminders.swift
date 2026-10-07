@@ -8,9 +8,13 @@ struct Reminder: Codable, Identifiable, Equatable {
     /// Optional text, like "Call mom". Nil means the cat just says "Reminder!".
     var message: String?
     /// Set when it was pulled from a calendar meeting, so pulling again updates it instead of adding another.
+    /// These can't be edited (the calendar decides their time and title), only deleted.
     var meetingID: String?
-    /// The meeting's start when it was last pulled. Only a change here moves the reminder, so editing it sticks.
+    /// When the meeting starts. The reminder goes off `AppPreferences.meetingLeadMinutes` before this.
     var meetingStart: Date?
+
+    /// The time to show for it: the meeting's start for a meeting, otherwise when it goes off.
+    var shownDate: Date { meetingStart ?? date }
 }
 
 /// All reminders, saved across launches. A reminder stays in the list until it's closed,
@@ -67,20 +71,22 @@ final class ReminderStore {
         onChange?()
     }
 
-    /// Adds a reminder at the start of each meeting, moves ones whose meeting moved, and removes ones
+    /// Adds a reminder for each meeting, updates ones whose meeting moved or was renamed, and removes ones
     /// for today's meetings that are gone (canceled, declined or moved to another day).
     @discardableResult
     func syncMeetings(_ meetings: [Meeting]) -> (added: Int, changed: Int) {
         var added = 0, changed = 0
         for meeting in meetings {
+            let message = Self.cleanMessage(meeting.title)
             if let index = reminders.firstIndex(where: { $0.meetingID == meeting.id }) {
-                guard reminders[index].meetingStart != meeting.start else { continue }
-                reminders[index].date = meeting.start
+                guard reminders[index].meetingStart != meeting.start || reminders[index].message != message else { continue }
+                reminders[index].date = Self.alertDate(forMeetingAt: meeting.start)
                 reminders[index].meetingStart = meeting.start
+                reminders[index].message = message
                 changed += 1
             } else {
                 reminders.append(Reminder(
-                    date: meeting.start, message: Self.cleanMessage(meeting.title),
+                    date: Self.alertDate(forMeetingAt: meeting.start), message: message,
                     meetingID: meeting.id, meetingStart: meeting.start
                 ))
                 added += 1
@@ -101,6 +107,19 @@ final class ReminderStore {
         refresh()
         onChange?()
         return (added, changed)
+    }
+
+    /// Moves every meeting reminder to match the "Meeting reminders" setting after it changes.
+    func applyMeetingLead() {
+        for index in reminders.indices {
+            if let start = reminders[index].meetingStart {
+                reminders[index].date = Self.alertDate(forMeetingAt: start)
+            }
+        }
+        reminders.sort { $0.date < $1.date }
+        save()
+        refresh()
+        onChange?()
     }
 
     func delete(_ id: Reminder.ID) {
@@ -148,6 +167,11 @@ final class ReminderStore {
     }
 
     // MARK: - Helpers
+
+    /// When a meeting's reminder goes off: at its start, or a few minutes before (Settings → Meeting reminders).
+    static func alertDate(forMeetingAt start: Date) -> Date {
+        start.addingTimeInterval(-60 * Double(AppPreferences.meetingLeadMinutes))
+    }
 
     /// The next moment (after now) whose hour and minute match `time`.
     static func nextOccurrence(of time: Date, after now: Date = Date()) -> Date {

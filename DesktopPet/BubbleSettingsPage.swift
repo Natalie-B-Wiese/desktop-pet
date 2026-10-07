@@ -7,6 +7,13 @@ enum AppPreferences {
 
     static var usesMilitaryTime: Bool { UserDefaults.standard.bool(forKey: militaryTimeKey) }
 
+    /// How many minutes before a calendar meeting its reminder goes off (0 = when it starts).
+    /// Only meetings: a reminder you set for 3:00 yourself still goes off at 3:00.
+    static let meetingLeadKey = "settings.meetingLeadMinutes"
+    static let meetingLeadChoices = [0, 5, 10, 15]
+
+    static var meetingLeadMinutes: Int { UserDefaults.standard.integer(forKey: meetingLeadKey) }
+
     /// "2:30 PM", or "14:30" with military time on.
     static func clockText(_ date: Date) -> String {
         guard usesMilitaryTime else { return date.formatted(date: .omitted, time: .shortened) }
@@ -19,7 +26,10 @@ enum AppPreferences {
 
 /// The bubble's "Settings" page.
 struct BubbleSettingsPage: View {
+    /// Meeting reminders move as soon as the lead time changes.
+    let reminders: ReminderStore
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
+    @AppStorage(AppPreferences.meetingLeadKey) private var meetingLead = 0
 
     var body: some View {
         VStack(spacing: 6) {
@@ -37,6 +47,25 @@ struct BubbleSettingsPage: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Meeting reminders")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Text(meetingLead == 0 ? "When the meeting starts" : "\(meetingLead) minutes before it starts")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.55)
+                }
+                BubbleTabs(
+                    selection: $meetingLead,
+                    options: AppPreferences.meetingLeadChoices.map { ($0, $0 == 0 ? "Start" : "\($0)m") }
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+            .onChange(of: meetingLead) { reminders.applyMeetingLead() }
         }
     }
 }
