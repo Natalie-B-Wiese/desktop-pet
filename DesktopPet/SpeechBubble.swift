@@ -167,7 +167,7 @@ final class SpeechBubbleController {
         case .startTimer, .addReminder, .editReminder, .math: true
         default: false
         }
-        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .customize].contains(menu.page)
+        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .customize, .settings].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)

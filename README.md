@@ -40,7 +40,7 @@ The app lives in the menu bar and has no Dock icon. Use its menu bar icon to sho
 
 If you clicked **Don't Allow**, click **Open Settings** on the Reminders page, or go to **System Settings → Privacy & Security → Calendars**, and turn on **Desktop Pet**.
 
-Each meeting's reminder goes off when the meeting starts. To get it earlier, open **Settings → Meeting reminders** and pick 5, 10 or 15 minutes before. That setting only affects meetings, not reminders you add yourself.
+Each meeting's reminder goes off when the meeting starts. To get it earlier, open **Settings → Meeting reminders** and enter how many minutes before (up to 180), for example to leave in time to get there. That setting only affects meetings, not reminders you add yourself.
 
 Pull meetings skips all-day events, canceled meetings and ones you declined. Pulling again won't add duplicates. It updates reminders for meetings that moved or were renamed, and removes reminders for meetings that were canceled.
 
