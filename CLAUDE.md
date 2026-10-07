@@ -35,15 +35,16 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - `--stopwatch`
 - `--type <text>` types that text into the focused window after 1s, one key every 0.1s; `⌫` in the text is Backspace (macOS blocks outside keystrokes, so this is how to test keyboard behavior). `--snapshot` waits until the typing is done. Snapshot after it, e.g. `--menu add-reminder --type "3 45" --snapshot …`.
 - `--convert-input <amount>` fills in the Math page's Convert tab (set `mathPage.mode` to `convert` first).
+- `--greeting` shows the morning greeting right away without saving `greeting.lastShown`, so it doesn't use up her real one. Note that any launch also runs the real morning check, which shows and remembers today's greeting if it hasn't appeared yet.
 - `--set-timer` opens that window. `--flip-start-mode` switches the Start page tab after 1 second.
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.
 - **Snapshot every UI change** and check it before telling Natalie it's done.
 - **Protect her real data.** Before testing with fake data, back it up, and restore it afterwards (check with `cmp`). Her real data:
-  - UserDefaults for to-dos, notes, reminders (plus `reminders.lastMeetingPull`), math history, `startPage.mode`, `mathPage.mode`, `convert.*`, `settings.*` (e.g. `settings.militaryTime`), and pet settings
+  - UserDefaults for to-dos, notes, reminders (plus `reminders.lastMeetingPull`), `greeting.lastShown`, math history, `startPage.mode`, `mathPage.mode`, `convert.*`, `settings.*` (e.g. `settings.militaryTime`), and pet settings
   - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
-- Her current settings: name "Topsy", scale 5 (M), a grey body palette, and Military time **on**.
+- Her current settings: name "Topsy", scale 5 (M), a grey body palette, and Military time **off** (as of 2026-10-07; check before assuming).
 - When restoring after a test, put back what the backup had (`defaults write` its value). Don't assume a setting was at its default; `defaults delete` only keys the backup didn't have.
 - To snapshot another pattern, quit the app, back up with `defaults export`, `defaults write com.nataliewiese.DesktopPet character <id>`, run, then restore the backup (see the warning above).
 
@@ -69,15 +70,17 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - Keyboard: some pages take the keyboard as soon as they open (startTimer, addReminder, editReminder, math). Others only take it when a field is clicked (timerControls, todos, notes, customize, settings). The bubble gives keyboard focus back to the previous app when it closes.
   - When the menu is closed, clicking the bubble does one of these:
     - dismisses a due reminder
+    - closes the morning greeting
     - starts the next Pomodoro period
     - clears "Time's up"
     - otherwise, pauses or resumes the timer
 - One page file per tool:
   - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/shape/pattern row, part circles, and 12 color families × 6 shades each. (Natalie removed the Reset colors button; users don't need it.)
   - `BubbleMathPage.swift`: Calculator / Convert tabs (saved as `mathPage.mode`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter.
-  - `BubbleSettingsPage.swift`: the Settings page (page width 190), `AppPreferences` (app-wide preferences in UserDefaults under `settings.*`, plus `clockText(_:)` for showing a time), and `BubbleSwitchStyle`, a black-outlined on/off switch that matches the bubble (the system switch looked faint grey). Settings so far: **Military time** and **Meeting reminders** (how early calendar meetings remind you).
+  - `BubbleSettingsPage.swift`: the Settings page (page width 190), `AppPreferences` (app-wide preferences in UserDefaults under `settings.*`, plus `clockText(_:)` for showing a time), and `BubbleSwitchStyle`, a black-outlined on/off switch that matches the bubble (the system switch looked faint grey). Settings so far: **Military time**, **Morning greeting** (on/off, `settings.morningGreeting`, on by default), and **Meeting reminders** (how early calendar meetings remind you).
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleClipboardPage.swift`.
-- `CalendarMeetings.swift`: reads today's meetings with EventKit (the Mac's Calendar app, which syncs Google Calendar via Internet Accounts). Needs the `com.apple.security.personal-information.calendars` entitlement (hardened runtime) and `NSCalendarsFullAccessUsageDescription`, both in `project.yml`.
+- `MorningGreeting.swift`: the greeting model (`MorningGreeting`), `GreetingStore` (the greeting currently showing, plus `greeting.lastShown`) and its bubble view `BubbleGreeting`.
+- `CalendarMeetings.swift`: reads today's meetings (and all-day events, for the greeting) with EventKit (the Mac's Calendar app, which syncs Google Calendar via Internet Accounts). Needs the `com.apple.security.personal-information.calendars` entitlement (hardened runtime) and `NSCalendarsFullAccessUsageDescription`, both in `project.yml`.
 - Model files: `PetTimer.swift`, `Reminders.swift`, `Todos.swift`, `Notes.swift`, `MathEvaluator.swift`, `ClipboardHistory.swift`.
 - `SetTimerView.swift` is the Custom… timer window.
 
@@ -95,10 +98,13 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - ⚠️ Tried and removed, because Natalie found them glitchy: auto-jumping to the minutes after two hour digits; catching hour digits with `onKeyPress` (the text field lost its cursor); Backspace "resuming" the hour so 01 then 3 made 13; padding the hour while typing. Natalie wants: select the hour, type, and it's replaced.
   - ⚠️ `AppPreferences.clockText` builds military times by hand (`%02d:%02d`). `.dateTime.hour(.twoDigits(amPM: .omitted))` still gives 12-hour hours ("02:30" for 14:30) on a Mac set to a 12-hour clock.
   - **Pull meetings** (button under Add reminder) adds a reminder at the start of each of today's remaining meetings, titled with the meeting name, with a small calendar icon in its row. It skips all-day, canceled and declined meetings. Each reminder keeps `meetingID` (event ID + occurrence date) and `meetingStart`. Pulling again doesn't duplicate; it updates reminders whose meeting moved or was renamed, and removes reminders for today's meetings that disappeared. A deleted meeting reminder comes back on the next pull (Natalie wants that: deleting one by accident shouldn't lose it).
-  - **Daily pull** (`AppController.startDailyMeetingPull`): pulls automatically once a day, at launch, 10s after the Mac wakes (so Calendar can sync first), and at midnight (`.NSCalendarDayChanged`). It skips if meetings were already pulled today by either the button or the daily pull (`reminders.lastMeetingPull`, set in `syncMeetings`). It only runs when Calendar access is already on (`CalendarMeetings.hasAccess`), so it never shows the permission dialog itself. Not all-day syncing on calendar changes: that would keep bringing back meeting reminders she deleted on purpose.
+  - **Daily pull** (part of `AppController.startMorningCheck`): pulls automatically once a day, at launch, 10s after the Mac wakes or the screen unlocks (so Calendar can sync first), and at midnight (`.NSCalendarDayChanged`). It skips if meetings were already pulled today by either the button or the daily pull (`reminders.lastMeetingPull`, set in `syncMeetings`). It only runs when Calendar access is already on (`CalendarMeetings.hasAccess`), so it never shows the permission dialog itself. Not all-day syncing on calendar changes: that would keep bringing back meeting reminders she deleted on purpose.
   - Meeting reminders **can't be edited** (the calendar is the source of truth): the row isn't a button and the edit page refuses them. They can still be deleted with ✕.
   - **Meeting reminders** setting (Settings, `settings.meetingLeadMinutes`, 0…180) makes them go off that many minutes early. Its box has the meeting rows' grey calendar icon before the title, "Google Calendar meetings only" under it, then a centered minutes number box with caret steppers and "min before", like the Pomodoro rows. (Natalie brainstormed side-by-side layouts like Military time's and chose this one.) (It started as Start/5m/10m/15m tabs; Natalie wanted any number, e.g. to leave early for a meeting.) Settings takes the keyboard only when the box is clicked, and the box is unfocused on open like Customize's name. Changes apply 0.6s after typing stops (`.task(id:)`), so an in-between number like the 1 of "15" can't make a meeting come due. It only applies to meetings, never to reminders she set herself. Rows and the alert show the meeting's start (`Reminder.shownDate`), not the alert time. Changing it moves existing meeting reminders right away (`ReminderStore.applyMeetingLead`). A line under the buttons says what happened; if Calendar access is off, an Open Settings button appears.
   - ⚠️ `.onKeyPress(.delete)` never fires for the Delete key on macOS (it arrives as U+007F). Match the characters `"\u{7F}\u{8}"` instead.
+- **Morning greeting:** once a day, the first morning check from 4 AM on (launch, wake or unlock, then 10s), runs right **after** the daily meeting pull so it sees today's meetings. A flag stops wake and unlock from running two checks at once. The bubble shows it when the menu is closed, after any due reminder and before the timer. Clicking the bubble closes it. It brings the pet back if she's hidden, and she hops.
+  - What it says: "Good morning!" (or afternoon/evening if the first visit is later), a line for the weekday, the to-dos left (live count), the meetings (count plus the first one's time and title; "1 meeting at …" for one; "No meetings today"; no line without Calendar access), and up to 3 all-day events (birthdays, holidays, OOO) plus "N more today". It never asks for Calendar access itself.
+  - Natalie chose this first version from a brainstorm. Ideas she hasn't picked yet: her own name in the greeting (needs a "Your name" setting), to-dos carried over from yesterday, when the last meeting ends, yesterday's recap (needs counting finished to-dos), weather, and quick-action buttons.
 - **To-dos:** checked items are deleted at the end of the day. The list scrolls after 6.
 - **Notes:** multi-line sticky notes, typed on directly. There's no input box and no buttons except ✕.
   - A blank "New note" sits at the top. Typing on it makes it a real note (it keeps the blank's ID so the same TextEditor stays focused) and a fresh blank appears above.
@@ -130,5 +136,5 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - Countdown in the menu bar.
 - App icon and a real app name.
 - A global keyboard shortcut.
-- Morning greetings and chatter.
+- Chatter (random lines from the pet during the day).
 - GitHub backup.

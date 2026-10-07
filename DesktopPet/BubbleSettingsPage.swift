@@ -15,6 +15,13 @@ enum AppPreferences {
 
     static var meetingLeadMinutes: Int { UserDefaults.standard.integer(forKey: meetingLeadKey) }
 
+    /// Topsy greets you once a day with your to-dos and meetings. On unless turned off.
+    static let morningGreetingKey = "settings.morningGreeting"
+
+    static var showsMorningGreeting: Bool {
+        UserDefaults.standard.object(forKey: morningGreetingKey) as? Bool ?? true
+    }
+
     /// "2:30 PM", or "14:30" with military time on.
     static func clockText(_ date: Date) -> String {
         guard usesMilitaryTime else { return date.formatted(date: .omitted, time: .shortened) }
@@ -31,6 +38,7 @@ struct BubbleSettingsPage: View {
     let reminders: ReminderStore
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
     @AppStorage(AppPreferences.meetingLeadKey) private var meetingLead = 0
+    @AppStorage(AppPreferences.morningGreetingKey) private var morningGreeting = true
     /// Kept unfocused on open (like Customize's name), so a stray keypress can't change the minutes.
     @FocusState private var leadFocused: Bool
 
@@ -41,6 +49,21 @@ struct BubbleSettingsPage: View {
                     Text("Military time")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                     Text(militaryTime ? "Times look like 14:30" : "Times look like 2:30 PM")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.55)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .toggleStyle(BubbleSwitchStyle())
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            Toggle(isOn: $morningGreeting) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Morning greeting")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Text("Your to-dos and meetings")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .opacity(0.55)
                 }

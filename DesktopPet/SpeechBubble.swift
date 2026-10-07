@@ -51,6 +51,7 @@ final class SpeechBubbleController {
     private let timer: PetTimer
     private let reminders: ReminderStore
     private let todos: TodoStore
+    private let greetings: GreetingStore
     private let mathHistory = MathHistory()
     private let clipboard: ClipboardHistory
     private let notes: NoteStore
@@ -66,10 +67,11 @@ final class SpeechBubbleController {
     private static let gap: CGFloat = 2
 
     init(
-        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, notes: NoteStore,
+        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, notes: NoteStore,
         clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel, actions: BubbleActions
     ) {
         self.timer = timer
+        self.greetings = greetings
         self.notes = notes
         self.clipboard = clipboard
         self.reminders = reminders
@@ -90,7 +92,7 @@ final class SpeechBubbleController {
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, reminders: reminders, todos: todos, mathHistory: mathHistory,
+            timer: timer, reminders: reminders, todos: todos, greetings: greetings, mathHistory: mathHistory,
             notes: notes, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
@@ -112,11 +114,13 @@ final class SpeechBubbleController {
         panel.hidesOnDeactivate = false
         panel.contentView = container
 
-        // Clicking the bubble closes a due reminder or "Time's up!", or pauses/resumes a countdown.
-        container.onClick = { [weak timer, weak reminders] in
-            guard let timer, let reminders else { return }
+        // Clicking the bubble closes a due reminder, the greeting or "Time's up!", or pauses/resumes a countdown.
+        container.onClick = { [weak timer, weak reminders, weak greetings] in
+            guard let timer, let reminders, let greetings else { return }
             if !reminders.due.isEmpty {
                 reminders.dismissFirstDue()
+            } else if greetings.current != nil {
+                greetings.dismiss()
             } else if timer.state == .finished {
                 if timer.pomodoro != nil { timer.startNextPomodoroPeriod() } else { timer.stop() }
             } else if timer.hasCountdown {
@@ -152,7 +156,7 @@ final class SpeechBubbleController {
 
     /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
-        guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty else {
+        guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty || greetings.current != nil else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
             return
@@ -251,6 +255,7 @@ struct BubbleView: View {
     let timer: PetTimer
     let reminders: ReminderStore
     let todos: TodoStore
+    let greetings: GreetingStore
     let mathHistory: MathHistory
     let notes: NoteStore
     let clipboard: ClipboardHistory
@@ -296,6 +301,9 @@ struct BubbleView: View {
         } else if let reminder = reminders.due.first {
             // A due reminder takes priority; the timer shows again once it's closed.
             BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1)
+        } else if let greeting = greetings.current {
+            // Ahead of the timer too; the timer shows again once it's closed.
+            BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount)
         } else {
             timerContent
         }

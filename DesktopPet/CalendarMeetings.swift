@@ -41,6 +41,24 @@ enum CalendarMeetings {
             }
     }
 
+    /// Titles of today's all-day events (birthdays, holidays, "Out of office") for the morning greeting,
+    /// skipping canceled and declined ones and repeats across calendars. Empty without Calendar access.
+    static func todaysAllDayEvents() -> [String] {
+        guard hasAccess else { return [] }
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: Date())
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+        let predicate = store.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: nil)
+
+        var titles: [String] = []
+        for event in store.events(matching: predicate)
+        where event.isAllDay && event.status != .canceled && !declined(event) {
+            let title = event.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !title.isEmpty && !titles.contains(title) { titles.append(title) }
+        }
+        return titles
+    }
+
     /// True once Calendar access was allowed. The daily pull checks this so it never pops up the permission dialog itself.
     static var hasAccess: Bool { EKEventStore.authorizationStatus(for: .event) == .fullAccess }
 

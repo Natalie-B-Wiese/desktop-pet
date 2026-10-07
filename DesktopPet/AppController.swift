@@ -12,6 +12,7 @@ final class AppController {
     let timer = PetTimer()
     let reminders = ReminderStore()
     let todos = TodoStore()
+    let greetings = GreetingStore()
     let clipboard = ClipboardHistory()
     let notes = NoteStore()
     private(set) var isPetVisible = false
@@ -31,6 +32,7 @@ final class AppController {
         }
         timer.onStateChange = { [weak self] in self?.timerStateChanged() }
         reminders.onChange = { [weak self] in self?.remindersChanged() }
+        greetings.onChange = { [weak self] in self?.greetingChanged() }
     }
 
     func start() {
@@ -38,7 +40,7 @@ final class AppController {
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
         let bubble = SpeechBubbleController(
-            timer: timer, reminders: reminders, todos: todos, notes: notes, clipboard: clipboard,
+            timer: timer, reminders: reminders, todos: todos, greetings: greetings, notes: notes, clipboard: clipboard,
             settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
@@ -58,7 +60,7 @@ final class AppController {
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
         setPetVisible(wasVisible)
         remindersChanged() // show any reminders that came due while the app was closed
-        startDailyMeetingPull()
+        startMorningCheck()
 
         handleTestingArguments()
     }
@@ -320,32 +322,76 @@ final class AppController {
     }
 
 
-    // MARK: - Daily meeting pull
+    // MARK: - Morning check: daily meeting pull and greeting
 
-    @ObservationIgnored private var dailyPullObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var morningObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var isRunningMorningCheck = false
 
-    /// Pulls today's meetings once a day: at launch, when the Mac wakes, and at midnight if it's awake then.
-    private func startDailyMeetingPull() {
-        pullMeetingsIfNewDay()
+    /// Once a day, pulls today's meetings and then greets you. Checks at launch, when the Mac wakes or
+    /// the screen unlocks (for a Mac left awake overnight), and at midnight if it's awake then.
+    private func startMorningCheck() {
+        runMorningCheck()
         // Waits a little after waking so the Calendar app can sync any overnight changes from Google first.
-        dailyPullObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+        morningObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self?.pullMeetingsIfNewDay() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self?.runMorningCheck() }
         })
-        dailyPullObservers.append(NotificationCenter.default.addObserver(
+        morningObservers.append(DistributedNotificationCenter.default().addObserver(
+            forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self?.runMorningCheck() }
+        })
+        morningObservers.append(NotificationCenter.default.addObserver(
             forName: .NSCalendarDayChanged, object: nil, queue: .main
-        ) { [weak self] _ in self?.pullMeetingsIfNewDay() })
+        ) { [weak self] _ in self?.runMorningCheck() })
+    }
+
+    /// The pull goes first, so the greeting sees today's meetings. Wake and unlock often come together,
+    /// so a second check waits for the first instead of greeting twice.
+    private func runMorningCheck() {
+        guard !isRunningMorningCheck else { return }
+        isRunningMorningCheck = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await pullMeetingsIfNewDay()
+            await greetIfNewDay()
+            isRunningMorningCheck = false
+        }
     }
 
     /// Only when Calendar access is already on (so it never shows the permission dialog by itself)
     /// and meetings haven't been pulled today, by this or by the Pull meetings button.
-    private func pullMeetingsIfNewDay() {
-        guard CalendarMeetings.hasAccess, !reminders.pulledMeetingsToday else { return }
-        Task { @MainActor [weak self] in
-            guard let meetings = try? await CalendarMeetings.todaysUpcoming() else { return }
-            self?.reminders.syncMeetings(meetings)
+    @MainActor
+    private func pullMeetingsIfNewDay() async {
+        guard CalendarMeetings.hasAccess, !reminders.pulledMeetingsToday,
+              let meetings = try? await CalendarMeetings.todaysUpcoming() else { return }
+        reminders.syncMeetings(meetings)
+    }
+
+    /// The first check of the day from 4 AM on, unless turned off in Settings.
+    @MainActor
+    private func greetIfNewDay() async {
+        guard AppPreferences.showsMorningGreeting, !greetings.shownToday,
+              Calendar.current.component(.hour, from: Date()) >= MorningGreeting.earliestHour else { return }
+        greetings.show(await makeGreeting())
+    }
+
+    @MainActor
+    private func makeGreeting() async -> MorningGreeting {
+        // `hasAccess` first, so the greeting never asks for Calendar access.
+        let meetings = CalendarMeetings.hasAccess ? try? await CalendarMeetings.todaysUpcoming() : nil
+        return MorningGreeting(date: Date(), meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents())
+    }
+
+    private func greetingChanged() {
+        // Like a reminder, the greeting brings the cat back, and she hops to say hi.
+        if greetings.current != nil && !isPetVisible {
+            setPetVisible(true)
+        } else {
+            bubble?.update()
         }
+        if greetings.current != nil { petPanel?.hop() }
     }
 
     // MARK: - Customize
@@ -376,6 +422,7 @@ final class AppController {
     /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
+    /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
@@ -397,6 +444,12 @@ final class AppController {
             startTimer(duration: seconds, label: value(after: "--label"))
         }
         if args.contains("--pause") { timer.pause() }
+        if args.contains("--greeting") {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                greetings.show(await makeGreeting(), remember: false)
+            }
+        }
         if args.contains("--menu") {
             bubble?.menu.page = switch value(after: "--menu") {
             case "start": .startTimer
