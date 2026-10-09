@@ -25,6 +25,7 @@ enum TimeEvaluator {
         case tooManyMinutes
         case badClock(String)
         case twoClocks
+        case clockNotLength
 
         var message: String {
             switch self {
@@ -34,6 +35,7 @@ enum TimeEvaluator {
             case .tooManyMinutes: "Minutes and seconds go up to 59"
             case .badClock(let part): "\"\(part)\" isn't a clock time"
             case .twoClocks: "Can't add two clock times"
+            case .clockNotLength: "Type a length of time, not a clock time"
             }
         }
     }
@@ -60,6 +62,23 @@ enum TimeEvaluator {
             default:
                 throw Failure.twoClocks
             }
+        } catch let failure as Failure {
+            return .failure(failure)
+        } catch {
+            return .failure(.unfinished)
+        }
+    }
+
+    /// A length of time in seconds, like "1:09", "1h 9m" or "45" (minutes). Sums work too; clock times don't.
+    static func seconds(_ text: String) -> Result<Int, Failure> {
+        do {
+            var seconds = 0
+            for (sign, part) in try split(text) {
+                let (value, isClock) = try parse(part)
+                if isClock { throw Failure.clockNotLength }
+                seconds += sign * value
+            }
+            return .success(seconds)
         } catch let failure as Failure {
             return .failure(failure)
         } catch {

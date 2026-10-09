@@ -8,6 +8,14 @@ struct ConvertUnit: Identifiable, Hashable {
     let toBase: (Double) -> Double
     /// Converts a value in the base unit to this unit.
     let fromBase: (Double) -> Double
+    /// Reads a typed amount in this unit. Most units take math like "5+2".
+    var read: (String) -> Result<Double, Failure> = { text in
+        MathEvaluator.evaluate(text).mapError { Failure(message: $0.message) }
+    }
+    /// Shows an amount in this unit. Most units show a number rounded to 6 decimal places.
+    var show: (Double) -> String = { MathEvaluator.format($0, maxFractionDigits: 6) }
+
+    struct Failure: Error { var message: String }
 
     var id: String { symbol }
 
@@ -94,7 +102,26 @@ struct ConvertCategory: Identifiable, Hashable {
             ConvertUnit("pt", "points", factor: 4.0 / 3.0),
             ConvertUnit("rem", "rem (16px)", factor: remPixels),
         ], defaultFrom: "px", defaultTo: "rem"),
+        // Base: seconds. "h:mm" reads and shows time like a clock, so 69 minutes is 1:09.
+        ConvertCategory(name: "Time", units: [
+            ConvertUnit("sec", "seconds", factor: 1),
+            ConvertUnit("min", "minutes", factor: 60),
+            ConvertUnit("hr", "hours", factor: 3600),
+            ConvertUnit("day", "days", factor: 86400),
+            hoursMinutes,
+        ], defaultFrom: "min", defaultTo: "h:mm"),
     ]
+
+    /// Hours and minutes, like "1:09" (or "1:09:30" with seconds). Typed in like the Math page's Time tab,
+    /// so "1:09", "1h 9m" and "1:00 + 9" all work, and a plain number is minutes.
+    private static let hoursMinutes: ConvertUnit = {
+        var unit = ConvertUnit("h:mm", "hours:minutes", factor: 1)
+        unit.read = { text in
+            TimeEvaluator.seconds(text).map(Double.init).mapError { ConvertUnit.Failure(message: $0.message) }
+        }
+        unit.show = { TimeEvaluator.durationText(Int($0.rounded())) }
+        return unit
+    }()
 
     static func named(_ name: String?) -> ConvertCategory? {
         all.first { $0.name == name }

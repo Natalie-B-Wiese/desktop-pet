@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// The Math page's Convert tab: type an amount, pick two units, and see the answer as you type.
-/// The amount can be math too, like "5+2". Click the answer to copy it.
+/// The amount can be math too, like "5+2" (or "1:09" for the Time category's h:mm). Click the answer to copy it.
 struct BubbleConvertTab: View {
     var onClose: () -> Void
 
@@ -13,7 +13,7 @@ struct BubbleConvertTab: View {
     @State private var justCopied = false
     @FocusState private var inputFocused: Bool
 
-    private static let unitMenuWidth: CGFloat = 66
+    private static let unitMenuWidth: CGFloat = 74
 
     private var category: ConvertCategory {
         ConvertCategory.named(categoryName) ?? ConvertCategory.all[0]
@@ -22,12 +22,10 @@ struct BubbleConvertTab: View {
     private var to: ConvertUnit { category.unit(toSymbol) ?? category.unit(category.defaultTo)! }
 
     /// The converted amount, nil while the box is empty, or an error message.
-    private var result: Result<String, MathEvaluator.Failure>? {
+    private var result: Result<String, ConvertUnit.Failure>? {
         let text = input.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return nil }
-        return MathEvaluator.evaluate(text).map {
-            MathEvaluator.format(category.convert($0, from: from, to: to), maxFractionDigits: 6)
-        }
+        return from.read(text).map { to.show(category.convert($0, from: from, to: to)) }
     }
 
     var body: some View {
