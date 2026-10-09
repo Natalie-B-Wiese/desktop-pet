@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The Math page's Convert tab: type an amount, pick two units, and see the answer as you type.
 /// The amount can be math too, like "5+2" (or "1:09" for the Time category's h:mm). Click the answer to copy it.
-/// The Color category takes a color instead, like "#FF8800" or "32, 100, 50", with a swatch and a line showing how it was read.
+/// The Color category takes a color instead, like "#FF8800" or "32, 100, 50", with a line showing how it was read and a swatch.
 struct BubbleConvertTab: View {
     var onClose: () -> Void
 
@@ -55,14 +55,22 @@ struct BubbleConvertTab: View {
             }
 
             if let fromColorUnit {
-                // How the color was read, or which numbers to type while it can't be read yet.
-                Text(conversion?.breakdown ?? fromColorUnit.hint)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .opacity(conversion?.breakdown == nil ? 0.4 : 0.6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
+                // How the color was read with a swatch, or which numbers to type while it can't be read yet.
+                HStack(spacing: 5) {
+                    if let color = conversion?.color {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
+                            .frame(width: 12, height: 12)
+                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.black.opacity(0.3), lineWidth: 1))
+                    }
+                    Text(conversion?.breakdown ?? fromColorUnit.hint)
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .opacity(conversion?.breakdown == nil ? 0.4 : 0.6)
+                }
+                .frame(maxWidth: .infinity, minHeight: 12, alignment: .leading) // the same height with or without the swatch
+                .padding(.horizontal, 8)
             }
 
             HeaderIconButton(systemImage: "arrow.up.arrow.down", help: "Swap units") {
@@ -95,20 +103,13 @@ struct BubbleConvertTab: View {
             justCopied = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { justCopied = false }
         } label: {
-            HStack(spacing: 6) {
-                if let color = conversion?.color {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
-                        .frame(width: 14, height: 14)
-                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.3), lineWidth: 1))
-                }
+            HStack(spacing: 4) {
                 switch result {
                 case .success(let answer):
                     Text(answer)
                         .font(.system(size: 14, weight: .bold, design: .monospaced))
                         .lineLimit(1)
-                        // Color answers like "0.725, 0.415, 0.402" are the longest, beside a swatch too.
-                        .minimumScaleFactor(category.isColor ? 0.5 : 0.6)
+                        .minimumScaleFactor(0.6)
                 case .failure(let failure):
                     Text(failure.message)
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
