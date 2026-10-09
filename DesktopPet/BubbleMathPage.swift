@@ -34,9 +34,9 @@ final class MathHistory {
     }
 }
 
-/// The bubble's Math page: calculator, unit converter and time math tabs.
+/// The bubble's Math page: calculator, time math and unit converter tabs.
 struct BubbleMathPage: View {
-    enum Mode: String { case calculator, convert, time }
+    enum Mode: String { case calculator, time, convert }
 
     let history: MathHistory
     let timeHistory: MathHistory
@@ -46,7 +46,7 @@ struct BubbleMathPage: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            BubbleTabs(selection: $mode, options: [(.calculator, "Calculator"), (.convert, "Convert"), (.time, "Time")])
+            BubbleTabs(selection: $mode, options: [(.calculator, "Calculator"), (.time, "Time"), (.convert, "Convert")])
             switch mode {
             case .calculator:
                 CalculatorTab(history: history, placeholder: "Type an equation", hint: "Try 2^(3+1) * 5",
@@ -55,8 +55,6 @@ struct BubbleMathPage: View {
                         .map { (MathEvaluator.format($0), nil) }
                         .mapError { CalculatorTab.Failure(message: $0.message) }
                 }
-            case .convert:
-                BubbleConvertTab(onClose: onClose)
             case .time:
                 // Adds and subtracts in hours and minutes, like "1:45 + 2:30" or "9am + 2:15".
                 CalculatorTab(history: timeHistory, placeholder: "Type times", hint: "Try 1:45 + 2:30 or 9am + 50m",
@@ -66,6 +64,8 @@ struct BubbleMathPage: View {
                         .mapError { CalculatorTab.Failure(message: $0.message) }
                 }
                 .id(Mode.time) // its own text box, not the calculator's
+            case .convert:
+                BubbleConvertTab(onClose: onClose)
             }
         }
     }
