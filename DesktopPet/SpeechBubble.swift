@@ -53,6 +53,7 @@ final class SpeechBubbleController {
     private let todos: TodoStore
     private let greetings: GreetingStore
     private let mathHistory = MathHistory()
+    private let timeHistory = MathHistory(storageKey: "timeHistory")
     private let clipboard: ClipboardHistory
     private let notes: NoteStore
     private let layout = BubbleLayout()
@@ -92,7 +93,8 @@ final class SpeechBubbleController {
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, reminders: reminders, todos: todos, greetings: greetings, mathHistory: mathHistory,
+            timer: timer, reminders: reminders, todos: todos, greetings: greetings,
+            mathHistory: mathHistory, timeHistory: timeHistory,
             notes: notes, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
@@ -257,6 +259,7 @@ struct BubbleView: View {
     let todos: TodoStore
     let greetings: GreetingStore
     let mathHistory: MathHistory
+    let timeHistory: MathHistory
     let notes: NoteStore
     let clipboard: ClipboardHistory
     let settings: PetSettings
@@ -435,7 +438,7 @@ struct BubbleView: View {
             BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot, onPickColor: actions.pickColor)
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
         case .math:
-            BubbleMathPage(history: mathHistory, onClose: { menu.page = nil })
+            BubbleMathPage(history: mathHistory, timeHistory: timeHistory, onClose: { menu.page = nil })
                 .frame(width: 210)
         case .customize:
             BubbleCustomizePage(settings: settings)

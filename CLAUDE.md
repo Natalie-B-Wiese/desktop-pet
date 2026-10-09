@@ -40,7 +40,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.
 - **Snapshot every UI change** and check it before telling Natalie it's done.
 - **Protect her real data.** Before testing with fake data, back it up, and restore it afterwards (check with `cmp`). Her real data:
-  - UserDefaults for to-dos, notes, reminders (plus `reminders.lastMeetingPull`), `greeting.lastShown`, math history, `startPage.mode`, `mathPage.mode`, `convert.*`, `settings.*` (e.g. `settings.militaryTime`), and pet settings
+  - UserDefaults for to-dos, notes, reminders (plus `reminders.lastMeetingPull`), `greeting.lastShown`, math and time history (`mathHistory`, `timeHistory`), `startPage.mode`, `mathPage.mode`, `convert.*`, `settings.*` (e.g. `settings.militaryTime`), and pet settings
   - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
@@ -76,7 +76,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
     - otherwise, pauses or resumes the timer
 - One page file per tool:
   - `BubbleCustomizePage.swift` (page width 272), top to bottom: Name box, S/M/L Size buttons (both as wide as the family box, with their labels in the left margin via `labeled(_:width:)`), species/shape/pattern row, part circles, and 12 color families × 6 shades each. (Natalie removed the Reset colors button; users don't need it.)
-  - `BubbleMathPage.swift`: Calculator / Convert tabs (saved as `mathPage.mode`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter.
+  - `BubbleMathPage.swift`: Calculator / Convert / Time tabs (saved as `mathPage.mode`). Calculator and Time share the private `CalculatorTab` view, each with its own `MathHistory` (`mathHistory`, `timeHistory`). `BubbleConvertTab.swift` and `UnitConverter.swift` hold the converter; `TimeEvaluator.swift` does the time math.
   - `BubbleSettingsPage.swift`: the Settings page (page width 190), `AppPreferences` (app-wide preferences in UserDefaults under `settings.*`, plus `clockText(_:)` for showing a time), and `BubbleSwitchStyle`, a black-outlined on/off switch that matches the bubble (the system switch looked faint grey). Settings so far: **Military time**, **Morning greeting** (on/off, `settings.morningGreeting`, on by default), **Notification** (the hop sound, `settings.hopSound`: Silent, Purr (default), Ping or Hero, all built-in macOS sounds, played with `NSSound` at the system output volume; a saved sound no longer in the list falls back to the default; the ‹ › arrows wrap and play each sound, and a speaker button replays it (greyed out for Silent); `PetPanel.hop()` plays it, so every hop makes it) and **Meeting reminders** (how early calendar meetings remind you).
   - `BubbleReminderPages.swift`, `BubbleTodoPage.swift`, `BubbleNotesPage.swift`, `BubbleClipboardPage.swift`.
 - `MorningGreeting.swift`: the greeting model (`MorningGreeting`), `GreetingStore` (the greeting currently showing, plus `greeting.lastShown`) and its bubble view `BubbleGreeting`.
@@ -114,6 +114,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - ⚠️ Each `NoteRow` binds its TextEditor to its own `@State` copy of the text and syncs it to the store with `onChange`. Binding a macOS TextEditor straight to the store makes the cursor jump to the end after every keystroke.
   - Each editor sizes itself with a hidden copy of its text. The list is always a `ScrollView` (capped at 260pt) so rows are never rebuilt mid-typing.
 - **Math:** operators `+ - * / ^` and parentheses. Typing `=` or pressing Return calculates. It keeps the last 5 results. The ~26 test cases in `MathEvaluator.swift` pass.
+- **Time** (a tab on Math): adds and subtracts times in base 60, typed like the calculator (Return or `=`, last 5 kept). Parts are `1:45`, `1:45:30`, `1h 30m`, `90 min`, `1.5h`, `45s`; a plain number is **minutes**. A part with AM/PM (`9am`, `9:30 p.m.`) is a clock time: clock ± lengths is a clock time (with `+1 day` / `-1 day` when it crosses midnight), and clock − clock is the gap (counted overnight if negative). Lengths can go past 24h (`26:30`) or below zero (`-0:15`). Clock answers follow Military time, but clicking one types it back with am/pm (`MathHistory.Entry.reuse`), since only AM/PM marks a clock time.
 - **Convert** (a tab on Math): categories Length, Weight, Temperature, Volume (US cups etc.) and Screen (px, pt = 4/3 px, rem = 16px).
   - The answer updates as you type, rounded to 6 decimal places, and clicking it copies the number. The amount can be math, like `5+2`.
   - ⇅ swaps the units. Each category remembers its last two units (`convert.<category>.units`).
