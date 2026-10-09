@@ -3,6 +3,7 @@ import SwiftUI
 
 /// The Math page's Convert tab: type an amount, pick two units, and see the answer as you type.
 /// The amount can be math too, like "5+2" (or "1:09" for the Time category's h:mm). Click the answer to copy it.
+/// The Color category takes a color instead, like "#FF8800" or "32, 100, 50", with a swatch and a line showing how it was read.
 struct BubbleConvertTab: View {
     var onClose: () -> Void
 
@@ -18,15 +19,19 @@ struct BubbleConvertTab: View {
     private var category: ConvertCategory {
         ConvertCategory.named(categoryName) ?? ConvertCategory.all[0]
     }
-    private var from: ConvertUnit { category.unit(fromSymbol) ?? category.unit(category.defaultFrom)! }
-    private var to: ConvertUnit { category.unit(toSymbol) ?? category.unit(category.defaultTo)! }
+    // The chosen units' symbols, falling back to the defaults if a saved one is gone.
+    private var from: String { category.has(fromSymbol) ? fromSymbol : category.defaultFrom }
+    private var to: String { category.has(toSymbol) ? toSymbol : category.defaultTo }
 
-    /// The converted amount, nil while the box is empty, or an error message.
-    private var result: Result<String, ConvertUnit.Failure>? {
+    /// The converted amount (or an error message), nil while the box is empty.
+    private var conversion: Conversion? {
         let text = input.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return nil }
-        return from.read(text).map { to.show(category.convert($0, from: from, to: to)) }
+        return category.convert(text, from: from, to: to)
     }
+    private var result: Result<String, ConvertUnit.Failure>? { conversion?.answer }
+
+    private var fromColorUnit: ColorUnit? { category.isColor ? ColorUnit.named(from) : nil }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -37,7 +42,7 @@ struct BubbleConvertTab: View {
             }
 
             HStack(spacing: 4) {
-                TextField("Amount", text: $input)
+                TextField(fromColorUnit?.placeholder ?? "Amount", text: $input)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .padding(.horizontal, 8)
@@ -49,8 +54,19 @@ struct BubbleConvertTab: View {
                 unitMenu(selection: from) { fromSymbol = $0 }
             }
 
+            if let fromColorUnit {
+                // How the color was read, or which numbers to type while it can't be read yet.
+                Text(conversion?.breakdown ?? fromColorUnit.hint)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .opacity(conversion?.breakdown == nil ? 0.4 : 0.6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+            }
+
             HeaderIconButton(systemImage: "arrow.up.arrow.down", help: "Swap units") {
-                (fromSymbol, toSymbol) = (to.symbol, from.symbol)
+                (fromSymbol, toSymbol) = (to, from)
                 saveUnits()
             }
 
@@ -79,13 +95,20 @@ struct BubbleConvertTab: View {
             justCopied = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { justCopied = false }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
+                if let color = conversion?.color {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
+                        .frame(width: 14, height: 14)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.3), lineWidth: 1))
+                }
                 switch result {
                 case .success(let answer):
                     Text(answer)
                         .font(.system(size: 14, weight: .bold, design: .monospaced))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                        // Color answers like "0.725, 0.415, 0.402" are the longest, beside a swatch too.
+                        .minimumScaleFactor(category.isColor ? 0.5 : 0.6)
                 case .failure(let failure):
                     Text(failure.message)
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -111,9 +134,9 @@ struct BubbleConvertTab: View {
         .help("Copy the answer")
     }
 
-    private func unitMenu(selection: ConvertUnit, choose: @escaping (String) -> Void) -> some View {
-        BubblePopUp(title: selection.symbol) {
-            ForEach(category.units) { unit in
+    private func unitMenu(selection: String, choose: @escaping (String) -> Void) -> some View {
+        BubblePopUp(title: selection) {
+            ForEach(category.menu, id: \.symbol) { unit in
                 Button("\(unit.symbol) · \(unit.name)") {
                     choose(unit.symbol)
                     saveUnits()
@@ -135,7 +158,7 @@ struct BubbleConvertTab: View {
     private func saveUnits() {
         // Called straight after a @State change, so read the new values on the next pass.
         DispatchQueue.main.async {
-            UserDefaults.standard.set([from.symbol, to.symbol], forKey: unitsKey)
+            UserDefaults.standard.set([from, to], forKey: unitsKey)
         }
     }
 }
@@ -152,6 +175,7 @@ private struct BubblePopUp<Content: View>: View {
             HStack(spacing: 4) {
                 Text(title)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8) // so "hsl 0–1" fits
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .bold))

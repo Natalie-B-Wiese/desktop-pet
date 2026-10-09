@@ -35,22 +35,75 @@ struct ConvertUnit: Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(symbol) }
 }
 
-/// A group of units that convert into each other, like lengths.
+/// What the Convert tab shows for a typed amount.
+struct Conversion {
+    var answer: Result<String, ConvertUnit.Failure>
+    /// Colors only: the color, for the swatch.
+    var color: RGBColor?
+    /// Colors only: how the amount was read, like "H 32° · S 100% · L 50%".
+    var breakdown: String?
+}
+
+/// A group of units that convert into each other, like lengths or colors.
 struct ConvertCategory: Identifiable, Hashable {
+    enum Kind {
+        /// Units holding one number, which convert through a base unit.
+        case numbers([ConvertUnit])
+        /// Ways of writing a color, which convert through `RGBColor`.
+        case colors([ColorUnit])
+    }
+
     let name: String
-    let units: [ConvertUnit]
+    let kind: Kind
     /// The units shown when the category is first picked.
     let defaultFrom: String
     let defaultTo: String
 
     var id: String { name }
 
-    func unit(_ symbol: String?) -> ConvertUnit? {
-        units.first { $0.symbol == symbol }
+    init(name: String, units: [ConvertUnit], defaultFrom: String, defaultTo: String) {
+        self.init(name: name, kind: .numbers(units), defaultFrom: defaultFrom, defaultTo: defaultTo)
     }
 
-    func convert(_ value: Double, from: ConvertUnit, to: ConvertUnit) -> Double {
-        to.fromBase(from.toBase(value))
+    init(name: String, kind: Kind, defaultFrom: String, defaultTo: String) {
+        self.name = name
+        self.kind = kind
+        self.defaultFrom = defaultFrom
+        self.defaultTo = defaultTo
+    }
+
+    var isColor: Bool {
+        if case .colors = kind { true } else { false }
+    }
+
+    /// The units in the pop-up menus.
+    var menu: [(symbol: String, name: String)] {
+        switch kind {
+        case .numbers(let units): units.map { ($0.symbol, $0.name) }
+        case .colors(let units): units.map { ($0.symbol, $0.name) }
+        }
+    }
+
+    func has(_ symbol: String) -> Bool {
+        menu.contains { $0.symbol == symbol }
+    }
+
+    /// Converts typed text between two of this category's units, given by symbol.
+    func convert(_ text: String, from: String, to: String) -> Conversion {
+        switch kind {
+        case .numbers(let units):
+            let from = units.first { $0.symbol == from }!, to = units.first { $0.symbol == to }!
+            return Conversion(answer: from.read(text).map { to.show(to.fromBase(from.toBase($0))) })
+        case .colors(let units):
+            let from = units.first { $0.symbol == from }!, to = units.first { $0.symbol == to }!
+            switch from.read(text) {
+            case .success(let numbers):
+                let color = from.toRGB(numbers)
+                return Conversion(answer: .success(to.show(to.fromRGB(color))), color: color, breakdown: from.breakdown(numbers))
+            case .failure(let failure):
+                return Conversion(answer: .failure(failure))
+            }
+        }
     }
 
     static func == (a: ConvertCategory, b: ConvertCategory) -> Bool { a.name == b.name }
@@ -110,6 +163,8 @@ struct ConvertCategory: Identifiable, Hashable {
             ConvertUnit("day", "days", factor: 86400),
             hoursMinutes,
         ], defaultFrom: "min", defaultTo: "h:mm"),
+        // Through red, green and blue from 0 to 1. See ColorConverter.swift.
+        ConvertCategory(name: "Color", kind: .colors(ColorUnit.all), defaultFrom: "hex", defaultTo: "rgb"),
     ]
 
     /// Hours and minutes, like "1:09" (or "1:09:30" with seconds). Typed in like the Math page's Time tab,
