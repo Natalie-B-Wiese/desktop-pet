@@ -70,11 +70,12 @@ enum TimeEvaluator {
     }
 
     /// A length of time in seconds, like "1:09", "1h 9m" or "45" (minutes). Sums work too; clock times don't.
-    static func seconds(_ text: String) -> Result<Int, Failure> {
+    /// With `allowOverflow`, minutes and seconds can go past 59, so "5:70" is 6:10.
+    static func seconds(_ text: String, allowOverflow: Bool = false) -> Result<Int, Failure> {
         do {
             var seconds = 0
             for (sign, part) in try split(text) {
-                let (value, isClock) = try parse(part)
+                let (value, isClock) = try parse(part, allowOverflow: allowOverflow)
                 if isClock { throw Failure.clockNotLength }
                 seconds += sign * value
             }
@@ -123,7 +124,7 @@ enum TimeEvaluator {
     }
 
     /// One part, in seconds, and whether it's a clock time.
-    private static func parse(_ part: String) throws -> (Int, Bool) {
+    private static func parse(_ part: String, allowOverflow: Bool = false) throws -> (Int, Bool) {
         let compact = part.lowercased().filter { !$0.isWhitespace }
 
         // Clock times: "9am", "9:30pm", "12:15a", "9:30 p.m."
@@ -148,7 +149,7 @@ enum TimeEvaluator {
             let numbers = pieces.map { $0.isEmpty ? 0 : Int($0) }
             guard numbers.allSatisfy({ $0 != nil }) else { throw Failure.notATime(part) }
             let values = numbers.map { $0! }
-            guard values.dropFirst().allSatisfy({ $0 < 60 }) else { throw Failure.tooManyMinutes }
+            guard allowOverflow || values.dropFirst().allSatisfy({ $0 < 60 }) else { throw Failure.tooManyMinutes }
             return (values[0] * 3600 + values[1] * 60 + (values.count == 3 ? values[2] : 0), false)
         }
 

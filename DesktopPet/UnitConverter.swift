@@ -113,11 +113,12 @@ struct ConvertCategory: Identifiable, Hashable {
     ]
 
     /// Hours and minutes, like "1:09" (or "1:09:30" with seconds). Typed in like the Math page's Time tab,
-    /// so "1:09", "1h 9m" and "1:00 + 9" all work, and a plain number is minutes.
+    /// so "1:09", "1h 9m" and "1:00 + 9" all work, and a plain number is minutes. Unlike the Time tab,
+    /// minutes can go past 59 here: converting is a handy way to tidy "5:70" into 6:10.
     private static let hoursMinutes: ConvertUnit = {
         var unit = ConvertUnit("h:mm", "hours:minutes", factor: 1)
         unit.read = { text in
-            TimeEvaluator.seconds(text).map(Double.init).mapError { ConvertUnit.Failure(message: $0.message) }
+            TimeEvaluator.seconds(text, allowOverflow: true).map(Double.init).mapError { ConvertUnit.Failure(message: $0.message) }
         }
         unit.show = { TimeEvaluator.durationText(Int($0.rounded())) }
         return unit
