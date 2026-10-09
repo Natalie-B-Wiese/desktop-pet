@@ -112,7 +112,16 @@ struct ConvertCategory: Identifiable, Hashable {
     /// Web pages' default font size, which 1 rem stands for.
     static let remPixels: Double = 16
 
+    /// In menu order: the most used first, Screen last.
     static let all: [ConvertCategory] = [
+        // Base: seconds. "h:mm" reads and shows time like a clock, so 69 minutes is 1:09.
+        ConvertCategory(name: "Time", units: [
+            ConvertUnit("sec", "seconds", factor: 1),
+            ConvertUnit("min", "minutes", factor: 60),
+            ConvertUnit("hr", "hours", factor: 3600),
+            ConvertUnit("day", "days", factor: 86400),
+            hoursMinutes,
+        ], defaultFrom: "min", defaultTo: "h:mm"),
         // Base: meters.
         ConvertCategory(name: "Length", units: [
             ConvertUnit("mm", "millimeters", factor: 0.001),
@@ -149,22 +158,14 @@ struct ConvertCategory: Identifiable, Hashable {
             ConvertUnit("qt", "quarts", factor: 946.352946),
             ConvertUnit("gal", "gallons", factor: 3785.411784),
         ], defaultFrom: "cup", defaultTo: "ml"),
+        // Through red, green and blue from 0 to 1. See ColorConverter.swift.
+        ConvertCategory(name: "Color", kind: .colors(ColorUnit.all), defaultFrom: "hex", defaultTo: "rgb"),
         // Base: CSS pixels. 1pt is 4/3 px; 1rem is 16px.
         ConvertCategory(name: "Screen", units: [
             ConvertUnit("px", "pixels", factor: 1),
             ConvertUnit("pt", "points", factor: 4.0 / 3.0),
             ConvertUnit("rem", "rem (16px)", factor: remPixels),
         ], defaultFrom: "px", defaultTo: "rem"),
-        // Base: seconds. "h:mm" reads and shows time like a clock, so 69 minutes is 1:09.
-        ConvertCategory(name: "Time", units: [
-            ConvertUnit("sec", "seconds", factor: 1),
-            ConvertUnit("min", "minutes", factor: 60),
-            ConvertUnit("hr", "hours", factor: 3600),
-            ConvertUnit("day", "days", factor: 86400),
-            hoursMinutes,
-        ], defaultFrom: "min", defaultTo: "h:mm"),
-        // Through red, green and blue from 0 to 1. See ColorConverter.swift.
-        ConvertCategory(name: "Color", kind: .colors(ColorUnit.all), defaultFrom: "hex", defaultTo: "rgb"),
     ]
 
     /// Hours and minutes, like "1:09" (or "1:09:30" with seconds). Typed in like the Math page's Time tab,
