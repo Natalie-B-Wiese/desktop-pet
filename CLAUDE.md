@@ -6,7 +6,7 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
 
 ## Location and repo
 - Project: `~/xcode/my_widgets/`
-- The git repo is local only, on branch `main`, with no remote. A private GitHub backup was offered but hasn't been set up. Ask before pushing anything anywhere.
+- The git repo is on branch `main`, and the remote `origin` is the public repo https://github.com/Natalie-B-Wiese/desktop-pet (MIT license). Ask before pushing.
 - Commit after each finished change, using short messages like `Customize: …` or `Clipboard: …`. End commit messages with the attribution line the harness asks for, currently `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - `build/` and `DesktopPet.xcodeproj/` are generated and gitignored.
 
@@ -17,6 +17,7 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
   3. quits the running app and waits for it to exit
   4. installs to `/Applications/DesktopPet.app`
   5. relaunches, passing any args through
+- `./release.sh` publishes a download: it builds a universal (arm64 + x86_64) Release into `build/release/`, ad-hoc signed (there's no Developer ID, so it can't be notarized), zips it, and runs `gh release create v<MARKETING_VERSION>`. Bump `MARKETING_VERSION` in `project.yml` first. Ask before running it, since it publishes.
 - Never edit the `.xcodeproj` directly. Change `project.yml` instead.
 - Settings in `project.yml`:
   - Swift 5 mode, macOS 15 target
