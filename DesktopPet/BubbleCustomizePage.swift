@@ -13,8 +13,9 @@ struct ColorFamily: Identifiable {
     static let all: [ColorFamily] = [
         ColorFamily(name: "Red", shades: ["FFD6D6", "F7A1A1", "EF6B6B", "D93A3A", "A82424", "6E1515"]),
         ColorFamily(name: "Orange", shades: ["FFE3C7", "FFC08A", "F5A45F", "E8893A", "B8561A", "7A3810"]),
+        // Between Orange and Yellow: golden retrievers, yellow Labs, ginger and cream cats.
+        ColorFamily(name: "Gold", shades: ["FFF0D0", "F9D99A", "EDBE6A", "D9A04A", "A8741F", "6E4A10"]),
         ColorFamily(name: "Yellow", shades: ["FFF6C7", "FCE88A", "F5D547", "E0B623", "B08812", "735808"]),
-        ColorFamily(name: "Olive", shades: ["EEF0D2", "D6DC9E", "B8C26A", "98A33F", "6F7A2A", "474E1A"]),
         ColorFamily(name: "Green", shades: ["D9F2D0", "A8DE96", "72C45B", "4CAF50", "2F7A25", "1B4D16"]),
         ColorFamily(name: "Teal", shades: ["D0F2EE", "94DED5", "52C2B5", "23A094", "147369", "0B4A44"]),
         ColorFamily(name: "Blue", shades: ["D6E6FF", "A1C4F7", "6B9FEB", "3A7BD5", "2456A3", "14356B"]),
