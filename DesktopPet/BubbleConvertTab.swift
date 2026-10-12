@@ -192,7 +192,8 @@ struct BubbleConvertTab: View {
     private func unitMenu(selection: String, choose: @escaping (String) -> Void) -> some View {
         BubblePopUp(title: selection) {
             ForEach(category.menu, id: \.symbol) { unit in
-                Button("\(unit.symbol) · \(unit.name)") {
+                // Color symbols speak for themselves, and their names were long.
+                Button(category.isColor ? unit.symbol : "\(unit.symbol) · \(unit.name)") {
                     choose(unit.symbol)
                     saveUnits()
                 }
