@@ -331,7 +331,8 @@ struct BubbleView: View {
         case .main: 3 * MenuTile.width + 2 * tileSpacing
         case .startTimer: 228
         case .timerControls, .reminders, .addReminder, .editReminder, .settings: 190
-        case .math, .todos: 210
+        case .todos: 210
+        case .math: 260 // room for the Range boxes and long date answers
         case .notes: 220
         case .clipboard: 250
         case .customize: 272
@@ -439,7 +440,7 @@ struct BubbleView: View {
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
         case .math:
             BubbleMathPage(history: mathHistory, timeHistory: timeHistory, onClose: { menu.page = nil })
-                .frame(width: 210)
+                .frame(width: 260)
         case .customize:
             BubbleCustomizePage(settings: settings)
         case .settings:

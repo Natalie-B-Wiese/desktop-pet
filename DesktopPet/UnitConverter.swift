@@ -42,6 +42,8 @@ struct Conversion {
     var color: RGBColor?
     /// Colors only: how the amount was read, like "H 32° · S 100% · L 50%".
     var breakdown: String?
+    /// Ranges only: a heads-up under the answer, like "Outside 0 – 1".
+    var note: String?
 }
 
 /// A group of units that convert into each other, like lengths or colors.
@@ -51,6 +53,8 @@ struct ConvertCategory: Identifiable, Hashable {
         case numbers([ConvertUnit])
         /// Ways of writing a color, which convert through `RGBColor`.
         case colors([ColorUnit])
+        /// Maps a number from one range onto another, with typed ranges instead of units. See `mapRange`.
+        case range
     }
 
     let name: String
@@ -76,11 +80,16 @@ struct ConvertCategory: Identifiable, Hashable {
         if case .colors = kind { true } else { false }
     }
 
+    var isRange: Bool {
+        if case .range = kind { true } else { false }
+    }
+
     /// The units in the pop-up menus.
     var menu: [(symbol: String, name: String)] {
         switch kind {
         case .numbers(let units): units.map { ($0.symbol, $0.name) }
         case .colors(let units): units.map { ($0.symbol, $0.name) }
+        case .range: []
         }
     }
 
@@ -103,6 +112,34 @@ struct ConvertCategory: Identifiable, Hashable {
             case .failure(let failure):
                 return Conversion(answer: .failure(failure))
             }
+        case .range:
+            preconditionFailure("Ranges have no units; use mapRange")
+        }
+    }
+
+    /// Maps an amount from one range onto another, like 0.5 in 0–1 → 50 in 0–100. Every box takes math.
+    /// Backwards ranges work (0–100 → 100–0 flips a value). An amount outside the first range carries on
+    /// past the ends of the second (1.5 → 150), with a note saying so.
+    static func mapRange(_ text: String, from: (min: String, max: String), to: (min: String, max: String)) -> Conversion {
+        let ends = [from.min, from.max, to.min, to.max].map { $0.trimmingCharacters(in: .whitespaces) }
+        guard !ends.contains(where: \.isEmpty) else {
+            return Conversion(answer: .failure(ConvertUnit.Failure(message: "Fill in both ends of each range")))
+        }
+        do {
+            let value = try MathEvaluator.evaluate(text).get()
+            let numbers = try ends.map { try MathEvaluator.evaluate($0).get() }
+            let (fromMin, fromMax, toMin, toMax) = (numbers[0], numbers[1], numbers[2], numbers[3])
+            guard fromMin != fromMax else {
+                return Conversion(answer: .failure(ConvertUnit.Failure(message: "The range can't be zero")))
+            }
+            let fraction = (value - fromMin) / (fromMax - fromMin)
+            let answer = toMin + fraction * (toMax - toMin)
+            let note = (0...1).contains(fraction) ? nil : "Outside \(ends[0]) – \(ends[1])"
+            return Conversion(answer: .success(MathEvaluator.format(answer, maxFractionDigits: 6)), note: note)
+        } catch let failure as MathEvaluator.Failure {
+            return Conversion(answer: .failure(ConvertUnit.Failure(message: failure.message)))
+        } catch {
+            return Conversion(answer: .failure(ConvertUnit.Failure(message: "\(error)")))
         }
     }
 
@@ -112,7 +149,7 @@ struct ConvertCategory: Identifiable, Hashable {
     /// Web pages' default font size, which 1 rem stands for.
     static let remPixels: Double = 16
 
-    /// In menu order: the most used first, Screen last.
+    /// In menu order: the most used first, then Screen, then Range (which has no units).
     static let all: [ConvertCategory] = [
         // Base: seconds. "h:mm" reads and shows time like a clock, so 69 minutes is 1:09.
         ConvertCategory(name: "Time", units: [
@@ -166,6 +203,8 @@ struct ConvertCategory: Identifiable, Hashable {
             ConvertUnit("pt", "points", factor: 4.0 / 3.0),
             ConvertUnit("rem", "rem (16px)", factor: remPixels),
         ], defaultFrom: "px", defaultTo: "rem"),
+        // Two typed ranges instead of units. See `mapRange`.
+        ConvertCategory(name: "Range", kind: .range, defaultFrom: "", defaultTo: ""),
     ]
 
     /// Hours and minutes, like "1:09" (or "1:09:30" with seconds). Typed in like the Math page's Time tab,

@@ -4,6 +4,7 @@ import SwiftUI
 /// The Math page's Convert tab: type an amount, pick two units, and see the answer as you type.
 /// The amount can be math too, like "5+2" (or "1:09" for the Time category's h:mm). Click the answer to copy it.
 /// The Color category takes a color instead, like "#FF8800" or "32, 100, 50", with a line showing how it was read and a swatch.
+/// The Range category has min – max boxes in place of the unit menus, and maps the number from one range onto the other.
 struct BubbleConvertTab: View {
     var onClose: () -> Void
 
@@ -12,9 +13,15 @@ struct BubbleConvertTab: View {
     @State private var fromSymbol = ""
     @State private var toSymbol = ""
     @State private var justCopied = false
+    // The Range category's two ranges, kept as typed (they can be math too).
+    @AppStorage("convert.Range.fromMin") private var rangeFromMin = "0"
+    @AppStorage("convert.Range.fromMax") private var rangeFromMax = "1"
+    @AppStorage("convert.Range.toMin") private var rangeToMin = "0"
+    @AppStorage("convert.Range.toMax") private var rangeToMax = "100"
     @FocusState private var inputFocused: Bool
 
     private static let unitMenuWidth: CGFloat = 74
+    private static let rangeEndWidth: CGFloat = 46
 
     private var category: ConvertCategory {
         ConvertCategory.named(categoryName) ?? ConvertCategory.all[0]
@@ -27,6 +34,9 @@ struct BubbleConvertTab: View {
     private var conversion: Conversion? {
         let text = input.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return nil }
+        if category.isRange {
+            return ConvertCategory.mapRange(text, from: (rangeFromMin, rangeFromMax), to: (rangeToMin, rangeToMax))
+        }
         return category.convert(text, from: from, to: to)
     }
     private var result: Result<String, ConvertUnit.Failure>? { conversion?.answer }
@@ -42,7 +52,7 @@ struct BubbleConvertTab: View {
             }
 
             HStack(spacing: 4) {
-                TextField(fromColorUnit?.placeholder ?? "Amount", text: $input)
+                TextField(fromColorUnit?.placeholder ?? (category.isRange ? "Number" : "Amount"), text: $input)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .padding(.horizontal, 8)
@@ -51,7 +61,11 @@ struct BubbleConvertTab: View {
                     .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
                     .focused($inputFocused)
                     .onExitCommand(perform: onClose) // Esc closes the menu
-                unitMenu(selection: from) { fromSymbol = $0 }
+                if category.isRange {
+                    rangeBoxes(min: $rangeFromMin, max: $rangeFromMax)
+                } else {
+                    unitMenu(selection: from) { fromSymbol = $0 }
+                }
             }
 
             if let fromColorUnit {
@@ -73,14 +87,31 @@ struct BubbleConvertTab: View {
                 .padding(.horizontal, 8)
             }
 
-            HeaderIconButton(systemImage: "arrow.up.arrow.down", help: "Swap units") {
-                (fromSymbol, toSymbol) = (to, from)
-                saveUnits()
+            HeaderIconButton(systemImage: "arrow.up.arrow.down", help: category.isRange ? "Swap ranges" : "Swap units") {
+                if category.isRange {
+                    (rangeFromMin, rangeFromMax, rangeToMin, rangeToMax) = (rangeToMin, rangeToMax, rangeFromMin, rangeFromMax)
+                } else {
+                    (fromSymbol, toSymbol) = (to, from)
+                    saveUnits()
+                }
             }
 
             HStack(spacing: 4) {
                 answerBox
-                unitMenu(selection: to) { toSymbol = $0 }
+                if category.isRange {
+                    rangeBoxes(min: $rangeToMin, max: $rangeToMax)
+                } else {
+                    unitMenu(selection: to) { toSymbol = $0 }
+                }
+            }
+
+            if let note = conversion?.note {
+                Text(note)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .opacity(0.5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
             }
         }
         .onAppear {
@@ -133,6 +164,29 @@ struct BubbleConvertTab: View {
         }
         .buttonStyle(.plain)
         .help("Copy the answer")
+    }
+
+    /// A range's two ends, like [ 0 ] – [ 100 ], in place of a unit menu.
+    private func rangeBoxes(min: Binding<String>, max: Binding<String>) -> some View {
+        HStack(spacing: 3) {
+            rangeEnd("min", text: min)
+            Text("–")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+            rangeEnd("max", text: max)
+        }
+    }
+
+    private func rangeEnd(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 6)
+            .frame(width: Self.rangeEndWidth)
+            .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+            .onExitCommand(perform: onClose) // Esc closes the menu
     }
 
     private func unitMenu(selection: String, choose: @escaping (String) -> Void) -> some View {
