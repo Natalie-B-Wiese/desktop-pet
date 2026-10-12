@@ -28,7 +28,7 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
 
 ## Verifying UI (important)
 The agent has no Screen Recording permission, so the app has test launch arguments. They're handled in `AppController.handleTestingArguments()`, which documents them.
-- `--snapshot /path/x.png` saves each visible app window as `x-<n>.png` after 1.5s. Read the PNG to check a layout. If it misses the bubble, just run it again (it's a timing issue).
+- `--snapshot /path/x.png` saves each visible app window as `x-<n>.png` after 1.5s. It also saves `x.png`, with all the windows except the menu bar icon placed as they are on screen (the bubble above the pet), which is what to use for shareable screenshots. Read the PNG to check a layout. If it misses the bubble, just run it again (it's a timing issue).
 - `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the bubble on that page. `--customize` opens the Customize page.
 - The following set up a timer state:
   - `--timer <sec>`, optionally with `--label <text>` and/or `--pause`

@@ -426,7 +426,8 @@ final class AppController {
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
-    /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (plus any typing time).
+    /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (plus any typing time),
+    /// and all of them (minus the menu bar icon) placed as they are on screen as <path>.png.
     private func handleTestingArguments() {
         let args = ProcessInfo.processInfo.arguments
         func value(after flag: String) -> String? {
@@ -497,13 +498,32 @@ final class AppController {
             let typingTime = 0.1 * Double(value(after: "--type")?.count ?? 0)
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5 + typingTime) {
                 let base = (path as NSString).deletingPathExtension
+                var pictures: [(frame: NSRect, rep: NSBitmapImageRep)] = []
                 for (n, window) in NSApp.windows.filter(\.isVisible).enumerated() {
                     guard let view = window.contentView?.superview ?? window.contentView,
                           let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
                     view.cacheDisplay(in: view.bounds, to: rep)
                     try? rep.representation(using: .png, properties: [:])?
                         .write(to: URL(fileURLWithPath: "\(base)-\(n).png"))
+                    if window.level != .statusBar && !String(describing: type(of: window)).contains("StatusBar") {
+                        pictures.append((window.frame, rep))
+                    }
                 }
+                // Everything together, at 2x, laid out as on screen.
+                let union = pictures.map(\.frame).reduce(NSRect.null) { $0.union($1) }
+                guard !union.isNull, let canvas = NSBitmapImageRep(
+                    bitmapDataPlanes: nil, pixelsWide: Int(union.width * 2), pixelsHigh: Int(union.height * 2),
+                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+                ) else { return }
+                canvas.size = union.size
+                NSGraphicsContext.saveGraphicsState()
+                NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: canvas)
+                for picture in pictures {
+                    picture.rep.draw(in: picture.frame.offsetBy(dx: -union.minX, dy: -union.minY))
+                }
+                NSGraphicsContext.restoreGraphicsState()
+                try? canvas.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "\(base).png"))
             }
         }
     }
