@@ -45,7 +45,12 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
-- Her current settings: name "Topsy", scale 5 (M), a grey body palette, and Military time **off** (as of 2026-10-07; check before assuming).
+- Her current settings: Military time **off** (as of 2026-10-07; check before assuming).
+- Topsy's look (as of 2026-10-12). She's the first pet in `screenshots/pets.png`. Put her back after changing pets for screenshots:
+  - name `Topsy`, scale `4`
+  - `character` and `character.cat` = `tortie.up-long` (cat, shape 1/4 "up-long", tortie pattern); `character.dog` = `dog.down-long`
+  - `color.main` = `7D6F60` (grey-brown body), `color.secondary` = `ABABAB` (grey accents), `color.detail` = `A8DE96` (light green eyes), `color.ears` = `7A4E2E` (dog ears)
+  - With the app quit: `D=com.nataliewiese.DesktopPet; defaults write $D name Topsy; defaults write $D scale -int 4; defaults write $D character tortie.up-long; defaults write $D character.cat tortie.up-long; defaults write $D character.dog dog.down-long; defaults write $D color.main 7D6F60; defaults write $D color.secondary ABABAB; defaults write $D color.detail A8DE96; defaults write $D color.ears 7A4E2E`
 - When restoring after a test, put back what the backup had (`defaults write` its value). Don't assume a setting was at its default; `defaults delete` only keys the backup didn't have.
 - To snapshot another pattern, quit the app, back up with `defaults export`, `defaults write com.nataliewiese.DesktopPet character <id>`, run, then restore the backup (see the warning above).
 
