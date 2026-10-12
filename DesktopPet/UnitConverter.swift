@@ -149,8 +149,10 @@ struct ConvertCategory: Identifiable, Hashable {
     /// Web pages' default font size, which 1 rem stands for.
     static let remPixels: Double = 16
 
-    /// In menu order: the most used first, then Screen, then Range (which has no units).
+    /// In menu order: the most used first, Screen last. The first is also the default.
     static let all: [ConvertCategory] = [
+        // Two typed ranges instead of units. See `mapRange`.
+        ConvertCategory(name: "Range", kind: .range, defaultFrom: "", defaultTo: ""),
         // Base: seconds. "h:mm" reads and shows time like a clock, so 69 minutes is 1:09.
         ConvertCategory(name: "Time", units: [
             ConvertUnit("sec", "seconds", factor: 1),
@@ -203,8 +205,6 @@ struct ConvertCategory: Identifiable, Hashable {
             ConvertUnit("pt", "points", factor: 4.0 / 3.0),
             ConvertUnit("rem", "rem (16px)", factor: remPixels),
         ], defaultFrom: "px", defaultTo: "rem"),
-        // Two typed ranges instead of units. See `mapRange`.
-        ConvertCategory(name: "Range", kind: .range, defaultFrom: "", defaultTo: ""),
     ]
 
     /// Hours and minutes, like "1:09" (or "1:09:30" with seconds). Typed in like the Math page's Time tab,
