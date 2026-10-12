@@ -46,7 +46,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
 - Her current settings: Military time **off** (as of 2026-10-07; check before assuming).
-- Topsy's look (as of 2026-10-12). She was the first pet in `screenshots/pets.png` until an orange tabby replaced her. Put her back after changing pets for screenshots:
+- Topsy's look (as of 2026-10-12). She's the second pet in `screenshots/pets.png`, after the orange tabby. Put her back after changing pets for screenshots:
   - name `Topsy`, scale `4`
   - `character` and `character.cat` = `tortie.up-long` (cat, shape 1/4 "up-long", tortie pattern); `character.dog` = `dog.down-long`
   - `color.main` = `7D6F60` (grey-brown body), `color.secondary` = `ABABAB` (grey accents), `color.detail` = `A8DE96` (light green eyes), `color.ears` = `7A4E2E` (dog ears)
