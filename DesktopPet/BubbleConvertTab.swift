@@ -22,6 +22,8 @@ struct BubbleConvertTab: View {
 
     private static let unitMenuWidth: CGFloat = 74
     private static let rangeEndWidth: CGFloat = 46
+    /// Both ends plus the dash between them.
+    private static let rangeBoxesWidth: CGFloat = 105
 
     private var category: ConvertCategory {
         ConvertCategory.named(categoryName) ?? ConvertCategory.all[0]
@@ -68,32 +70,38 @@ struct BubbleConvertTab: View {
                 }
             }
 
-            if let fromColorUnit {
-                // How the color was read with a swatch, or which numbers to type while it can't be read yet.
-                HStack(spacing: 5) {
-                    if let color = conversion?.color {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
-                            .frame(width: 12, height: 12)
-                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.black.opacity(0.3), lineWidth: 1))
+            // The swap button, centered between the unit menus (or ranges) it swaps. Any helper line for
+            // the amount sits beside it, so the button stays in the same place with or without one.
+            HStack(alignment: .top, spacing: 4) {
+                if let fromColorUnit {
+                    // How the color was read with a swatch, or which numbers to type while it can't be read yet.
+                    HStack(spacing: 5) {
+                        if let color = conversion?.color {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
+                                .frame(width: 12, height: 12)
+                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.black.opacity(0.3), lineWidth: 1))
+                        }
+                        Text(conversion?.breakdown ?? fromColorUnit.hint)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .opacity(conversion?.breakdown == nil ? 0.4 : 0.6)
                     }
-                    Text(conversion?.breakdown ?? fromColorUnit.hint)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .opacity(conversion?.breakdown == nil ? 0.4 : 0.6)
-                }
-                .frame(maxWidth: .infinity, minHeight: 12, alignment: .leading) // the same height with or without the swatch
-                .padding(.horizontal, 8)
-            }
-
-            HeaderIconButton(systemImage: "arrow.up.arrow.down", help: category.isRange ? "Swap ranges" : "Swap units") {
-                if category.isRange {
-                    (rangeFromMin, rangeFromMax, rangeToMin, rangeToMax) = (rangeToMin, rangeToMax, rangeFromMin, rangeFromMax)
+                    .frame(maxWidth: .infinity, minHeight: 12, alignment: .leading) // the same height with or without the swatch
+                    .padding(.leading, 8)
                 } else {
-                    (fromSymbol, toSymbol) = (to, from)
-                    saveUnits()
+                    Spacer(minLength: 0)
                 }
+                HeaderIconButton(systemImage: "arrow.up.arrow.down", help: category.isRange ? "Swap ranges" : "Swap units") {
+                    if category.isRange {
+                        (rangeFromMin, rangeFromMax, rangeToMin, rangeToMax) = (rangeToMin, rangeToMax, rangeFromMin, rangeFromMax)
+                    } else {
+                        (fromSymbol, toSymbol) = (to, from)
+                        saveUnits()
+                    }
+                }
+                .frame(width: category.isRange ? Self.rangeBoxesWidth : Self.unitMenuWidth)
             }
 
             HStack(spacing: 4) {
@@ -174,6 +182,7 @@ struct BubbleConvertTab: View {
                 .font(.system(size: 12, weight: .bold, design: .rounded))
             rangeEnd("max", text: max)
         }
+        .frame(width: Self.rangeBoxesWidth)
     }
 
     private func rangeEnd(_ placeholder: String, text: Binding<String>) -> some View {
