@@ -28,6 +28,69 @@ Signing uses the development team set in `project.yml`. To build under your own 
 
 The app lives in the menu bar and has no Dock icon. Use its menu bar icon to show or hide the pet, start timers, or quit.
 
+## Using the pet
+
+- **Click the pet** to open the menu of tools. Click her again, or click ✕, to close it.
+- **Drag the pet** to move her anywhere. She remembers where you left her.
+- **Right-click the pet** for shortcuts: start a timer, Pomodoro or stopwatch; pause, adjust or stop the current one; or jump to To-dos, Notes, Reminders or a screenshot.
+- **The menu bar icon** can show or hide the pet, start timers, turn on **Launch at Login**, or quit.
+
+The main menu closes when you click somewhere else, but tool pages (Notes, Math, Clipboard and so on) stay open. That way you can look something up in another app without losing what you typed. Use ‹ to go back to the menu, or ✕ to close it.
+
+**Clicking the speech bubble** (with the menu closed) does whatever fits what it's showing, in this order:
+1. A reminder that's due: closes it. "· 2 more" means more things are waiting behind it.
+2. The morning greeting: closes it.
+3. A finished Pomodoro period: starts the next one (break or work).
+4. "Time's up": clears it.
+5. A running timer or stopwatch: pauses it, or resumes it if paused.
+
+**Keyboard:** Esc closes the menu. The Timer, Math and add-reminder pages take the keyboard as soon as they open, so you can type right away. Other pages wait until you click a box.
+
+## The tools
+
+### Timer, Stopwatch and Pomodoro
+
+Open **Timer** and pick a tab:
+- **Timer** counts down. Type the minutes (or use the arrows; hold one to count quickly) and an optional label.
+- **Stopwatch** counts up, with an optional label.
+- **Pomodoro** alternates work and break periods. After each period it waits for you: click the bubble to start the next one.
+
+While one runs, the bubble shows the time left. The Timer tile on the menu shows it too, and opens controls to pause, stop, rename it, or add or remove time (±30 seconds and ±5 minutes). To start a different timer, stop the current one first.
+
+When a timer ends, the pet hops and plays the sound from **Settings → Notification**.
+
+### Reminders
+
+Each reminder is a time today plus an optional message. When it comes due, the pet hops and the bubble shows it until you click it.
+
+- **Add reminder:** type the hour, press Space, `:` or Tab, then type the minutes, and choose AM or PM. Typing works like a digital clock: the last two digits you type win. To change the hour, select it and type over it.
+- With **Settings → Military time** on, there's no AM/PM and the hour goes 00–23.
+- Click a reminder to edit it, or ✕ to delete it.
+- **Pull meetings** adds reminders for today's calendar meetings. See [Google Calendar setup](#google-calendar-setup-for-reminders--pull-meetings).
+
+### To-dos
+
+Type a to-do and press Return. Check things off as you finish them. **Checked items disappear at the end of the day**, so you don't have to clean up. Unchecked ones stay.
+
+### Notes
+
+Sticky notes you type on directly. There's no Save button: everything saves as you type.
+- Type on the blank **New note** at the top to start one. A new blank appears above it.
+- Click a note to edit it. Return starts a new line.
+- A note you empty out deletes itself when you click away, or use ✕.
+
+### Clipboard
+
+Keeps the last 5 things you copied anywhere on your Mac: text, images and files.
+- Click an item to copy it again, ready to paste. The arrows on the left reorder items.
+- New copies go on top. When the list is full, a red warning says the next copy will push out the bottom item.
+- Copies that password managers mark as private aren't saved.
+- A copied color like `#FF8800` shows a small swatch.
+- **Take screenshot:** drag across part of the screen (or press Space to pick a window, Esc to cancel). It's copied and appears in the list.
+- **Pick a color:** click anywhere on the screen, and its hex code (`#RRGGBB`) is copied.
+
+Clipboard and screenshots need macOS permissions. See [Permissions](#permissions).
+
 ## Math
 
 Click the pet and choose **Math**. The page has three tabs: **Calculator**, **Time** and **Convert**. The app remembers which tab you used last.
@@ -115,6 +178,20 @@ Pick a category, type an amount, and choose the units to convert between. The an
 - The amount can be math, like `5+2` or `1,500 * 2`.
 - In `h:mm`, minutes can go past 59 (`5:70` is `6:10`), unlike the Time tab.
 - **Color** takes one color at a time, pasted however you have it: `#FF8800`, `F80`, `255, 136, 0`, `rgb(255, 136, 0)` or `hsl(32, 100%, 50%)`. A line under the box shows how it was read, with a small swatch. Hex answers are uppercase, like `#FF8800`. Transparency (alpha) isn't supported yet.
+
+## Permissions
+
+Some features need permission from macOS. Without it they just look empty or do nothing, so check here first if something seems broken.
+
+| Feature | Permission | Where to turn it on |
+|---|---|---|
+| Clipboard history | Paste from Other Apps | System Settings → Privacy & Security → **Paste from Other Apps** |
+| Take screenshot | Screen Recording | System Settings → Privacy & Security → **Screen Recording** |
+| Pull meetings, meeting lines in the morning greeting | Calendars | System Settings → Privacy & Security → **Calendars** (see below) |
+
+- **Clipboard:** the first time the app reads something you copied, macOS asks whether to allow pasting. Choose **Allow**. If you denied it, the Clipboard page says so; turn on **Desktop Pet** in the setting above.
+- **Screenshots:** the first time you click **Take screenshot**, macOS asks for Screen Recording and the Clipboard page shows a note. Turn on **Desktop Pet** in the setting above, then **quit and reopen the app**, because macOS only applies this permission after a restart.
+- **Calendar:** see the next section.
 
 ## Google Calendar setup (for Reminders → Pull meetings)
 
