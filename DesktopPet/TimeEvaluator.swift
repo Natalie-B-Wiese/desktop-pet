@@ -10,6 +10,12 @@ import Foundation
 /// Lengths add to a length. A clock time plus or minus lengths is a clock time ("9:30am + 2:45" is
 /// "12:15 PM"), and one clock time minus another is the time between them ("5pm - 9:30am" is "7:30",
 /// counting overnight if the second is later).
+///
+/// A part can also be a date: "today", "tomorrow", "yesterday", a weekday ("fri" is the coming Friday,
+/// or today if it's Friday), "Dec 25" or "12/25" (the nearest one, so in October "Jan 5" is next
+/// January), with an optional year ("Dec 25 2027", "12/25/27"). Lengths can be days and weeks ("90d",
+/// "2w 3d"). A date plus or minus whole days is a date, and one date minus another is the days between
+/// them. Dates and clock times don't mix yet.
 enum TimeEvaluator {
     struct Answer: Equatable {
         /// What to show, like "4:15" or "1:00 AM +1 day".
@@ -26,6 +32,11 @@ enum TimeEvaluator {
         case badClock(String)
         case twoClocks
         case clockNotLength
+        case badDate(String)
+        case twoDates
+        case dateAndClock
+        case partialDays
+        case dateNotLength
 
         var message: String {
             switch self {
@@ -36,20 +47,50 @@ enum TimeEvaluator {
             case .badClock(let part): "\"\(part)\" isn't a clock time"
             case .twoClocks: "Can't add two clock times"
             case .clockNotLength: "Type a length of time, not a clock time"
+            case .badDate(let part): "\"\(part)\" isn't a real date"
+            case .twoDates: "Can't add two dates"
+            case .dateAndClock: "Can't mix dates and clock times yet"
+            case .partialDays: "Add whole days to a date, like 90d"
+            case .dateNotLength: "Type a length of time, not a date"
             }
         }
     }
 
-    static func evaluate(_ text: String, military: Bool = AppPreferences.usesMilitaryTime) -> Result<Answer, Failure> {
+    static func evaluate(_ text: String, military: Bool = AppPreferences.usesMilitaryTime,
+                         now: Date = Date()) -> Result<Answer, Failure> {
         do {
             let parts = try split(text)
+            let today = dayNumber(of: now)
             var seconds = 0
             var clocks = 0 // +1 for each clock time added, -1 for each subtracted
             var usedClocks = false
+            var dateDays = 0 // the dates' day numbers, added and subtracted
+            var dates = 0 // like `clocks`, for dates
+            var usedDates = false
             for (sign, part) in parts {
-                let (value, isClock) = try parse(part)
-                seconds += sign * value
-                if isClock { clocks += sign; usedClocks = true }
+                let (value, kind) = try parse(part, today: today)
+                switch kind {
+                case .length:
+                    seconds += sign * value
+                case .clock:
+                    seconds += sign * value
+                    clocks += sign
+                    usedClocks = true
+                case .date:
+                    dateDays += sign * value
+                    dates += sign
+                    usedDates = true
+                }
+            }
+            if usedDates {
+                guard !usedClocks else { throw Failure.dateAndClock }
+                guard seconds % day == 0 else { throw Failure.partialDays }
+                let days = dateDays + seconds / day
+                switch dates {
+                case 0: return .success(daysAnswer(days))
+                case 1: return .success(dateAnswer(days))
+                default: throw Failure.twoDates
+                }
             }
             switch clocks {
             case 0:
@@ -75,8 +116,9 @@ enum TimeEvaluator {
         do {
             var seconds = 0
             for (sign, part) in try split(text) {
-                let (value, isClock) = try parse(part, allowOverflow: allowOverflow)
-                if isClock { throw Failure.clockNotLength }
+                let (value, kind) = try parse(part, allowOverflow: allowOverflow)
+                if kind == .clock { throw Failure.clockNotLength }
+                if kind == .date { throw Failure.dateNotLength }
                 seconds += sign * value
             }
             return .success(seconds)
@@ -123,9 +165,14 @@ enum TimeEvaluator {
         return parts
     }
 
-    /// One part, in seconds, and whether it's a clock time.
-    private static func parse(_ part: String, allowOverflow: Bool = false) throws -> (Int, Bool) {
+    private enum Kind { case length, clock, date }
+
+    /// One part: seconds for a length or clock time, or a day number for a date.
+    private static func parse(_ part: String, allowOverflow: Bool = false,
+                              today: Int = dayNumber(of: Date())) throws -> (Int, Kind) {
         let compact = part.lowercased().filter { !$0.isWhitespace }
+
+        if let date = try date(compact, part: part, today: today) { return (date, .date) }
 
         // Clock times: "9am", "9:30pm", "12:15a", "9:30 p.m."
         let noDots = compact.replacingOccurrences(of: ".", with: "")
@@ -138,7 +185,7 @@ enum TimeEvaluator {
                       pieces.count == 1 || pieces[1].count == 2,
                       let minute = pieces.count == 2 ? Int(pieces[1]) : 0, (0...59).contains(minute)
                 else { throw Failure.badClock(part) }
-                return (((hour % 12) + (isPM ? 12 : 0)) * 3600 + minute * 60, true)
+                return (((hour % 12) + (isPM ? 12 : 0)) * 3600 + minute * 60, .clock)
             }
         }
 
@@ -150,11 +197,11 @@ enum TimeEvaluator {
             guard numbers.allSatisfy({ $0 != nil }) else { throw Failure.notATime(part) }
             let values = numbers.map { $0! }
             guard allowOverflow || values.dropFirst().allSatisfy({ $0 < 60 }) else { throw Failure.tooManyMinutes }
-            return (values[0] * 3600 + values[1] * 60 + (values.count == 3 ? values[2] : 0), false)
+            return (values[0] * 3600 + values[1] * 60 + (values.count == 3 ? values[2] : 0), .length)
         }
 
         // A plain number is minutes.
-        if let minutes = Double(compact) { return (Int((minutes * 60).rounded()), false) }
+        if let minutes = Double(compact) { return (Int((minutes * 60).rounded()), .length) }
 
         // "1h 30m", "90min", "1.5 hours", "45s"
         var total = 0.0
@@ -181,7 +228,7 @@ enum TimeEvaluator {
         }
         try flush()
         guard sawAny else { throw Failure.notATime(part) }
-        return (Int(total.rounded()), false)
+        return (Int(total.rounded()), .length)
     }
 
     private static let unitScale: [String: Double] = {
@@ -189,8 +236,135 @@ enum TimeEvaluator {
         for word in ["h", "hr", "hrs", "hour", "hours"] { scales[word] = 3600 }
         for word in ["m", "min", "mins", "minute", "minutes"] { scales[word] = 60 }
         for word in ["s", "sec", "secs", "second", "seconds"] { scales[word] = 1 }
+        for word in ["d", "day", "days"] { scales[word] = Double(day) }
+        for word in ["w", "wk", "wks", "week", "weeks"] { scales[word] = Double(7 * day) }
         return scales
     }()
+
+    // MARK: Dates
+
+    /// Dates are counted in whole days since 2001-01-01, worked out in UTC so there's no daylight saving.
+    private static let utc: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }()
+
+    /// The day number of `date` as it reads on this Mac's calendar.
+    private static func dayNumber(of date: Date) -> Int {
+        let ymd = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return dayNumber(year: ymd.year!, month: ymd.month!, day: ymd.day!)!
+    }
+
+    /// Nil if there's no such day, like Feb 30.
+    private static func dayNumber(year: Int, month: Int, day: Int) -> Int? {
+        guard (1...12).contains(month), (1...31).contains(day),
+              let date = utc.date(from: DateComponents(year: year, month: month, day: day)),
+              utc.component(.day, from: date) == day
+        else { return nil }
+        return Int((date.timeIntervalSinceReferenceDate / Double(Self.day)).rounded(.down))
+    }
+
+    private static func date(ofDay dayNumber: Int) -> Date {
+        Date(timeIntervalSinceReferenceDate: Double(dayNumber * day))
+    }
+
+    private static let weekdays: [String: Int] = { // Calendar weekday numbers, Sunday is 1
+        var names: [String: Int] = [:]
+        for (number, words) in [(1, ["sun", "sunday"]), (2, ["mon", "monday"]), (3, ["tue", "tues", "tuesday"]),
+                                (4, ["wed", "weds", "wednesday"]), (5, ["thu", "thur", "thurs", "thursday"]),
+                                (6, ["fri", "friday"]), (7, ["sat", "saturday"])] {
+            for word in words { names[word] = number }
+        }
+        return names
+    }()
+
+    private static let months: [String: Int] = {
+        var names: [String: Int] = [:]
+        let full = ["january", "february", "march", "april", "may", "june", "july",
+                    "august", "september", "october", "november", "december"]
+        for (index, name) in full.enumerated() {
+            names[name] = index + 1
+            names[String(name.prefix(3))] = index + 1
+        }
+        names["sept"] = 9
+        return names
+    }()
+
+    /// A date's day number, or nil if `compact` isn't trying to be a date.
+    private static func date(_ compact: String, part: String, today: Int) throws -> Int? {
+        switch compact {
+        case "today": return today
+        case "tomorrow", "tmrw": return today + 1
+        case "yesterday": return today - 1
+        default: break
+        }
+
+        // "fri": the coming Friday, or today if it's Friday.
+        if let weekday = weekdays[compact] {
+            let todayWeekday = utc.component(.weekday, from: date(ofDay: today))
+            return today + (weekday - todayWeekday + 7) % 7
+        }
+
+        var month: Int, dayOfMonth: Int, year: Int?
+        let letters = compact.prefix { $0.isLetter }
+        if !letters.isEmpty {
+            // "dec25", "december25", "dec25,2027" or "dec252027" (spaces are already gone)
+            guard let m = months[String(letters)] else { return nil }
+            let digits = compact.dropFirst(letters.count).filter { $0 != "," }
+            guard digits.allSatisfy(\.isNumber), (1...6).contains(digits.count), digits.count != 3, digits.count != 4
+            else { throw Failure.badDate(part) }
+            month = m
+            dayOfMonth = Int(digits.prefix(digits.count > 2 ? digits.count - 4 : digits.count))!
+            year = digits.count > 2 ? Int(digits.suffix(4)) : nil
+        } else if compact.contains("/") {
+            // "12/25", "12/25/27" or "12/25/2027"
+            let pieces = compact.split(separator: "/", omittingEmptySubsequences: false).map { Int($0) }
+            guard (2...3).contains(pieces.count), pieces.allSatisfy({ $0 != nil }) else { throw Failure.badDate(part) }
+            month = pieces[0]!
+            dayOfMonth = pieces[1]!
+            if pieces.count == 3 {
+                let y = pieces[2]!
+                year = y < 100 ? 2000 + y : y
+            }
+        } else {
+            return nil
+        }
+
+        if let year {
+            guard let date = dayNumber(year: year, month: month, day: dayOfMonth) else { throw Failure.badDate(part) }
+            return date
+        }
+        // No year: the nearest one, looking a year either way.
+        let thisYear = utc.component(.year, from: date(ofDay: today))
+        let candidates = (thisYear - 1...thisYear + 1).compactMap { dayNumber(year: $0, month: month, day: dayOfMonth) }
+        guard let nearest = candidates.min(by: { abs($0 - today) < abs($1 - today) }) else { throw Failure.badDate(part) }
+        return nearest
+    }
+
+    /// "Wed, Jan 7, 2027", typed back in as "1/7/2027".
+    private static func dateAnswer(_ dayNumber: Int) -> Answer {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = utc.timeZone
+        formatter.dateFormat = "EEE, MMM d, yyyy"
+        let text = formatter.string(from: date(ofDay: dayNumber))
+        formatter.dateFormat = "M/d/yyyy"
+        return Answer(text: text, reuse: formatter.string(from: date(ofDay: dayNumber)))
+    }
+
+    /// "1 day", "77 days (11 weeks)" or "80 days (11w 3d)", typed back in as "80d".
+    private static func daysAnswer(_ days: Int) -> Answer {
+        let count = abs(days)
+        var text = count == 1 ? "\(days) day" : "\(days) days"
+        if count >= 7 {
+            let (weeks, extra) = (count / 7, count % 7)
+            text += extra == 0
+                ? (weeks == 1 ? " (1 week)" : " (\(weeks) weeks)")
+                : " (\(weeks)w \(extra)d)"
+        }
+        return Answer(text: text, reuse: "\(days)d")
+    }
 
     /// "4:15", "26:00", "-0:15", or "1:02:05" when there are seconds.
     static func durationText(_ seconds: Int) -> String {

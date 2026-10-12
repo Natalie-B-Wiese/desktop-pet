@@ -49,15 +49,16 @@ struct BubbleMathPage: View {
             BubbleTabs(selection: $mode, options: [(.calculator, "Calculator"), (.time, "Time"), (.convert, "Convert")])
             switch mode {
             case .calculator:
-                CalculatorTab(history: history, placeholder: "Type an equation", hint: "Try 2^(3+1) * 5",
+                CalculatorTab(history: history, placeholder: "Type an equation", hint: "Try 2^(3+1) * 5 or 80 + 20%",
                               onClose: onClose) { equation in
-                    MathEvaluator.evaluate(equation)
-                        .map { (MathEvaluator.format($0), nil) }
+                    // `ans` is the newest answer. Shown with thousands commas, typed back in without them.
+                    MathEvaluator.evaluate(equation, ans: lastAnswer)
+                        .map { (MathEvaluator.format($0, grouping: true), MathEvaluator.format($0)) }
                         .mapError { CalculatorTab.Failure(message: $0.message) }
                 }
             case .time:
-                // Adds and subtracts in hours and minutes, like "1:45 + 2:30" or "9am + 2:15".
-                CalculatorTab(history: timeHistory, placeholder: "Type times", hint: "Try 1:45 + 2:30 or 9am + 50m",
+                // Adds and subtracts in hours and minutes, like "1:45 + 2:30" or "9am + 2:15", and dates, like "Dec 25 - today".
+                CalculatorTab(history: timeHistory, placeholder: "Type times", hint: "Try 1:45 + 2:30 or today + 90d",
                               onClose: onClose) { equation in
                     TimeEvaluator.evaluate(equation)
                         .map { ($0.text, $0.reuse) }
@@ -68,6 +69,12 @@ struct BubbleMathPage: View {
                 BubbleConvertTab(onClose: onClose)
             }
         }
+    }
+
+    /// The calculator's newest answer, for `ans` and `_`.
+    private var lastAnswer: Double? {
+        guard let entry = history.entries.last else { return nil }
+        return Double((entry.reuse ?? entry.answer).replacingOccurrences(of: ",", with: ""))
     }
 }
 
