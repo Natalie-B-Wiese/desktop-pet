@@ -39,14 +39,31 @@ struct BubbleNotesPage: View {
     }
 
     private func row(_ note: Note) -> some View {
-        NoteRow(
-            note: note,
-            isBlank: note.id == blankID,
-            focusedID: $focusedID,
-            onType: { type($0, on: note.id) },
-            onDelete: { store.delete(note.id) },
-            onClose: onClose
-        )
+        HStack(spacing: 3) {
+            // Reorder arrows sit outside the note on the far left, like the clipboard's.
+            if note.id == blankID {
+                Color.clear.frame(width: 12) // the blank note always stays on top
+            } else {
+                CaretStepper(
+                    canIncrement: store.canMove(note.id, by: -1),
+                    canDecrement: store.canMove(note.id, by: 1),
+                    increment: { store.move(note.id, by: -1) },
+                    decrement: { store.move(note.id, by: 1) },
+                    repeatsWhenHeld: false, // one spot per click
+                    outlined: false
+                )
+                .help("Move up or down")
+            }
+
+            NoteRow(
+                note: note,
+                isBlank: note.id == blankID,
+                focusedID: $focusedID,
+                onType: { type($0, on: note.id) },
+                onDelete: { store.delete(note.id) },
+                onClose: onClose
+            )
+        }
     }
 
     private func type(_ text: String, on id: Note.ID) {

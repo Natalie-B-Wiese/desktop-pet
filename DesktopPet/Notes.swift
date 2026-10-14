@@ -47,6 +47,18 @@ final class NoteStore {
         }
     }
 
+    func canMove(_ id: Note.ID, by offset: Int) -> Bool {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return false }
+        return notes.indices.contains(index + offset)
+    }
+
+    /// Moves a note up (-1) or down (+1) in the list.
+    func move(_ id: Note.ID, by offset: Int) {
+        guard canMove(id, by: offset), let index = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes.swapAt(index, index + offset)
+        save()
+    }
+
     func delete(_ id: Note.ID) {
         notes.removeAll { $0.id == id }
         save()
