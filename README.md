@@ -2,6 +2,8 @@
 
 A macOS menu bar app that puts a small pixel-art pet on your desktop. She floats above your windows, and you can drag her anywhere. Click her to open a speech bubble of little tools: a timer and Pomodoro, reminders, to-dos, notes, a clipboard history, a calculator and unit converter, and a page for customizing how she looks.
 
+![Desktop Pet's tools above a lineup of cats and dogs in different colors](screenshots/overview-with-pets.png)
+
 ## Download
 
 1. Download the latest `DesktopPet-….zip` from the [Releases page](https://github.com/Natalie-B-Wiese/desktop-pet/releases/latest).
@@ -9,41 +11,9 @@ A macOS menu bar app that puts a small pixel-art pet on your desktop. She floats
 3. Open it. macOS will say it "can't be verified," because the app isn't notarized by Apple. Click **Done**.
 4. Open **System Settings → Privacy & Security**, scroll down to the message about DesktopPet, and click **Open Anyway**. You only need to do this once.
 
+Your pet appears on your desktop. Desktop Pet has no window or Dock icon. It lives in the menu bar, under the cat icon, where you can show or hide the pet, start timers, or quit.
+
 Desktop Pet needs macOS 15 or later and runs on both Apple Silicon and Intel Macs.
-
-## Building
-
-You need:
-- macOS 15 or later
-- Xcode
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen), which you can install with `brew install xcodegen`
-
-Then, from this folder:
-
-```bash
-./build.sh
-```
-
-The script does five things:
-1. Generates `DesktopPet.xcodeproj` from `project.yml`.
-2. Builds the app.
-3. Quits the running copy, if there is one.
-4. Installs the app to `/Applications/DesktopPet.app`.
-5. Launches it.
-
-Run it again after any change. The Xcode project is generated, so change `project.yml` instead of editing the project in Xcode.
-
-Signing uses the development team set in `project.yml`. To build under your own Apple account, change `DEVELOPMENT_TEAM` there.
-
-The app lives in the menu bar and has no Dock icon. Use its menu bar icon to show or hide the pet, start timers, or quit.
-
-## Releasing
-
-To publish a new version for people to download:
-1. Bump `MARKETING_VERSION` in `project.yml` and commit.
-2. Run `./release.sh`.
-
-The script builds a version that runs on both Apple Silicon and Intel Macs, zips it, and creates a GitHub release with the zip attached. It needs the [GitHub CLI](https://cli.github.com) (`brew install gh`), signed in with `gh auth login`.
 
 ## Using the pet
 
@@ -229,6 +199,30 @@ Each meeting's reminder goes off when the meeting starts. To get it earlier, ope
 Pull meetings skips all-day events, canceled meetings and ones you declined. Pulling again won't add duplicates. It updates reminders for meetings that moved or were renamed, and removes reminders for meetings that were canceled.
 
 Meeting reminders follow your calendar, so they can't be edited in the app. To change one, change the meeting in Google Calendar and pull again. You can still delete one with ✕, and the next pull brings it back.
+
+## For developers
+
+To change the code and build the app yourself, you need:
+- macOS 15 or later
+- Xcode
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen), which you can install with `brew install xcodegen`
+
+Then, from this folder:
+
+```bash
+./build.sh
+```
+
+The script does five things:
+1. Generates `DesktopPet.xcodeproj` from `project.yml`.
+2. Builds the app.
+3. Quits the running copy, if there is one.
+4. Installs the app to `/Applications/DesktopPet.app`.
+5. Launches it.
+
+Run it again after any change. The Xcode project is generated, so change `project.yml` instead of editing the project in Xcode.
+
+Signing uses the development team set in `project.yml`. To build under your own Apple account, change `DEVELOPMENT_TEAM` there.
 
 ## License
 
