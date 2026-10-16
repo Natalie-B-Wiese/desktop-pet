@@ -91,7 +91,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - `SetTimerView.swift` is the Custom… timer window.
 
 ## Features and their rules
-- **Timer:** a countdown with minutes input, caret steppers (holding repeats), and an optional label. While it runs:
+- **Timer:** a countdown with hours `:` minutes boxes (minutes 0…59, hours up to 99), caret steppers (holding repeats; the minutes carry into the hours), and an optional label. The draft is still saved as total minutes (`customTimer.minutes`), shared with the Custom… window. While it runs:
   - the bubble shows the time left
   - edit buttons adjust it by ±30s and ±5m
   - clicking the bubble pauses or resumes

@@ -716,21 +716,47 @@ private struct BubbleTimerPage: View {
 
     @ViewBuilder
     private var timerForm: some View {
-        VStack(spacing: 1) {
-            numberBox($minutes, range: TimerDraft.minuteRange, width: 72, fontSize: 22)
+        HStack(alignment: .top, spacing: 4) {
+            timeColumn("hours", hoursPart, range: 0...TimerDraft.maxHours, step: 60)
                 .focused($firstFieldFocused)
-                // Beside the box without shifting it off-center.
-                .overlay(alignment: .trailing) {
-                    stepper($minutes, range: TimerDraft.minuteRange).offset(x: 26)
-                }
-            Text("minutes")
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .opacity(0.55)
+            Text(":")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .padding(.top, 2)
+            timeColumn("minutes", minutesPart, range: 0...59, step: 1)
         }
 
         TextField("Label (optional)", text: TimerDraft.limited($label))
             .bubbleFieldStyle()
             .onSubmit(start) // Return starts the timer
+    }
+
+    /// The saved draft is total minutes (shared with the Set Timer window); the boxes split it.
+    private var hoursPart: Binding<Int> {
+        Binding(get: { minutes / 60 }, set: { minutes = $0 * 60 + minutes % 60 })
+    }
+
+    private var minutesPart: Binding<Int> {
+        Binding(get: { minutes % 60 }, set: { minutes = minutes / 60 * 60 + $0 })
+    }
+
+    /// A number box with its carets beside it and a caption under it.
+    /// The carets step the total by `step` minutes, so the minutes carry into the hours.
+    private func timeColumn(_ caption: String, _ value: Binding<Int>, range: ClosedRange<Int>, step: Int) -> some View {
+        VStack(spacing: 1) {
+            HStack(spacing: 4) {
+                numberBox(value, range: range, width: 52, fontSize: 22)
+                CaretStepper(
+                    canIncrement: minutes + step <= TimerDraft.minuteRange.upperBound,
+                    canDecrement: minutes - step >= TimerDraft.minuteRange.lowerBound,
+                    increment: { minutes += step },
+                    decrement: { minutes -= step }
+                )
+            }
+            Text(caption)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .opacity(0.55)
+                .offset(x: -12) // centered under the box, not the box and carets
+        }
     }
 
     @ViewBuilder

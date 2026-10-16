@@ -11,7 +11,9 @@ enum TimerDraft {
     static let defaultBreakMinutes = 5
     static let pomodoroRange = 1...180
 
-    static let minuteRange = 0...999
+    /// The bubble's Timer page splits the minutes into hours and minutes (up to 99:59).
+    static let maxHours = 99
+    static let minuteRange = 0...(maxHours * 60 + 59)
 
     static let maxLabelLength = 30
 
