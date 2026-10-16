@@ -57,6 +57,13 @@ struct BubbleTodoPage: View {
         }
     }
 
+    /// Lets long names like `aspire_opportunity_services` wrap after an underscore or slash
+    /// instead of mid-word. Only changes how the text is drawn, not what's saved.
+    private static func wrappable(_ text: String) -> String {
+        text.replacingOccurrences(of: "_", with: "_\u{200B}")
+            .replacingOccurrences(of: "/", with: "/\u{200B}")
+    }
+
     private func row(_ todo: Todo) -> some View {
         HStack(spacing: 6) {
             Button {
@@ -65,12 +72,14 @@ struct BubbleTodoPage: View {
                 HStack(spacing: 6) {
                     Image(systemName: todo.isDone ? "checkmark.square.fill" : "square")
                         .font(.system(size: 14, weight: .semibold))
-                    Text(todo.text)
+                    Text(Self.wrappable(todo.text))
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .strikethrough(todo.isDone)
-                        .lineLimit(2)
                         .multilineTextAlignment(.leading)
+                        // Wrap onto as many lines as it needs; the row grows to fit.
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 6)
                 }
                 .opacity(todo.isDone ? 0.45 : 1)
                 .contentShape(Rectangle())
