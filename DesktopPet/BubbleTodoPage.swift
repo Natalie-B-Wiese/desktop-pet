@@ -9,7 +9,7 @@ struct BubbleTodoPage: View {
     @State private var newText = ""
     @FocusState private var addFocused: Bool
     /// The to-do being edited in place, if any.
-    @FocusState private var editingID: Todo.ID?
+    @State private var editingID: Todo.ID?
 
     /// Past this many rows the list scrolls instead of making the bubble taller.
     private static let maxVisibleRows = 6
@@ -50,9 +50,6 @@ struct BubbleTodoPage: View {
             }
 
         }
-        .onChange(of: editingID) { old, _ in
-            if let old { store.tidy(old) } // trims an edited to-do, or deletes it if emptied
-        }
         .onDisappear {
             if let id = editingID { store.tidy(id) }
         }
@@ -63,7 +60,15 @@ struct BubbleTodoPage: View {
             ForEach(store.todos) { todo in
                 TodoRow(
                     todo: todo,
-                    focusedID: $editingID,
+                    isEditing: editingID == todo.id,
+                    onEditingChanged: { editing in
+                        if editing {
+                            editingID = todo.id
+                        } else if editingID == todo.id {
+                            editingID = nil
+                            store.tidy(todo.id) // trims it, or deletes it if emptied
+                        }
+                    },
                     onToggle: { store.toggle(todo.id) },
                     onType: { store.update(todo.id, text: $0) },
                     onDelete: { store.delete(todo.id) },
@@ -77,30 +82,14 @@ struct BubbleTodoPage: View {
 /// One to-do: the box checks it off, and clicking the text edits it in place.
 private struct TodoRow: View {
     let todo: Todo
-    var focusedID: FocusState<Todo.ID?>.Binding
+    let isEditing: Bool
+    var onEditingChanged: (Bool) -> Void
     var onToggle: () -> Void
     var onType: (String) -> Void
     var onDelete: () -> Void
     var onClose: () -> Void
 
-    /// The field's own copy of the text, so the cursor doesn't jump while typing (like Notes).
-    @State private var text: String
-
-    private static let font = Font.system(size: 12, weight: .medium, design: .rounded)
-
-    init(todo: Todo, focusedID: FocusState<Todo.ID?>.Binding, onToggle: @escaping () -> Void,
-         onType: @escaping (String) -> Void, onDelete: @escaping () -> Void, onClose: @escaping () -> Void) {
-        self.todo = todo
-        self.focusedID = focusedID
-        self.onToggle = onToggle
-        self.onType = onType
-        self.onDelete = onDelete
-        self.onClose = onClose
-        _text = State(initialValue: todo.text)
-    }
-
     var body: some View {
-        let isEditing = focusedID.wrappedValue == todo.id
         HStack(spacing: 6) {
             Button(action: onToggle) {
                 Image(systemName: todo.isDone ? "checkmark.square.fill" : "square")
@@ -112,32 +101,13 @@ private struct TodoRow: View {
             .buttonStyle(.plain)
             .help(todo.isDone ? "Mark as not done" : "Check off")
 
-            ZStack(alignment: .leading) {
-                // The field is always there so clicking the text can focus it, but it's only
-                // shown while editing. Otherwise the plain text shows, which can strike through
-                // and wraps long names more nicely.
-                TextField("", text: $text, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(Self.font)
-                    .focused(focusedID, equals: todo.id)
-                    .onSubmit { focusedID.wrappedValue = nil } // Return finishes editing
-                    .onExitCommand(perform: onClose) // Esc closes the menu
-                    .opacity(isEditing ? 1 : 0)
-                    .frame(maxHeight: isEditing ? nil : 0) // only the plain text sizes the row
-                    .clipped()
-
-                if !isEditing {
-                    Text(Self.wrappable(todo.text))
-                        .font(Self.font)
-                        .strikethrough(todo.isDone)
-                        .opacity(todo.isDone ? 0.45 : 1)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { focusedID.wrappedValue = todo.id }
-                        .help("Edit")
-                }
-            }
+            TodoTextView(
+                text: todo.text,
+                isDone: todo.isDone,
+                onType: onType,
+                onEditingChanged: onEditingChanged,
+                onClose: onClose
+            )
             .padding(.vertical, 6)
 
             Button(action: onDelete) {
@@ -157,28 +127,170 @@ private struct TodoRow: View {
             isEditing ? Color.black : Color.black.opacity(0.25),
             lineWidth: isEditing ? 2 : 1.5
         ))
-        .onChange(of: text) { _, newText in
-            let limited = String(newText.replacingOccurrences(of: "\n", with: " ").prefix(TodoStore.maxLength))
-            if limited != newText { text = limited; return }
-            if limited != todo.text { onType(limited) }
-        }
-        .onChange(of: isEditing) { _, editing in
-            // macOS selects all of a field's text when it's focused, so the first keystroke
-            // would replace the to-do. Put the cursor at the end instead.
-            guard editing else { return }
-            DispatchQueue.main.async {
-                (NSApp.keyWindow?.firstResponder as? NSTextView)?.moveToEndOfDocument(nil)
-            }
-        }
-        .onChange(of: todo.text) { _, saved in
-            if saved != text { text = saved } // e.g. trimmed after editing
-        }
+    }
+}
+
+/// A to-do's text, shown and edited in the same view so it wraps the same way either way.
+///
+/// Long names like `aspire_opportunity_services` would otherwise break wherever the line runs
+/// out, so a zero-width space is drawn after each underscore and slash to let the line break
+/// there. Those spaces are never saved, and the cursor and Backspace step over them.
+private struct TodoTextView: NSViewRepresentable {
+    let text: String
+    let isDone: Bool
+    var onType: (String) -> Void
+    var onEditingChanged: (Bool) -> Void
+    var onClose: () -> Void
+
+    static let breakMark = "\u{200B}"
+    private static let font: NSFont = {
+        let base = NSFont.systemFont(ofSize: 12, weight: .medium)
+        return base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 12) } ?? base
+    }()
+
+    /// The saved text as it's drawn, with a break point after each underscore and slash.
+    static func shown(_ text: String) -> String {
+        text.replacingOccurrences(of: "_", with: "_" + breakMark)
+            .replacingOccurrences(of: "/", with: "/" + breakMark)
     }
 
-    /// Lets long names like `aspire_opportunity_services` wrap after an underscore or slash
-    /// instead of mid-word. Only changes how the text is drawn, not what's saved.
-    private static func wrappable(_ text: String) -> String {
-        text.replacingOccurrences(of: "_", with: "_\u{200B}")
-            .replacingOccurrences(of: "/", with: "/\u{200B}")
+    /// What's typed, as it's saved: no break points or line breaks, at most `TodoStore.maxLength` long.
+    static func saved(_ shown: String) -> String {
+        let plain = shown.replacingOccurrences(of: breakMark, with: "")
+            .replacingOccurrences(of: "\n", with: " ")
+        return String(plain.prefix(TodoStore.maxLength))
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> TodoNSTextView {
+        // TextKit 1, so the layout manager can measure the wrapped height.
+        let view = TodoNSTextView(usingTextLayoutManager: false)
+        view.delegate = context.coordinator
+        view.drawsBackground = false
+        view.isRichText = false
+        view.allowsUndo = false // the text is rebuilt with break points as you type
+        view.textContainerInset = .zero
+        view.textContainer?.lineFragmentPadding = 0
+        view.textContainer?.widthTracksTextView = true
+        view.isHorizontallyResizable = false
+        view.isVerticallyResizable = false
+        view.onFocusChange = { context.coordinator.parent.onEditingChanged($0) }
+        apply(to: view)
+        return view
+    }
+
+    func updateNSView(_ view: TodoNSTextView, context: Context) {
+        context.coordinator.parent = self
+        apply(to: view)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView view: TodoNSTextView, context: Context) -> CGSize? {
+        guard let container = view.textContainer, let layout = view.layoutManager else { return nil }
+        let width = proposal.width ?? 150
+        container.size = NSSize(width: width, height: .greatestFiniteMagnitude)
+        layout.ensureLayout(for: container)
+        let height = max(layout.usedRect(for: container).height, layout.defaultLineHeight(for: Self.font))
+        return CGSize(width: width, height: height.rounded(.up))
+    }
+
+    private func apply(to view: TodoNSTextView) {
+        let shown = Self.shown(text)
+        if view.string != shown { view.string = shown }
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: Self.font,
+            .foregroundColor: NSColor.black.withAlphaComponent(isDone ? 0.45 : 1),
+            .strikethroughStyle: isDone ? NSUnderlineStyle.single.rawValue : 0,
+        ]
+        view.typingAttributes = attributes
+        view.textStorage?.setAttributes(attributes, range: NSRange(location: 0, length: view.textStorage?.length ?? 0))
+        view.insertionPointColor = .black
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: TodoTextView
+
+        init(_ parent: TodoTextView) { self.parent = parent }
+
+        private func isBreakMark(_ view: NSTextView, at index: Int) -> Bool {
+            let string = view.string as NSString
+            return index >= 0 && index < string.length && string.substring(with: NSRange(location: index, length: 1)) == TodoTextView.breakMark
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let view = notification.object as? NSTextView else { return }
+            let saved = TodoTextView.saved(view.string)
+            let shown = TodoTextView.shown(saved)
+            if view.string != shown {
+                // Rebuild the break points, keeping the cursor after the same typed character.
+                let before = (view.string as NSString).substring(to: min(view.selectedRange().location, (view.string as NSString).length))
+                let typedBefore = min(TodoTextView.saved(before).count, saved.count)
+                let cursor = (TodoTextView.shown(String(saved.prefix(typedBefore))) as NSString).length
+                view.string = shown
+                view.setSelectedRange(NSRange(location: cursor, length: 0))
+            }
+            if saved != parent.text { parent.onType(saved) }
+        }
+
+        /// Never leaves the cursor between an underscore and its break point, so arrow keys
+        /// don't need an extra press there.
+        func textView(_ view: NSTextView, willChangeSelectionFromCharacterRange old: NSRange,
+                      toCharacterRange new: NSRange) -> NSRange {
+            guard new.length == 0, isBreakMark(view, at: new.location) else { return new }
+            let movingLeft = new.location < old.location
+            return NSRange(location: movingLeft ? new.location - 1 : new.location + 1, length: 0)
+        }
+
+        func textView(_ view: NSTextView, shouldChangeTextIn range: NSRange, replacementString text: String?) -> Bool {
+            // Backspace right after an underscore would only delete its invisible break point;
+            // delete the underscore too.
+            if text?.isEmpty == true, range.length == 1, isBreakMark(view, at: range.location), range.location > 0 {
+                let wider = NSRange(location: range.location - 1, length: 2)
+                if view.shouldChangeText(in: wider, replacementString: "") {
+                    view.textStorage?.replaceCharacters(in: wider, with: "")
+                    view.didChangeText()
+                }
+                return false
+            }
+            return true
+        }
+
+        func textView(_ view: NSTextView, doCommandBy selector: Selector) -> Bool {
+            switch selector {
+            case #selector(NSResponder.insertNewline(_:)):
+                view.window?.makeFirstResponder(nil) // Return finishes editing
+                return true
+            case #selector(NSResponder.cancelOperation(_:)):
+                parent.onClose() // Esc closes the menu
+                return true
+            default:
+                return false
+            }
+        }
+    }
+}
+
+private final class TodoNSTextView: NSTextView {
+    var onFocusChange: ((Bool) -> Void)?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { onFocusChange?(true) }
+        return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { onFocusChange?(false) }
+        return resigned
+    }
+
+    /// Copies the text without its invisible break points.
+    override func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
+        let selected = (string as NSString).substring(with: selectedRange())
+        pboard.clearContents()
+        return pboard.setString(selected.replacingOccurrences(of: TodoTextView.breakMark, with: ""), forType: .string)
     }
 }
