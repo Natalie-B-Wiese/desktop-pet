@@ -56,6 +56,23 @@ final class TodoStore {
         changed()
     }
 
+    func update(_ id: Todo.ID, text: String) {
+        guard let index = todos.firstIndex(where: { $0.id == id }) else { return }
+        todos[index].text = String(text.prefix(Self.maxLength))
+        changed()
+    }
+
+    /// Once an item is done being edited: trims it, or deletes it if it was emptied.
+    func tidy(_ id: Todo.ID) {
+        guard let todo = todos.first(where: { $0.id == id }) else { return }
+        let trimmed = todo.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            delete(id)
+        } else if trimmed != todo.text {
+            update(id, text: trimmed)
+        }
+    }
+
     func delete(_ id: Todo.ID) {
         todos.removeAll { $0.id == id }
         changed()
