@@ -18,18 +18,29 @@ struct BubbleClipboardPage: View {
             } else if history.entries.isEmpty {
                 note("Copy something and it'll show up here.")
             } else {
-                let isFull = history.entries.count >= ClipboardHistory.limit
+                let pinned = history.pinnedCount
+                let isFull = history.recentCount >= ClipboardHistory.limit
                 let normal = Font.system(size: 10, weight: .medium, design: .rounded).monospacedDigit()
                 let alert = Font.system(size: 10, weight: .bold, design: .rounded).monospacedDigit()
                 let grey = Color.black.opacity(0.5)
                 VStack(spacing: 1) {
-                    // The count and the warning turn red and bold once full; the tip stays grey.
-                    Text("\(history.entries.count)/\(ClipboardHistory.limit)")
-                        .font(isFull ? alert : normal)
-                        .foregroundStyle(isFull ? Color.red : grey)
-                    + Text(" · New copies appear at the top")
-                        .font(normal)
-                        .foregroundStyle(grey)
+                    // The recent count and the warning turn red and bold once full; the rest stays grey.
+                    // Pins never get pushed out, so their count stays grey.
+                    if pinned > 0 {
+                        Text("Pinned \(pinned)/\(ClipboardHistory.pinLimit) · ")
+                            .font(normal)
+                            .foregroundStyle(grey)
+                        + Text("Recent \(history.recentCount)/\(ClipboardHistory.limit)")
+                            .font(isFull ? alert : normal)
+                            .foregroundStyle(isFull ? Color.red : grey)
+                    } else {
+                        Text("\(history.recentCount)/\(ClipboardHistory.limit)")
+                            .font(isFull ? alert : normal)
+                            .foregroundStyle(isFull ? Color.red : grey)
+                        + Text(" · New copies appear at the top")
+                            .font(normal)
+                            .foregroundStyle(grey)
+                    }
                     if isFull {
                         Text("The next copy will remove the bottom item")
                             .font(alert)
@@ -39,6 +50,13 @@ struct BubbleClipboardPage: View {
                 .padding(.top, -4)
                 ForEach(history.entries) { entry in
                     row(entry)
+                    // A thin line between the pins and the recent copies.
+                    if entry.isPinned, entry.id == history.entries.last(where: \.isPinned)?.id, history.recentCount > 0 {
+                        Rectangle()
+                            .fill(Color.black.opacity(0.2))
+                            .frame(height: 1)
+                            .padding(.horizontal, 4)
+                    }
                 }
             }
 
@@ -51,8 +69,9 @@ struct BubbleClipboardPage: View {
                 BubbleButton("Pick a color", systemImage: "eyedropper", action: onPickColor)
                     .help("Click anywhere on screen; its hex code is copied into the top slot")
             }
-            if !history.entries.isEmpty {
-                BubbleButton("Clear all", systemImage: "trash", action: history.clear)
+            // Pins are kept, so with pins it only clears the recent copies.
+            if history.recentCount > 0 {
+                BubbleButton(history.pinnedCount > 0 ? "Clear recent" : "Clear all", systemImage: "trash", action: history.clear)
             }
 
         }
@@ -116,6 +135,21 @@ struct BubbleClipboardPage: View {
             }
             .buttonStyle(.plain)
             .help("Copy again")
+
+            let canPin = entry.isPinned || history.canPinMore
+            Button {
+                history.togglePin(entry.id)
+            } label: {
+                Image(systemName: entry.isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 10, weight: .bold))
+                    .rotationEffect(.degrees(45))
+                    .opacity(entry.isPinned ? 1 : (canPin ? 0.5 : 0.2))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canPin)
+            .help(entry.isPinned ? "Unpin" : (canPin ? "Pin to the top so it's never pushed out" : "Unpin one first (\(ClipboardHistory.pinLimit) at most)"))
 
             Button {
                 history.delete(entry.id)

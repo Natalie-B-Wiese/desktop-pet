@@ -13,6 +13,11 @@ struct ClipboardEntry: Codable, Identifiable, Equatable {
     var id = UUID()
     var kind: Kind
     var copiedAt = Date()
+    /// Pinned entries stay at the top and are never pushed out by new copies.
+    /// Optional so history saved before pins existed still loads.
+    var pinned: Bool?
+
+    var isPinned: Bool { pinned == true }
 }
 
 /// Remembers the last few things copied anywhere on the Mac, text, images and files.
@@ -22,10 +27,15 @@ struct ClipboardEntry: Codable, Identifiable, Equatable {
 /// "allow paste" permission the first time.
 @Observable
 final class ClipboardHistory {
-    /// Newest first.
+    /// Pinned entries first (in the order they were pinned, unless moved), then the rest newest first.
     private(set) var entries: [ClipboardEntry] = []
 
+    /// How many unpinned copies are kept; pins don't count toward it.
     static let limit = 5
+    static let pinLimit = 5
+
+    var pinnedCount: Int { entries.filter(\.isPinned).count }
+    var recentCount: Int { entries.count - pinnedCount }
 
     @ObservationIgnored private var lastChangeCount = NSPasteboard.general.changeCount
     @ObservationIgnored private var pollTimer: Timer?
@@ -71,9 +81,27 @@ final class ClipboardHistory {
         lastChangeCount = pasteboard.changeCount // our own write isn't a new copy
     }
 
+    /// Entries only move within their own group, so pins stay above the rest.
     func canMove(_ id: ClipboardEntry.ID, by offset: Int) -> Bool {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return false }
-        return entries.indices.contains(index + offset)
+        return entries.indices.contains(index + offset) && entries[index + offset].isPinned == entries[index].isPinned
+    }
+
+    var canPinMore: Bool { pinnedCount < Self.pinLimit }
+
+    /// Pinning moves an entry to the bottom of the pins; unpinning moves it to the top of the recent copies,
+    /// the nearest spot either way. Unpinning when the recent copies are full removes the oldest one, like a new copy.
+    func togglePin(_ id: ClipboardEntry.ID) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        var entry = entries.remove(at: index)
+        if !entry.isPinned && !canPinMore {
+            entries.insert(entry, at: index)
+            return
+        }
+        entry.pinned = entry.isPinned ? nil : true
+        entries.insert(entry, at: pinnedCount)
+        trimRecent()
+        save()
     }
 
     /// Moves an entry up (-1) or down (+1) in the list.
@@ -89,9 +117,10 @@ final class ClipboardHistory {
         save()
     }
 
+    /// Removes every entry except the pinned ones.
     func clear() {
-        entries.forEach(removeFiles)
-        entries.removeAll()
+        entries.filter { !$0.isPinned }.forEach(removeFiles)
+        entries.removeAll { !$0.isPinned }
         save()
     }
 
@@ -174,18 +203,24 @@ final class ClipboardHistory {
             try? png.write(to: Self.imageURL(for: entry.id))
         }
 
-        entries.insert(entry, at: 0)
-        while entries.count > Self.limit {
-            removeFiles(for: entries.removeLast())
-        }
+        entries.insert(entry, at: pinnedCount) // the top of the recent copies, under the pins
+        trimRecent()
         save()
     }
 
+    /// Removes the oldest unpinned copies past `limit`. Pins sit at the top, so the oldest is the last entry.
+    private func trimRecent() {
+        while recentCount > Self.limit, let last = entries.last, !last.isPinned {
+            removeFiles(for: entries.removeLast())
+        }
+    }
+
+    /// Moves a copy back to the top of the recent copies. A pinned one stays where it is.
     private func moveToTop(_ id: ClipboardEntry.ID) {
-        guard let index = entries.firstIndex(where: { $0.id == id }), index > 0 else { return }
+        guard let index = entries.firstIndex(where: { $0.id == id }), !entries[index].isPinned else { return }
         var entry = entries.remove(at: index)
         entry.copiedAt = Date()
-        entries.insert(entry, at: 0)
+        entries.insert(entry, at: pinnedCount)
         save()
     }
 
@@ -205,7 +240,7 @@ final class ClipboardHistory {
     private func load() {
         guard let data = try? Data(contentsOf: Self.indexURL),
               let saved = try? JSONDecoder().decode([ClipboardEntry].self, from: data) else { return }
-        entries = saved
+        entries = saved.filter(\.isPinned) + saved.filter { !$0.isPinned }
     }
 
     private func save() {
