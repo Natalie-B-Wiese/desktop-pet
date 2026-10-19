@@ -1,12 +1,15 @@
 import AppKit
 import Observation
 
-/// A one-time "remind me at 3:00 PM" reminder.
+/// A "remind me at 3:00 PM" reminder, once or on certain days of the week.
 struct Reminder: Codable, Identifiable, Equatable {
     var id = UUID()
     var date: Date
     /// Optional text, like "Call mom". Nil means the cat just says "Reminder!".
     var message: String?
+    /// The weekdays it repeats on (1 = Sunday … 7 = Saturday, like `Calendar`). Nil or empty means it goes off once.
+    /// When a repeating reminder is closed, it moves to its next day instead of being deleted.
+    var repeatDays: Set<Int>?
     /// Set when it was pulled from a calendar meeting, so pulling again updates it instead of adding another.
     /// These can't be edited (the calendar decides their time and title), only deleted.
     var meetingID: String?
@@ -15,6 +18,8 @@ struct Reminder: Codable, Identifiable, Equatable {
 
     /// The time to show for it: the meeting's start for a meeting, otherwise when it goes off.
     var shownDate: Date { meetingStart ?? date }
+
+    var repeats: Bool { !(repeatDays ?? []).isEmpty }
 }
 
 /// All reminders, saved across launches. A reminder stays in the list until it's closed,
@@ -58,19 +63,22 @@ final class ReminderStore {
         if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
     }
 
-    /// Adds a reminder at the next time the clock shows `time`'s hour and minute (today or tomorrow).
-    func add(at time: Date, message: String?) {
-        reminders.append(Reminder(date: Self.nextOccurrence(of: time), message: message))
+    /// Adds a reminder at the next time the clock shows `time`'s hour and minute (on one of `repeatDays`, if any).
+    func add(at time: Date, repeatDays: Set<Int>, message: String?) {
+        let days = repeatDays.isEmpty ? nil : repeatDays
+        reminders.append(Reminder(date: Self.nextOccurrence(of: time, on: days), message: message, repeatDays: days))
         reminders.sort { $0.date < $1.date }
         save()
         refresh()
         onChange?()
     }
 
-    /// Moves a reminder to the next time the clock shows `time`'s hour and minute, and changes its message.
-    func update(_ id: Reminder.ID, at time: Date, message: String?) {
+    /// Moves a reminder to the next time the clock shows `time`'s hour and minute, and changes its days and message.
+    func update(_ id: Reminder.ID, at time: Date, repeatDays: Set<Int>, message: String?) {
         guard let index = reminders.firstIndex(where: { $0.id == id }) else { return }
-        reminders[index].date = Self.nextOccurrence(of: time)
+        let days = repeatDays.isEmpty ? nil : repeatDays
+        reminders[index].date = Self.nextOccurrence(of: time, on: days)
+        reminders[index].repeatDays = days
         reminders[index].message = message
         reminders.sort { $0.date < $1.date }
         save()
@@ -137,9 +145,19 @@ final class ReminderStore {
         onChange?()
     }
 
-    /// Closes the reminder the bubble is showing.
+    /// Closes the reminder the bubble is showing. A repeating one moves to its next day after now,
+    /// so days missed while the Mac was off don't pile up.
     func dismissFirstDue() {
-        if let first = due.first { delete(first.id) }
+        guard let first = due.first else { return }
+        guard first.repeats, let index = reminders.firstIndex(where: { $0.id == first.id }) else {
+            delete(first.id)
+            return
+        }
+        reminders[index].date = Self.nextOccurrence(of: first.date, on: first.repeatDays)
+        reminders.sort { $0.date < $1.date }
+        save()
+        refresh()
+        onChange?()
     }
 
     /// Recomputes which reminders are due and schedules a wake-up for the next one.
@@ -181,16 +199,43 @@ final class ReminderStore {
         start.addingTimeInterval(-60 * Double(AppPreferences.meetingLeadMinutes))
     }
 
-    /// The next moment (after now) whose hour and minute match `time`.
-    static func nextOccurrence(of time: Date, after now: Date = Date()) -> Date {
+    /// The next moment (after now) whose hour and minute match `time`, on one of `days` (weekday numbers) if given.
+    static func nextOccurrence(of time: Date, on days: Set<Int>? = nil, after now: Date = Date()) -> Date {
         let calendar = Calendar.current
         let parts = calendar.dateComponents([.hour, .minute], from: time)
-        return calendar.nextDate(after: now, matching: parts, matchingPolicy: .nextTime) ?? time
+        guard let days, !days.isEmpty else {
+            return calendar.nextDate(after: now, matching: parts, matchingPolicy: .nextTime) ?? time
+        }
+        return days.compactMap { weekday in
+            var dayParts = parts
+            dayParts.weekday = weekday
+            return calendar.nextDate(after: now, matching: dayParts, matchingPolicy: .nextTime)
+        }.min() ?? time
     }
 
-    /// "Today" or "Tomorrow", for showing when a time picked now would go off.
-    static func dayWord(for time: Date) -> String {
-        Calendar.current.isDateInToday(nextOccurrence(of: time)) ? "Today" : "Tomorrow"
+    /// When a time picked now would go off: "Today" or "Tomorrow", or the repeat days ("Every day", "Weekdays", "Mon, Wed").
+    static func dayWord(for time: Date, repeatDays: Set<Int> = []) -> String {
+        if !repeatDays.isEmpty { return repeatText(repeatDays) }
+        return Calendar.current.isDateInToday(nextOccurrence(of: time)) ? "Today" : "Tomorrow"
+    }
+
+    /// The weekdays in the order this Mac's calendar starts its week (Sunday first in the US).
+    static var orderedWeekdays: [Int] {
+        let first = Calendar.current.firstWeekday
+        return (0..<7).map { (first - 1 + $0) % 7 + 1 }
+    }
+
+    /// "Every day", "Weekdays", "Weekends", or the days in week order, like "Mon, Wed, Fri".
+    static func repeatText(_ days: Set<Int>) -> String {
+        switch days {
+        case Set(1...7): return "Every day"
+        case Set(2...6): return "Weekdays"
+        case [1, 7]: return "Weekends"
+        default:
+            let names = Calendar.current.shortWeekdaySymbols
+            let list = orderedWeekdays.filter(days.contains).map { names[$0 - 1] }
+            return list.count == 1 ? "Every \(list[0])" : list.joined(separator: ", ")
+        }
     }
 
     /// "3:00 PM", or "Tomorrow 3:00 PM" / "Mon 3:00 PM" when it isn't today (24-hour with military time on).

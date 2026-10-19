@@ -85,13 +85,20 @@ struct BubbleRemindersPage: View {
     private func rowText(_ reminder: Reminder) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                Text(ReminderStore.timeText(reminder.shownDate))
+                // A repeating one shows just the clock time; the line below says which days.
+                Text(reminder.repeats ? AppPreferences.clockText(reminder.shownDate) : ReminderStore.timeText(reminder.shownDate))
                     .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
                 if reminder.meetingID != nil {
                     Image(systemName: "calendar")
                         .font(.system(size: 9, weight: .bold))
                         .opacity(0.55)
                 }
+            }
+            if let days = reminder.repeatDays, !days.isEmpty {
+                Label(ReminderStore.repeatText(days), systemImage: "repeat")
+                    .labelStyle(RepeatLabelStyle())
+                    .opacity(0.55)
+                    .lineLimit(1)
             }
             if let text = reminder.message {
                 Text(text)
@@ -163,6 +170,8 @@ struct BubbleAddReminderPage: View {
     /// The minutes as typed, so the box can be empty while editing; padded to "05" when it loses focus.
     @State private var minuteText: String
     @State private var message: String
+    /// The weekdays it repeats on (1 = Sunday … 7 = Saturday); empty means once.
+    @State private var repeatDays: Set<Int>
     private enum Field { case hour, minute }
     @FocusState private var focusedField: Field?
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
@@ -177,6 +186,7 @@ struct BubbleAddReminderPage: View {
         _hourText = State(initialValue: Self.hourText(for: start.hour ?? 12, military: AppPreferences.usesMilitaryTime))
         _minuteText = State(initialValue: String(format: "%02d", start.minute ?? 0))
         _message = State(initialValue: editing?.message ?? "")
+        _repeatDays = State(initialValue: editing?.repeatDays ?? [])
     }
 
     private var minute: Int { Int(minuteText) ?? 0 }
@@ -228,10 +238,12 @@ struct BubbleAddReminderPage: View {
                 }
                 .fixedSize(horizontal: false, vertical: true) // AM/PM matches the boxes' height
 
-                Text(ReminderStore.dayWord(for: time))
+                Text(ReminderStore.dayWord(for: time, repeatDays: repeatDays))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .opacity(0.55)
             }
+
+            dayCircles
 
             TextField("Message (optional)", text: Binding(
                 get: { message },
@@ -255,6 +267,30 @@ struct BubbleAddReminderPage: View {
             if old == .hour { hourText = Self.hourText(for: hour24, military: militaryTime) }
         }
         .onExitCommand(perform: onClose) // Esc closes the menu
+    }
+
+    /// One circle per weekday, in the week order of this Mac. Picking none makes it a one-time reminder.
+    private var dayCircles: some View {
+        let letters = Calendar.current.veryShortWeekdaySymbols
+        let names = Calendar.current.weekdaySymbols
+        return HStack(spacing: 3) {
+            ForEach(ReminderStore.orderedWeekdays, id: \.self) { weekday in
+                let on = repeatDays.contains(weekday)
+                Button {
+                    if on { repeatDays.remove(weekday) } else { repeatDays.insert(weekday) }
+                } label: {
+                    Text(letters[weekday - 1])
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(on ? Color.white : .black)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(on ? Color.black : .white))
+                        .overlay(Circle().stroke(.black, lineWidth: 1.5))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(on ? "Stop repeating on \(names[weekday - 1])" : "Repeat every \(names[weekday - 1])")
+            }
+        }
     }
 
     private var hourRange: ClosedRange<Int> { militaryTime ? 0...23 : 1...12 }
@@ -324,11 +360,21 @@ struct BubbleAddReminderPage: View {
     private func save() {
         let text = ReminderStore.cleanMessage(message)
         if let editing {
-            store.update(editing.id, at: time, message: text)
+            store.update(editing.id, at: time, repeatDays: repeatDays, message: text)
         } else {
-            store.add(at: time, message: text)
+            store.add(at: time, repeatDays: repeatDays, message: text)
         }
         onAdded()
+    }
+}
+
+/// A small grey "↻ Weekdays" after a repeating reminder's time.
+private struct RepeatLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 2) {
+            configuration.icon.font(.system(size: 8, weight: .bold))
+            configuration.title.font(.system(size: 10, weight: .semibold, design: .rounded))
+        }
     }
 }
 
