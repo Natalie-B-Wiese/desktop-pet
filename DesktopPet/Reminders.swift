@@ -223,7 +223,7 @@ final class ReminderStore {
     static func partOfDay(hour24: Int) -> String {
         switch hour24 {
         case 0: "Midnight"
-        case 1..<5: "Night"
+        case 1..<5: "Early morning"
         case 5..<12: "Morning"
         case 12: "Noon"
         case 13..<17: "Afternoon"
