@@ -30,12 +30,12 @@ final class ClipboardHistory {
     /// Pinned entries first (in the order they were pinned, unless moved), then the rest newest first.
     private(set) var entries: [ClipboardEntry] = []
 
-    /// How many unpinned copies are kept; pins don't count toward it.
+    /// How many entries are kept, pins included. Pins share the list so unpinning never changes the count.
     static let limit = 5
-    static let pinLimit = 5
+    /// Fewer than `limit`, so there's always room for a new copy (or screenshot) even with every pin used.
+    static let pinLimit = 3
 
     var pinnedCount: Int { entries.filter(\.isPinned).count }
-    var recentCount: Int { entries.count - pinnedCount }
 
     @ObservationIgnored private var lastChangeCount = NSPasteboard.general.changeCount
     @ObservationIgnored private var pollTimer: Timer?
@@ -89,8 +89,8 @@ final class ClipboardHistory {
 
     var canPinMore: Bool { pinnedCount < Self.pinLimit }
 
-    /// Pinning moves an entry to the bottom of the pins; unpinning moves it to the top of the recent copies,
-    /// the nearest spot either way. Unpinning when the recent copies are full removes the oldest one, like a new copy.
+    /// Pinning moves an entry to the bottom of the pins; unpinning moves it to the top of the unpinned ones,
+    /// the nearest spot either way. Nothing is removed, since pins and the rest share one list.
     func togglePin(_ id: ClipboardEntry.ID) {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         var entry = entries.remove(at: index)
@@ -100,7 +100,6 @@ final class ClipboardHistory {
         }
         entry.pinned = entry.isPinned ? nil : true
         entries.insert(entry, at: pinnedCount)
-        trimRecent()
         save()
     }
 
@@ -203,19 +202,19 @@ final class ClipboardHistory {
             try? png.write(to: Self.imageURL(for: entry.id))
         }
 
-        entries.insert(entry, at: pinnedCount) // the top of the recent copies, under the pins
-        trimRecent()
+        entries.insert(entry, at: pinnedCount) // the top of the unpinned copies, under the pins
+        trim()
         save()
     }
 
     /// Removes the oldest unpinned copies past `limit`. Pins sit at the top, so the oldest is the last entry.
-    private func trimRecent() {
-        while recentCount > Self.limit, let last = entries.last, !last.isPinned {
+    private func trim() {
+        while entries.count > Self.limit, let last = entries.last, !last.isPinned {
             removeFiles(for: entries.removeLast())
         }
     }
 
-    /// Moves a copy back to the top of the recent copies. A pinned one stays where it is.
+    /// Moves a copy back to the top of the unpinned copies. A pinned one stays where it is.
     private func moveToTop(_ id: ClipboardEntry.ID) {
         guard let index = entries.firstIndex(where: { $0.id == id }), !entries[index].isPinned else { return }
         var entry = entries.remove(at: index)

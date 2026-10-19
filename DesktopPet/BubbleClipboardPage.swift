@@ -19,28 +19,18 @@ struct BubbleClipboardPage: View {
                 note("Copy something and it'll show up here.")
             } else {
                 let pinned = history.pinnedCount
-                let isFull = history.recentCount >= ClipboardHistory.limit
+                let isFull = history.entries.count >= ClipboardHistory.limit
                 let normal = Font.system(size: 10, weight: .medium, design: .rounded).monospacedDigit()
                 let alert = Font.system(size: 10, weight: .bold, design: .rounded).monospacedDigit()
                 let grey = Color.black.opacity(0.5)
                 VStack(spacing: 1) {
-                    // The recent count and the warning turn red and bold once full; the rest stays grey.
-                    // Pins never get pushed out, so their count stays grey.
-                    if pinned > 0 {
-                        Text("Pinned \(pinned)/\(ClipboardHistory.pinLimit) · ")
-                            .font(normal)
-                            .foregroundStyle(grey)
-                        + Text("Recent \(history.recentCount)/\(ClipboardHistory.limit)")
-                            .font(isFull ? alert : normal)
-                            .foregroundStyle(isFull ? Color.red : grey)
-                    } else {
-                        Text("\(history.recentCount)/\(ClipboardHistory.limit)")
-                            .font(isFull ? alert : normal)
-                            .foregroundStyle(isFull ? Color.red : grey)
-                        + Text(" · New copies appear at the top")
-                            .font(normal)
-                            .foregroundStyle(grey)
-                    }
+                    // The count and the warning turn red and bold once full; the rest stays grey.
+                    Text("\(history.entries.count)/\(ClipboardHistory.limit)")
+                        .font(isFull ? alert : normal)
+                        .foregroundStyle(isFull ? Color.red : grey)
+                    + Text(pinned > 0 ? " · \(pinned) pinned" : " · New copies appear at the top")
+                        .font(normal)
+                        .foregroundStyle(grey)
                     if isFull {
                         Text("The next copy will remove the bottom item")
                             .font(alert)
@@ -51,7 +41,7 @@ struct BubbleClipboardPage: View {
                 ForEach(history.entries) { entry in
                     row(entry)
                     // A thin line between the pins and the recent copies.
-                    if entry.isPinned, entry.id == history.entries.last(where: \.isPinned)?.id, history.recentCount > 0 {
+                    if entry.isPinned, entry.id == history.entries.last(where: \.isPinned)?.id, entry.id != history.entries.last?.id {
                         Rectangle()
                             .fill(Color.black.opacity(0.2))
                             .frame(height: 1)
@@ -69,9 +59,9 @@ struct BubbleClipboardPage: View {
                 BubbleButton("Pick a color", systemImage: "eyedropper", action: onPickColor)
                     .help("Click anywhere on screen; its hex code is copied into the top slot")
             }
-            // Pins are kept, so with pins it only clears the recent copies.
-            if history.recentCount > 0 {
-                BubbleButton(history.pinnedCount > 0 ? "Clear recent" : "Clear all", systemImage: "trash", action: history.clear)
+            // Pins are kept, so with pins it only clears the unpinned copies.
+            if history.entries.count > history.pinnedCount {
+                BubbleButton(history.pinnedCount > 0 ? "Clear unpinned" : "Clear all", systemImage: "trash", action: history.clear)
             }
 
         }
