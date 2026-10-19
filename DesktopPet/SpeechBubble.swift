@@ -61,7 +61,7 @@ final class SpeechBubbleController {
     private let panel: BubblePanel
     /// The small chatter bubble above an open page. Its own window, so the main bubble never moves for it.
     private let linePanel: NSPanel
-    private let lineView = NSHostingView(rootView: BubblePageLine(text: "", tailPointsUp: false))
+    private let lineView = NSHostingView(rootView: BubblePageLine(text: "", tailOnLeft: true))
     private let container: BubbleContainer
     private let hostingView: FirstClickHostingView<BubbleView>
     private weak var pet: PetPanel?
@@ -180,7 +180,7 @@ final class SpeechBubbleController {
                 || chatter.line != nil else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
-            updatePageLine(bubbleFrame: nil)
+            updatePageLine()
             return
         }
 
@@ -221,14 +221,15 @@ final class SpeechBubbleController {
         } else {
             panel.orderFront(nil)
         }
-        updatePageLine(bubbleFrame: frame)
+        updatePageLine()
     }
 
     private var shownPageLine: String?
 
-    /// Shows the small chatter bubble on the far side of the main bubble from the pet, fading in and out.
-    private func updatePageLine(bubbleFrame: NSRect?) {
-        guard let bubbleFrame, menu.isOpen, let text = chatter.pageLine else {
+    /// Shows the small chatter bubble beside the pet's head (on her right, or her left near the screen's edge),
+    /// fading in and out. It stays through page changes and closing the menu until it fades on its own.
+    private func updatePageLine() {
+        guard let pet, pet.isVisible, let text = chatter.pageLine else {
             if shownPageLine != nil {
                 shownPageLine = nil
                 NSAnimationContext.runAnimationGroup({ context in
@@ -242,17 +243,19 @@ final class SpeechBubbleController {
             }
             return
         }
-        let pointsUp = layout.tailPointsUp
-        lineView.rootView = BubblePageLine(text: text, tailPointsUp: pointsUp)
+        lineView.rootView = BubblePageLine(text: text, tailOnLeft: true)
         lineView.layoutSubtreeIfNeeded()
         let size = lineView.fittingSize
-        let screen = (pet?.screen ?? NSScreen.main)?.visibleFrame ?? .infinite
-        let x = min(max(bubbleFrame.midX - size.width / 2, screen.minX + 4), screen.maxX - size.width - 4)
-        // Bubble outlines overlap by 2pt so the tail just touches the main bubble.
-        let y = pointsUp ? bubbleFrame.minY - size.height + 2 : bubbleFrame.maxY - 2
+        let screen = (pet.screen ?? NSScreen.main)?.visibleFrame ?? .infinite
+        let fitsRight = pet.frame.maxX + Self.gap + size.width <= screen.maxX
+        if !fitsRight { lineView.rootView = BubblePageLine(text: text, tailOnLeft: false) }
+        let x = fitsRight ? pet.frame.maxX + Self.gap : pet.frame.minX - Self.gap - size.width
+        // Level with her head, kept on screen.
+        let headMiddle = pet.frame.maxY - 7 * CGFloat(pet.frame.height / PetRenderer.pixelSize.height)
+        let y = min(max(headMiddle - size.height / 2, screen.minY + 4), screen.maxY - size.height - 4)
         linePanel.setFrame(NSRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height), display: true)
         lineView.frame = linePanel.contentView?.bounds ?? .zero
-        if linePanel.parent == nil { pet?.addChildWindow(linePanel, ordered: .above) }
+        if linePanel.parent == nil { pet.addChildWindow(linePanel, ordered: .above) }
         if shownPageLine == nil {
             linePanel.alphaValue = 0
             linePanel.orderFront(nil)
@@ -267,9 +270,8 @@ final class SpeechBubbleController {
     }
 
     private func menuChanged() {
-        // A chatter line makes way for the menu, and a page's small bubble doesn't follow you to another page.
+        // A chatter line makes way for the menu. The small bubble beside the pet stays until it fades on its own.
         if menu.isOpen { chatter.line = nil }
-        chatter.clearPageLine()
         if menu.isOpen, outsideClickMonitor == nil {
             // Clicking anywhere in another app closes the main menu. Tool pages stay open, so you
             // don't lose what you typed and can look things up elsewhere; close them with ✕ or the pet.

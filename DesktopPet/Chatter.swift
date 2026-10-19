@@ -218,12 +218,13 @@ struct BubbleChatterLine: View {
     }
 }
 
-/// The small bubble above an open page (in its own window), with its tail toward the main bubble.
+/// The small bubble beside the pet (in its own window), with its tail pointing at her.
 struct BubblePageLine: View {
     let text: String
-    let tailPointsUp: Bool
+    /// Her on the left, so the tail points left; false when the bubble sits on her left.
+    let tailOnLeft: Bool
 
-    private static let tailHeight: CGFloat = 6
+    private static let tailWidth: CGFloat = 6
 
     var body: some View {
         WrappingWidth(maxWidth: 170) {
@@ -234,17 +235,41 @@ struct BubblePageLine: View {
         .foregroundStyle(.black)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .padding(tailPointsUp ? .top : .bottom, Self.tailHeight)
+        .padding(tailOnLeft ? .leading : .trailing, Self.tailWidth)
         .background {
-            GeometryReader { geometry in
-                // `BubbleShape` measures its tail from 2pt to the left of the shape.
-                let shape = BubbleShape(tailX: geometry.size.width / 2 + 2, tailHeight: Self.tailHeight, tailPointsUp: tailPointsUp)
-                shape.fill(.white)
-                shape.stroke(.black, lineWidth: 2)
-            }
+            let shape = SideBubbleShape(tailWidth: Self.tailWidth, tailOnLeft: tailOnLeft)
+            shape.fill(.white)
+            shape.stroke(.black, lineWidth: 2)
         }
         .padding(2) // room for the outline
         .fixedSize()
         .environment(\.colorScheme, .light)
+    }
+}
+
+/// A rounded bubble with its tail halfway down its left or right side.
+private struct SideBubbleShape: Shape {
+    var tailWidth: CGFloat
+    var tailOnLeft: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let radius: CGFloat = 10
+        let tailHalfHeight: CGFloat = 6
+        let body = tailOnLeft
+            ? CGRect(x: rect.minX + tailWidth, y: rect.minY, width: rect.width - tailWidth, height: rect.height)
+            : CGRect(x: rect.minX, y: rect.minY, width: rect.width - tailWidth, height: rect.height)
+        let y = rect.midY
+        var tail = Path()
+        if tailOnLeft {
+            tail.move(to: CGPoint(x: body.minX + 1, y: y - tailHalfHeight))
+            tail.addLine(to: CGPoint(x: rect.minX, y: y))
+            tail.addLine(to: CGPoint(x: body.minX + 1, y: y + tailHalfHeight))
+        } else {
+            tail.move(to: CGPoint(x: body.maxX - 1, y: y - tailHalfHeight))
+            tail.addLine(to: CGPoint(x: rect.maxX, y: y))
+            tail.addLine(to: CGPoint(x: body.maxX - 1, y: y + tailHalfHeight))
+        }
+        tail.closeSubpath()
+        return Path(roundedRect: body, cornerRadius: min(radius, body.height / 2)).union(tail)
     }
 }
