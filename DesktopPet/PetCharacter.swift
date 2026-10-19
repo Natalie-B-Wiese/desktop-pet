@@ -7,6 +7,15 @@ enum PetSpecies: String, CaseIterable {
     /// The small pixel-art icon in the app bundle, without ".png".
     var iconName: String { "\(rawValue) icon" }
 
+    /// The middle of the mouth, in image pixels from the top, where the chatter bubble's tail points.
+    /// Every shape of a species has its mouth on the same row (cats row 11, dogs row 12).
+    var mouthY: CGFloat {
+        switch self {
+        case .cat: 11.5
+        case .dog: 12.5
+        }
+    }
+
     /// Every shape and pattern of this species, shape by shape, each in Customize's cycle order.
     var characters: [PetCharacter] { PetCharacter.all.filter { $0.species == self } }
 

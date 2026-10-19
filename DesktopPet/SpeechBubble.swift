@@ -53,6 +53,7 @@ final class SpeechBubbleController {
     private let todos: TodoStore
     private let greetings: GreetingStore
     private let chatter: ChatterStore
+    private let settings: PetSettings
     private let mathHistory = MathHistory()
     private let timeHistory = MathHistory(storageKey: "timeHistory")
     private let clipboard: ClipboardHistory
@@ -78,6 +79,7 @@ final class SpeechBubbleController {
         self.timer = timer
         self.greetings = greetings
         self.chatter = chatter
+        self.settings = settings
         self.notes = notes
         self.clipboard = clipboard
         self.reminders = reminders
@@ -250,9 +252,9 @@ final class SpeechBubbleController {
         let fitsRight = pet.frame.maxX + Self.gap + size.width <= screen.maxX
         if !fitsRight { lineView.rootView = BubblePageLine(text: text, tailOnLeft: false) }
         let x = fitsRight ? pet.frame.maxX + Self.gap : pet.frame.minX - Self.gap - size.width
-        // Level with her head, kept on screen.
-        let headMiddle = pet.frame.maxY - 7 * CGFloat(pet.frame.height / PetRenderer.pixelSize.height)
-        let y = min(max(headMiddle - size.height / 2, screen.minY + 4), screen.maxY - size.height - 4)
+        // The tail (halfway down the bubble) level with her mouth, kept on screen.
+        let mouth = pet.frame.maxY - settings.character.species.mouthY * pet.frame.height / PetRenderer.pixelSize.height
+        let y = min(max(mouth - size.height / 2, screen.minY + 4), screen.maxY - size.height - 4)
         linePanel.setFrame(NSRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height), display: true)
         lineView.frame = linePanel.contentView?.bounds ?? .zero
         if linePanel.parent == nil { pet.addChildWindow(linePanel, ordered: .above) }
