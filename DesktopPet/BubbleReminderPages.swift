@@ -238,7 +238,8 @@ struct BubbleAddReminderPage: View {
                 }
                 .fixedSize(horizontal: false, vertical: true) // AM/PM matches the boxes' height
 
-                Text(ReminderStore.dayWord(for: time, repeatDays: repeatDays))
+                // "Today · Noon": says roughly when it is, since 12 PM is easy to mistake for midnight.
+                Text("\(ReminderStore.dayWord(for: time, repeatDays: repeatDays)) · \(ReminderStore.partOfDay(hour24: hour24))")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .opacity(0.55)
             }

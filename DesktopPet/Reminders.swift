@@ -219,6 +219,19 @@ final class ReminderStore {
         return Calendar.current.isDateInToday(nextOccurrence(of: time)) ? "Today" : "Tomorrow"
     }
 
+    /// Roughly when in the day an hour (0…23) is, so 12 PM reads as "Noon" and 12 AM as "Midnight".
+    static func partOfDay(hour24: Int) -> String {
+        switch hour24 {
+        case 0: "Midnight"
+        case 1..<5: "Night"
+        case 5..<12: "Morning"
+        case 12: "Noon"
+        case 13..<17: "Afternoon"
+        case 17..<21: "Evening"
+        default: "Night"
+        }
+    }
+
     /// The weekdays in the order this Mac's calendar starts its week (Sunday first in the US).
     static var orderedWeekdays: [Int] {
         let first = Calendar.current.firstWeekday
