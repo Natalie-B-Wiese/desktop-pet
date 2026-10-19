@@ -13,6 +13,7 @@ final class AppController {
     let reminders = ReminderStore()
     let todos = TodoStore()
     let greetings = GreetingStore()
+    let chatter = ChatterStore()
     let clipboard = ClipboardHistory()
     let notes = NoteStore()
     private(set) var isPetVisible = false
@@ -33,6 +34,8 @@ final class AppController {
         timer.onStateChange = { [weak self] in self?.timerStateChanged() }
         reminders.onChange = { [weak self] in self?.remindersChanged() }
         greetings.onChange = { [weak self] in self?.greetingChanged() }
+        chatter.onChange = { [weak self] in self?.bubble?.update() }
+        todos.onCheckedOff = { [weak self] allDone in self?.cheerTodo(allDone: allDone) }
     }
 
     func start() {
@@ -40,8 +43,8 @@ final class AppController {
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
         let bubble = SpeechBubbleController(
-            timer: timer, reminders: reminders, todos: todos, greetings: greetings, notes: notes, clipboard: clipboard,
-            settings: settings, pet: panel, actions: BubbleActions(
+            timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
+            clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -61,6 +64,7 @@ final class AppController {
         setPetVisible(wasVisible)
         remindersChanged() // show any reminders that came due while the app was closed
         startMorningCheck()
+        startChatter()
 
         handleTestingArguments()
     }
@@ -175,6 +179,7 @@ final class AppController {
     }
 
     private func timerStateChanged() {
+        if timer.isActive { chatter.line = nil } // the timer gets the bubble
         // The bubble needs the cat, so bring it back when a timer starts or finishes.
         if timer.isActive && !isPetVisible {
             setPetVisible(true)
@@ -356,6 +361,7 @@ final class AppController {
             guard let self else { return }
             await pullMeetingsIfNewDay()
             await greetIfNewDay()
+            welcomeBackIfAway()
             isRunningMorningCheck = false
         }
     }
@@ -375,13 +381,19 @@ final class AppController {
         guard AppPreferences.showsMorningGreeting, !greetings.shownToday,
               Calendar.current.component(.hour, from: Date()) >= MorningGreeting.earliestHour else { return }
         greetings.show(await makeGreeting())
+        // The greeting already said hello, so no welcome back now, and no late-night line on top of a late greeting.
+        awaySince = nil
+        if Self.isLateNight(Date()) { UserDefaults.standard.set(Date(), forKey: Self.lastLateNightKey) }
     }
 
     @MainActor
     private func makeGreeting() async -> MorningGreeting {
         // `hasAccess` first, so the greeting never asks for Calendar access.
         let meetings = CalendarMeetings.hasAccess ? try? await CalendarMeetings.todaysUpcoming() : nil
-        return MorningGreeting(date: Date(), meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents())
+        return MorningGreeting(
+            date: Date(), meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents(),
+            personality: AppPreferences.chatterOn ? settings.personality : nil
+        )
     }
 
     private func greetingChanged() {
@@ -392,6 +404,111 @@ final class AppController {
             bubble?.update()
         }
         if greetings.current != nil { petPanel?.hop() }
+    }
+
+    // MARK: - Chatter
+
+    /// When the Mac went to sleep or locked, for welcome back. Cleared once you're back.
+    @ObservationIgnored private var awaySince: Date?
+    @ObservationIgnored private var lastWelcomeBack: Date?
+    /// When the last line in the bubble was said (to-do cheers don't count).
+    @ObservationIgnored private var lastChatter: Date?
+    @ObservationIgnored private var chatterObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var chatterClock: Timer?
+
+    /// At most one line in the bubble this often.
+    private static let chatterGap: TimeInterval = 5 * 60
+    /// Welcome back only after being away this long, and at most this often.
+    private static let awayForWelcome: TimeInterval = 60 * 60
+    private static let welcomeBackGap: TimeInterval = 3 * 60 * 60
+    private static let lastLunchKey = "chatter.lastLunch"
+    private static let lastLateNightKey = "chatter.lastLateNight"
+
+    /// Watches for the Mac sleeping or locking (welcome back), and checks the clock each minute (lunch, late night).
+    private func startChatter() {
+        let markAway: (Notification) -> Void = { [weak self] _ in
+            guard let self, awaySince == nil else { return }
+            awaySince = Date()
+        }
+        chatterObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main, using: markAway))
+        chatterObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main, using: markAway))
+        chatterObservers.append(DistributedNotificationCenter.default().addObserver(
+            forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main, using: markAway))
+
+        chatterClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.checkChatterClock()
+        }
+    }
+
+    /// Runs after the morning check that follows waking or unlocking, so the greeting goes first.
+    private func welcomeBackIfAway() {
+        guard let away = awaySince, !Self.isScreenLocked else { return } // still locked: wait for the unlock
+        awaySince = nil
+        guard Date().timeIntervalSince(away) >= Self.awayForWelcome,
+              lastWelcomeBack.map({ Date().timeIntervalSince($0) >= Self.welcomeBackGap }) ?? true,
+              say(.welcomeBack) else { return }
+        lastWelcomeBack = Date()
+    }
+
+    /// Lunch around noon and the first sign of you after 10 PM, each once, only while you're at the Mac.
+    private func checkChatterClock() {
+        let now = Date()
+        guard Self.secondsSinceInput < 120, !Self.isScreenLocked else { return }
+        let defaults = UserDefaults.standard
+        let calendar = Calendar.current
+        let minute = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+        if (11 * 60 + 45...12 * 60 + 15).contains(minute),
+           !((defaults.object(forKey: Self.lastLunchKey) as? Date).map(calendar.isDateInToday) ?? false),
+           say(.lunch) {
+            defaults.set(now, forKey: Self.lastLunchKey)
+        }
+        if Self.isLateNight(now),
+           (defaults.object(forKey: Self.lastLateNightKey) as? Date).map({ Self.night(of: $0) != Self.night(of: now) }) ?? true,
+           say(.lateNight) {
+            defaults.set(now, forKey: Self.lastLateNightKey)
+        }
+    }
+
+    /// Says a line in the bubble, unless chatter is off, it's busy, a meeting is on, or she spoke a moment ago.
+    /// Returns whether she said it, so a missed moment can try again.
+    @discardableResult
+    private func say(_ moment: ChatterMoment, force: Bool = false) -> Bool {
+        if !force {
+            guard AppPreferences.chatterOn, isPetVisible, !(bubble?.menu.isOpen ?? false),
+                  reminders.due.isEmpty, greetings.current == nil, !timer.isActive,
+                  lastChatter.map({ Date().timeIntervalSince($0) >= Self.chatterGap }) ?? true,
+                  !CalendarMeetings.isInMeeting() else { return false }
+        }
+        lastChatter = Date()
+        chatter.say(Chatter.line(moment, settings.personality))
+        return true
+    }
+
+    /// A cheer in the small bubble above the To-dos page, every time one is checked off.
+    private func cheerTodo(allDone: Bool) {
+        guard AppPreferences.chatterOn else { return }
+        chatter.sayAbovePage(Chatter.line(allDone ? .allTodosDone : .todoChecked, settings.personality))
+    }
+
+    /// 10 PM until the 4 AM greeting cutoff.
+    private static func isLateNight(_ date: Date) -> Bool {
+        let hour = Calendar.current.component(.hour, from: date)
+        return hour >= 22 || hour < MorningGreeting.earliestHour
+    }
+
+    /// The evening a late-night moment belongs to, so 1 AM counts as the night before.
+    private static func night(of date: Date) -> Date {
+        Calendar.current.startOfDay(for: date.addingTimeInterval(-Double(MorningGreeting.earliestHour) * 3600))
+    }
+
+    private static var secondsSinceInput: TimeInterval {
+        CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+    }
+
+    private static var isScreenLocked: Bool {
+        (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
     }
 
     // MARK: - Customize
@@ -424,6 +541,7 @@ final class AppController {
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
+    /// `--chatter [welcome|lunch|late-night|todo|all-done|preview]` says that line now (deck order is used up as normal);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (plus any typing time),
@@ -449,6 +567,20 @@ final class AppController {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 greetings.show(await makeGreeting(), remember: false)
+            }
+        }
+        if let moment = value(after: "--chatter") {
+            // Says a line now, skipping the usual checks; `todo`, `all-done` and `preview` need their page open.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self else { return }
+                switch moment {
+                case "todo": chatter.sayAbovePage(Chatter.line(.todoChecked, settings.personality))
+                case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, settings.personality))
+                case "preview": chatter.sayAbovePage(Chatter.line(.preview, settings.personality))
+                case "lunch": say(.lunch, force: true)
+                case "late-night": say(.lateNight, force: true)
+                default: say(.welcomeBack, force: true)
+                }
             }
         }
         if args.contains("--menu") {

@@ -23,6 +23,13 @@ enum AppPreferences {
         UserDefaults.standard.object(forKey: morningGreetingKey) as? Bool ?? true
     }
 
+    /// Topsy's little comments: the greeting in her voice, welcome back, lunch, late night and to-dos. On unless turned off.
+    static let chatterKey = "settings.chatter"
+
+    static var chatterOn: Bool {
+        UserDefaults.standard.object(forKey: chatterKey) as? Bool ?? true
+    }
+
     /// The sound Topsy makes whenever she hops (time's up, a reminder, the morning greeting).
     static let hopSoundKey = "settings.hopSound"
     /// Silent first, then macOS's built-in alert sounds, played by name.
@@ -61,6 +68,7 @@ struct BubbleSettingsPage: View {
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
     @AppStorage(AppPreferences.meetingLeadKey) private var meetingLead = 0
     @AppStorage(AppPreferences.morningGreetingKey) private var morningGreeting = true
+    @AppStorage(AppPreferences.chatterKey) private var chatter = true
     @AppStorage(AppPreferences.hopSoundKey) private var hopSound = AppPreferences.defaultHopSound
     /// Kept unfocused on open (like Customize's name), so a stray keypress can't change the minutes.
     @FocusState private var leadFocused: Bool
@@ -87,6 +95,21 @@ struct BubbleSettingsPage: View {
                     Text("Morning greeting")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                     Text("Your to-dos and meetings")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.55)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .toggleStyle(BubbleSwitchStyle())
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            Toggle(isOn: $chatter) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Chatter")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Text("Comments in her voice")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .opacity(0.55)
                 }

@@ -21,6 +21,8 @@ final class TodoStore {
 
     /// Called whenever the list changes.
     @ObservationIgnored var onChange: (() -> Void)?
+    /// Called when an item is checked off (not when it's unchecked), with whether that was the last one.
+    @ObservationIgnored var onCheckedOff: ((_ allDone: Bool) -> Void)?
     @ObservationIgnored private var observers: [(NotificationCenter, NSObjectProtocol)] = []
 
     static let maxLength = 60
@@ -53,7 +55,9 @@ final class TodoStore {
     func toggle(_ id: Todo.ID) {
         guard let index = todos.firstIndex(where: { $0.id == id }) else { return }
         todos[index].completedAt = todos[index].isDone ? nil : Date()
+        let checkedOff = todos[index].isDone
         changed()
+        if checkedOff { onCheckedOff?(remainingCount == 0) }
     }
 
     func update(_ id: Todo.ID, text: String) {

@@ -52,6 +52,7 @@ final class SpeechBubbleController {
     private let reminders: ReminderStore
     private let todos: TodoStore
     private let greetings: GreetingStore
+    private let chatter: ChatterStore
     private let mathHistory = MathHistory()
     private let timeHistory = MathHistory(storageKey: "timeHistory")
     private let clipboard: ClipboardHistory
@@ -68,11 +69,12 @@ final class SpeechBubbleController {
     private static let gap: CGFloat = 2
 
     init(
-        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, notes: NoteStore,
-        clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel, actions: BubbleActions
+        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
+        notes: NoteStore, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel, actions: BubbleActions
     ) {
         self.timer = timer
         self.greetings = greetings
+        self.chatter = chatter
         self.notes = notes
         self.clipboard = clipboard
         self.reminders = reminders
@@ -93,7 +95,7 @@ final class SpeechBubbleController {
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, reminders: reminders, todos: todos, greetings: greetings,
+            timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
             notes: notes, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
@@ -116,13 +118,15 @@ final class SpeechBubbleController {
         panel.hidesOnDeactivate = false
         panel.contentView = container
 
-        // Clicking the bubble closes a due reminder, the greeting or "Time's up!", or pauses/resumes a countdown.
-        container.onClick = { [weak timer, weak reminders, weak greetings] in
-            guard let timer, let reminders, let greetings else { return }
+        // Clicking the bubble closes a due reminder, the greeting, a chatter line or "Time's up!", or pauses/resumes a countdown.
+        container.onClick = { [weak timer, weak reminders, weak greetings, weak chatter] in
+            guard let timer, let reminders, let greetings, let chatter else { return }
             if !reminders.due.isEmpty {
                 reminders.dismissFirstDue()
             } else if greetings.current != nil {
                 greetings.dismiss()
+            } else if chatter.line != nil {
+                chatter.line = nil
             } else if timer.state == .finished {
                 if timer.pomodoro != nil { timer.startNextPomodoroPeriod() } else { timer.stop() }
             } else if timer.hasCountdown {
@@ -158,7 +162,8 @@ final class SpeechBubbleController {
 
     /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
-        guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty || greetings.current != nil else {
+        guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty || greetings.current != nil
+                || chatter.line != nil else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
             return
@@ -204,6 +209,9 @@ final class SpeechBubbleController {
     }
 
     private func menuChanged() {
+        // A chatter line makes way for the menu, and a page's small bubble doesn't follow you to another page.
+        if menu.isOpen { chatter.line = nil }
+        chatter.clearPageLine()
         if menu.isOpen, outsideClickMonitor == nil {
             // Clicking anywhere in another app closes the main menu. Tool pages stay open, so you
             // don't lose what you typed and can look things up elsewhere; close them with ✕ or the pet.
@@ -258,6 +266,7 @@ struct BubbleView: View {
     let reminders: ReminderStore
     let todos: TodoStore
     let greetings: GreetingStore
+    let chatter: ChatterStore
     let mathHistory: MathHistory
     let timeHistory: MathHistory
     let notes: NoteStore
@@ -270,6 +279,53 @@ struct BubbleView: View {
     private static let tailHeight: CGFloat = 8
 
     var body: some View {
+        // A page's small chatter bubble sits on the far side of the main bubble from the pet.
+        VStack(spacing: 0) {
+            if !layout.tailPointsUp { pageLineBubble }
+            mainBubble
+            if layout.tailPointsUp { pageLineBubble }
+        }
+        .fixedSize()
+        .environment(\.colorScheme, .light) // the bubble is always white, even in Dark Mode
+        .onGeometryChange(for: CGSize.self, of: \.size) { _ in
+            layout.onContentSizeChange?()
+        }
+    }
+
+    private static let pageLineTailHeight: CGFloat = 6
+
+    /// A to-do cheer or a personality preview, above the open page. It fades away on its own.
+    @ViewBuilder
+    private var pageLineBubble: some View {
+        if menu.isOpen, let line = chatter.pageLine {
+            WrappingWidth(maxWidth: 170) {
+                Text(line)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(.black)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .padding(layout.tailPointsUp ? .top : .bottom, Self.pageLineTailHeight)
+            .background {
+                GeometryReader { geometry in
+                    // `BubbleShape` measures its tail from 2pt to the left of the shape.
+                    let shape = BubbleShape(
+                        tailX: geometry.size.width / 2 + 2,
+                        tailHeight: Self.pageLineTailHeight,
+                        tailPointsUp: layout.tailPointsUp
+                    )
+                    shape.fill(.white)
+                    shape.stroke(.black, lineWidth: 2)
+                }
+            }
+            .padding(2) // room for the outline
+            .id(line)
+            .transition(.opacity)
+        }
+    }
+
+    private var mainBubble: some View {
         content
             .foregroundStyle(.black)
             .padding(.horizontal, 12)
@@ -286,11 +342,6 @@ struct BubbleView: View {
                 shape.stroke(.black, lineWidth: 2)
             }
             .padding(2) // room for the outline
-            .fixedSize()
-            .environment(\.colorScheme, .light) // the bubble is always white, even in Dark Mode
-            .onGeometryChange(for: CGSize.self, of: \.size) { _ in
-                layout.onContentSizeChange?()
-            }
     }
 
     @ViewBuilder
@@ -307,6 +358,8 @@ struct BubbleView: View {
         } else if let greeting = greetings.current {
             // Ahead of the timer too; the timer shows again once it's closed.
             BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount, moreCount: waitingAfterGreeting)
+        } else if let line = chatter.line {
+            BubbleChatterLine(text: line)
         } else {
             timerContent
         }
@@ -442,7 +495,9 @@ struct BubbleView: View {
             BubbleMathPage(history: mathHistory, timeHistory: timeHistory, onClose: { menu.page = nil })
                 .frame(width: 260)
         case .customize:
-            BubbleCustomizePage(settings: settings)
+            BubbleCustomizePage(settings: settings) {
+                chatter.sayAbovePage(Chatter.line(.preview, settings.personality))
+            }
         case .settings:
             BubbleSettingsPage(reminders: reminders)
                 .frame(width: 190)

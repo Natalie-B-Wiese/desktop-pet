@@ -409,7 +409,7 @@ struct BubbleReminderAlert: View {
 
 /// Gives its content its natural width up to `maxWidth`, and the height it needs when wrapped at that width,
 /// even when the parent offers no width (the bubble sizes itself to its content's ideal size).
-private struct WrappingWidth: Layout {
+struct WrappingWidth: Layout {
     let maxWidth: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

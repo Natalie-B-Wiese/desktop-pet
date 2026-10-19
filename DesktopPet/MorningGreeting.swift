@@ -14,24 +14,42 @@ struct MorningGreeting: Equatable {
     /// No greeting before this hour, so the midnight day change doesn't greet a night owl.
     static let earliestHour = 4
 
-    /// "Good morning!", or afternoon/evening when the first visit of the day is later.
-    var hello: String {
-        switch Calendar.current.component(.hour, from: date) {
-        case ..<12: "Good morning!"
-        case ..<17: "Good afternoon!"
-        default: "Good evening!"
-        }
-    }
+    /// "Good morning!" (or afternoon/evening when the first visit of the day is later), or the
+    /// personality's opener for that time when chatter is on.
+    let hello: String
+    /// The weekday line, in the personality's voice when chatter is on.
+    let dayLine: String
 
-    var dayLine: String {
-        switch Calendar.current.component(.weekday, from: date) {
-        case 1: "Happy Sunday!"
-        case 2: "New week, fresh start."
-        case 3: "It's Tuesday!"
-        case 4: "Halfway through the week!"
-        case 5: "Almost Friday!"
-        case 6: "Happy Friday!"
-        default: "Happy Saturday!"
+    /// The lines are picked once here, so they don't change while the greeting is up.
+    init(date: Date, meetings: [Meeting]?, allDayEvents: [String], personality: Personality?) {
+        self.date = date
+        self.meetings = meetings
+        self.allDayEvents = allDayEvents
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+        let timeOfDay: ChatterMoment = switch calendar.component(.hour, from: date) {
+        case ..<12: .morning
+        case ..<17: .afternoon
+        default: .evening
+        }
+        if let personality {
+            hello = Chatter.line(timeOfDay, personality)
+            dayLine = Chatter.line(.weekday(weekday), personality)
+        } else {
+            hello = switch timeOfDay {
+            case .morning: "Good morning!"
+            case .afternoon: "Good afternoon!"
+            default: "Good evening!"
+            }
+            dayLine = switch weekday {
+            case 1: "Happy Sunday!"
+            case 2: "New week, fresh start."
+            case 3: "It's Tuesday!"
+            case 4: "Halfway through the week!"
+            case 5: "Almost Friday!"
+            case 6: "Happy Friday!"
+            default: "Happy Saturday!"
+            }
         }
     }
 }
@@ -81,11 +99,18 @@ struct BubbleGreeting: View {
     var body: some View {
         VStack(spacing: 6) {
             VStack(spacing: 0) {
-                Text(greeting.hello)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                Text(greeting.dayLine)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .opacity(0.55)
+                // Personality openers can be a sentence long, so they wrap.
+                WrappingWidth(maxWidth: 180) {
+                    Text(greeting.hello)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .multilineTextAlignment(.center)
+                }
+                WrappingWidth(maxWidth: 180) {
+                    Text(greeting.dayLine)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .opacity(0.55)
+                }
             }
 
             VStack(alignment: .leading, spacing: 4) {

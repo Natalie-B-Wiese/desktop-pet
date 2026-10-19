@@ -38,6 +38,8 @@ struct ColorFamily: Identifiable {
 /// Topsy herself is the preview.
 struct BubbleCustomizePage: View {
     let settings: PetSettings
+    /// Called after stepping to another personality, so she says a line in her new voice.
+    var onPersonalityChange: () -> Void = {}
 
     /// Kept unfocused on open, so a stray keypress can't overwrite the name.
     @FocusState private var nameFocused: Bool
@@ -56,8 +58,9 @@ struct BubbleCustomizePage: View {
         return character.partOrder.filter { used[$0] }
     }
 
-    init(settings: PetSettings) {
+    init(settings: PetSettings, onPersonalityChange: @escaping () -> Void = {}) {
         self.settings = settings
+        self.onPersonalityChange = onPersonalityChange
         let used = PetRenderer.usedSlots(for: settings.character)
         let first = settings.character.partOrder.first { used[$0] } ?? 0
         _selectedSlot = State(initialValue: first)
@@ -89,6 +92,7 @@ struct BubbleCustomizePage: View {
             .labeled("Size", width: Self.familyBoxWidth)
 
             characterPicker
+            personalityPicker
             slotPicker
             familyRow
             shadeRow
@@ -124,6 +128,21 @@ struct BubbleCustomizePage: View {
             stepper("Pattern", step: settings.cycleCharacter) {
                 count(patterns.firstIndex(of: character) ?? 0, of: patterns.count)
             }
+        }
+        .padding(.vertical, 3)
+        .frame(width: Self.familyBoxWidth)
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.black.opacity(0.15), lineWidth: 1))
+    }
+
+    /// A boxed row like the one above: "‹ Bubbly ›", captioned Personality.
+    private var personalityPicker: some View {
+        stepper("Personality", step: { step in
+            settings.cyclePersonality(by: step)
+            onPersonalityChange()
+        }) {
+            Text(settings.personality.title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .frame(width: 70, height: 24)
         }
         .padding(.vertical, 3)
         .frame(width: Self.familyBoxWidth)

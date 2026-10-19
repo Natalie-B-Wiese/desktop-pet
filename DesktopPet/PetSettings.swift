@@ -66,6 +66,11 @@ final class PetSettings {
 
     static let maxNameLength = 20
 
+    /// How the pet talks (see `Chatter`).
+    var personality: Personality {
+        didSet { if personality != oldValue { defaults.set(personality.rawValue, forKey: "personality") } }
+    }
+
     /// The name trimmed for display, or nil when the pet hasn't been named.
     var displayName: String? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -89,6 +94,7 @@ final class PetSettings {
         let savedScale = stored.integer(forKey: "scale") // 0 when never saved
         scale = Self.scaleRange.contains(savedScale) ? savedScale : Self.defaultScale
         name = stored.string(forKey: "name") ?? ""
+        personality = stored.string(forKey: "personality").flatMap(Personality.init) ?? .bubbly
     }
 
     /// Switches to the next (+1) or previous (-1) pattern in the same shape, wrapping around at either end.
@@ -109,6 +115,11 @@ final class PetSettings {
         let species = Self.step(PetSpecies.allCases, from: character.species, by: step)
         character = PetCharacter.withID(defaults.string(forKey: "character.\(species.rawValue)"))
             ?? species.characters[0]
+    }
+
+    /// Switches to the next (+1) or previous (-1) personality, wrapping around.
+    func cyclePersonality(by step: Int) {
+        personality = Self.step(Personality.allCases, from: personality, by: step)
     }
 
     private static func step<T: Equatable>(_ items: [T], from item: T, by step: Int) -> T {

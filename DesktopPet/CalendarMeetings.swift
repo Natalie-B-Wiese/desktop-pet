@@ -59,6 +59,18 @@ enum CalendarMeetings {
         return titles
     }
 
+    /// Whether a meeting is going on right now (not all-day, canceled or declined), so chatter keeps quiet,
+    /// e.g. while you share your screen. False without Calendar access.
+    static func isInMeeting() -> Bool {
+        guard hasAccess else { return false }
+        let now = Date()
+        let predicate = store.predicateForEvents(withStart: now.addingTimeInterval(-24 * 3600), end: now.addingTimeInterval(1), calendars: nil)
+        return store.events(matching: predicate).contains { event in
+            !event.isAllDay && event.status != .canceled && !declined(event)
+                && event.startDate <= now && event.endDate > now
+        }
+    }
+
     /// True once Calendar access was allowed. The daily pull checks this so it never pops up the permission dialog itself.
     static var hasAccess: Bool { EKEventStore.authorizationStatus(for: .event) == .fullAccess }
 
