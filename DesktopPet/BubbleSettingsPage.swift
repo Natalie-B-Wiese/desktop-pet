@@ -23,11 +23,14 @@ enum AppPreferences {
         UserDefaults.standard.object(forKey: morningGreetingKey) as? Bool ?? true
     }
 
-    /// Topsy's little comments: the greeting in her voice, welcome back, lunch, late night and to-dos. On unless turned off.
+    /// Topsy's little comments (the greeting in her voice, welcome back, lunch, late night and to-dos)
+    /// in a personality's voice, or nil for None (the default), which keeps her quiet.
     static let chatterKey = "settings.chatter"
+    /// None first, then the personalities, in the Settings picker's order.
+    static let chatterChoices: [Personality?] = [nil, .sassy, .bubbly]
 
-    static var chatterOn: Bool {
-        UserDefaults.standard.object(forKey: chatterKey) as? Bool ?? true
+    static var chatter: Personality? {
+        UserDefaults.standard.string(forKey: chatterKey).flatMap(Personality.init)
     }
 
     /// The sound Topsy makes whenever she hops (time's up, a reminder, the morning greeting).
@@ -68,7 +71,9 @@ struct BubbleSettingsPage: View {
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
     @AppStorage(AppPreferences.meetingLeadKey) private var meetingLead = 0
     @AppStorage(AppPreferences.morningGreetingKey) private var morningGreeting = true
-    @AppStorage(AppPreferences.chatterKey) private var chatter = true
+    @AppStorage(AppPreferences.chatterKey) private var chatter = "none"
+    /// Called after picking a Chatter personality, so she says a line in her new voice.
+    var onChatterChange: (Personality?) -> Void = { _ in }
     @AppStorage(AppPreferences.hopSoundKey) private var hopSound = AppPreferences.defaultHopSound
     /// Kept unfocused on open (like Customize's name), so a stray keypress can't change the minutes.
     @FocusState private var leadFocused: Bool
@@ -105,20 +110,7 @@ struct BubbleSettingsPage: View {
             .padding(.vertical, 6)
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
 
-            Toggle(isOn: $chatter) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Chatter")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    Text("Comments in her voice")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .opacity(0.55)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .toggleStyle(BubbleSwitchStyle())
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+            chatterPicker
 
             hopSoundPicker
 
@@ -198,6 +190,35 @@ extension BubbleSettingsPage {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    /// "Chatter  ‹ Sassy ›", like the Notification row.
+    private var chatterPicker: some View {
+        HStack(spacing: 0) {
+            Text("Chatter")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .fixedSize()
+            Spacer(minLength: 0)
+            HStack(spacing: 0) {
+                HeaderIconButton(systemImage: "chevron.left", help: "Previous personality", width: 18) { stepChatter(-1) }
+                Text(Personality(rawValue: chatter)?.title ?? "None")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .frame(width: 52)
+                HeaderIconButton(systemImage: "chevron.right", help: "Next personality", width: 18) { stepChatter(1) }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    private func stepChatter(_ step: Int) {
+        let choices = AppPreferences.chatterChoices
+        let index = choices.firstIndex(of: Personality(rawValue: chatter)) ?? 0
+        let next = choices[(index + step + choices.count) % choices.count]
+        chatter = next?.rawValue ?? "none"
+        onChatterChange(next)
     }
 
     private func stepHopSound(_ step: Int) {

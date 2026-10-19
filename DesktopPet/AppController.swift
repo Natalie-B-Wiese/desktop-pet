@@ -392,7 +392,7 @@ final class AppController {
         let meetings = CalendarMeetings.hasAccess ? try? await CalendarMeetings.todaysUpcoming() : nil
         return MorningGreeting(
             date: Date(), meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents(),
-            personality: AppPreferences.chatterOn ? settings.personality : nil
+            personality: AppPreferences.chatter
         )
     }
 
@@ -476,20 +476,20 @@ final class AppController {
     @discardableResult
     private func say(_ moment: ChatterMoment, force: Bool = false) -> Bool {
         if !force {
-            guard AppPreferences.chatterOn, isPetVisible, !(bubble?.menu.isOpen ?? false),
+            guard AppPreferences.chatter != nil, isPetVisible, !(bubble?.menu.isOpen ?? false),
                   reminders.due.isEmpty, greetings.current == nil, !timer.isActive,
                   lastChatter.map({ Date().timeIntervalSince($0) >= Self.chatterGap }) ?? true,
                   !CalendarMeetings.isInMeeting() else { return false }
         }
         lastChatter = Date()
-        chatter.say(Chatter.line(moment, settings.personality))
+        chatter.say(Chatter.line(moment, AppPreferences.chatter ?? .bubbly))
         return true
     }
 
     /// A cheer in the small bubble above the To-dos page, every time one is checked off.
     private func cheerTodo(allDone: Bool) {
-        guard AppPreferences.chatterOn else { return }
-        chatter.sayAbovePage(Chatter.line(allDone ? .allTodosDone : .todoChecked, settings.personality))
+        guard let personality = AppPreferences.chatter else { return }
+        chatter.sayAbovePage(Chatter.line(allDone ? .allTodosDone : .todoChecked, personality))
     }
 
     /// 10 PM until the 4 AM greeting cutoff.
@@ -570,13 +570,14 @@ final class AppController {
             }
         }
         if let moment = value(after: "--chatter") {
-            // Says a line now, skipping the usual checks; `todo`, `all-done` and `preview` need their page open.
+            // Says a line now, skipping the usual checks; `todo`, `all-done` and `preview` need their page open; with Chatter on None, lines are Bubbly's.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self else { return }
+                let personality = AppPreferences.chatter ?? .bubbly
                 switch moment {
-                case "todo": chatter.sayAbovePage(Chatter.line(.todoChecked, settings.personality))
-                case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, settings.personality))
-                case "preview": chatter.sayAbovePage(Chatter.line(.preview, settings.personality))
+                case "todo": chatter.sayAbovePage(Chatter.line(.todoChecked, personality))
+                case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, personality))
+                case "preview": chatter.sayAbovePage(Chatter.line(.preview, personality))
                 case "lunch": say(.lunch, force: true)
                 case "late-night": say(.lateNight, force: true)
                 default: say(.welcomeBack, force: true)

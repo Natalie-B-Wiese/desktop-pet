@@ -495,11 +495,15 @@ struct BubbleView: View {
             BubbleMathPage(history: mathHistory, timeHistory: timeHistory, onClose: { menu.page = nil })
                 .frame(width: 260)
         case .customize:
-            BubbleCustomizePage(settings: settings) {
-                chatter.sayAbovePage(Chatter.line(.preview, settings.personality))
-            }
+            BubbleCustomizePage(settings: settings)
         case .settings:
-            BubbleSettingsPage(reminders: reminders)
+            BubbleSettingsPage(reminders: reminders) { personality in
+                if let personality {
+                    chatter.sayAbovePage(Chatter.line(.preview, personality))
+                } else {
+                    chatter.clearPageLine()
+                }
+            }
                 .frame(width: 190)
         case .todos:
             BubbleTodoPage(store: todos, onClose: { menu.page = nil })

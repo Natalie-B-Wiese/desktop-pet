@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// How the pet talks. Picked in Customize; every chatter line comes in each one's voice.
+/// How the pet talks, picked as Chatter in Settings; every chatter line comes in each one's voice.
 enum Personality: String, CaseIterable {
     case bubbly, sassy
 
@@ -25,7 +25,7 @@ enum ChatterMoment: Equatable {
     case lunch, lateNight
     /// In the small bubble above the To-dos page.
     case todoChecked, allTodosDone
-    /// In the small bubble above Customize, when picking a personality.
+    /// In the small bubble above Settings, when picking a personality.
     case preview
 
     fileprivate var key: String {
@@ -160,7 +160,7 @@ enum Chatter {
 }
 
 /// What the pet is saying right now: a line in the bubble while the menu is closed, or a small
-/// second bubble above an open page (to-dos, Customize). Both go away on their own.
+/// second bubble above an open page (to-dos, Settings). Both go away on their own.
 @Observable
 final class ChatterStore {
     /// Shown in the bubble when nothing else is (no menu, reminder, greeting or timer). Clicking closes it.
