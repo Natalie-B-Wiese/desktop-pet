@@ -169,7 +169,9 @@ final class ChatterStore {
     }
 
     /// The small bubble above the open page.
-    private(set) var pageLine: String?
+    private(set) var pageLine: String? {
+        didSet { if pageLine != oldValue { onChange?() } }
+    }
 
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored private var lineID = 0
@@ -190,10 +192,10 @@ final class ChatterStore {
     func sayAbovePage(_ text: String) {
         pageLineID += 1
         let id = pageLineID
-        withAnimation(.easeOut(duration: 0.2)) { pageLine = text }
+        pageLine = text
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.pageLineDuration) { [weak self] in
             guard let self, pageLineID == id else { return }
-            withAnimation(.easeIn(duration: 0.4)) { self.pageLine = nil }
+            pageLine = nil
         }
     }
 
@@ -213,5 +215,36 @@ struct BubbleChatterLine: View {
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.center)
         }
+    }
+}
+
+/// The small bubble above an open page (in its own window), with its tail toward the main bubble.
+struct BubblePageLine: View {
+    let text: String
+    let tailPointsUp: Bool
+
+    private static let tailHeight: CGFloat = 6
+
+    var body: some View {
+        WrappingWidth(maxWidth: 170) {
+            Text(text)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .multilineTextAlignment(.center)
+        }
+        .foregroundStyle(.black)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .padding(tailPointsUp ? .top : .bottom, Self.tailHeight)
+        .background {
+            GeometryReader { geometry in
+                // `BubbleShape` measures its tail from 2pt to the left of the shape.
+                let shape = BubbleShape(tailX: geometry.size.width / 2 + 2, tailHeight: Self.tailHeight, tailPointsUp: tailPointsUp)
+                shape.fill(.white)
+                shape.stroke(.black, lineWidth: 2)
+            }
+        }
+        .padding(2) // room for the outline
+        .fixedSize()
+        .environment(\.colorScheme, .light)
     }
 }

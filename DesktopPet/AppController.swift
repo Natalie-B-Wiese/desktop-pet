@@ -653,7 +653,9 @@ final class AppController {
                 NSGraphicsContext.saveGraphicsState()
                 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: canvas)
                 for picture in pictures {
-                    picture.rep.draw(in: picture.frame.offsetBy(dx: -union.minX, dy: -union.minY))
+                    // Blended, so a window's transparent edges don't erase the one under it.
+                    picture.rep.draw(in: picture.frame.offsetBy(dx: -union.minX, dy: -union.minY), from: .zero,
+                                     operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
                 }
                 NSGraphicsContext.restoreGraphicsState()
                 try? canvas.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "\(base).png"))

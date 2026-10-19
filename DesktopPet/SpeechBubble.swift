@@ -59,6 +59,9 @@ final class SpeechBubbleController {
     private let notes: NoteStore
     private let layout = BubbleLayout()
     private let panel: BubblePanel
+    /// The small chatter bubble above an open page. Its own window, so the main bubble never moves for it.
+    private let linePanel: NSPanel
+    private let lineView = NSHostingView(rootView: BubblePageLine(text: "", tailPointsUp: false))
     private let container: BubbleContainer
     private let hostingView: FirstClickHostingView<BubbleView>
     private weak var pet: PetPanel?
@@ -118,6 +121,17 @@ final class SpeechBubbleController {
         panel.hidesOnDeactivate = false
         panel.contentView = container
 
+        linePanel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        linePanel.isOpaque = false
+        linePanel.backgroundColor = .clear
+        linePanel.hasShadow = false
+        linePanel.level = .floating
+        linePanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        linePanel.isReleasedWhenClosed = false
+        linePanel.hidesOnDeactivate = false
+        linePanel.ignoresMouseEvents = true
+        linePanel.contentView = lineView
+
         // Clicking the bubble closes a due reminder, the greeting, a chatter line or "Time's up!", or pauses/resumes a countdown.
         container.onClick = { [weak timer, weak reminders, weak greetings, weak chatter] in
             guard let timer, let reminders, let greetings, let chatter else { return }
@@ -166,6 +180,7 @@ final class SpeechBubbleController {
                 || chatter.line != nil else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
+            updatePageLine(bubbleFrame: nil)
             return
         }
 
@@ -206,6 +221,49 @@ final class SpeechBubbleController {
         } else {
             panel.orderFront(nil)
         }
+        updatePageLine(bubbleFrame: frame)
+    }
+
+    private var shownPageLine: String?
+
+    /// Shows the small chatter bubble on the far side of the main bubble from the pet, fading in and out.
+    private func updatePageLine(bubbleFrame: NSRect?) {
+        guard let bubbleFrame, menu.isOpen, let text = chatter.pageLine else {
+            if shownPageLine != nil {
+                shownPageLine = nil
+                NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = 0.4
+                    linePanel.animator().alphaValue = 0
+                }, completionHandler: { [weak self] in
+                    guard let self, shownPageLine == nil else { return }
+                    linePanel.parent?.removeChildWindow(linePanel)
+                    linePanel.orderOut(nil)
+                })
+            }
+            return
+        }
+        let pointsUp = layout.tailPointsUp
+        lineView.rootView = BubblePageLine(text: text, tailPointsUp: pointsUp)
+        lineView.layoutSubtreeIfNeeded()
+        let size = lineView.fittingSize
+        let screen = (pet?.screen ?? NSScreen.main)?.visibleFrame ?? .infinite
+        let x = min(max(bubbleFrame.midX - size.width / 2, screen.minX + 4), screen.maxX - size.width - 4)
+        // Bubble outlines overlap by 2pt so the tail just touches the main bubble.
+        let y = pointsUp ? bubbleFrame.minY - size.height + 2 : bubbleFrame.maxY - 2
+        linePanel.setFrame(NSRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height), display: true)
+        lineView.frame = linePanel.contentView?.bounds ?? .zero
+        if linePanel.parent == nil { pet?.addChildWindow(linePanel, ordered: .above) }
+        if shownPageLine == nil {
+            linePanel.alphaValue = 0
+            linePanel.orderFront(nil)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                linePanel.animator().alphaValue = 1
+            }
+        } else {
+            linePanel.orderFront(nil)
+        }
+        shownPageLine = text
     }
 
     private func menuChanged() {
@@ -279,50 +337,12 @@ struct BubbleView: View {
     private static let tailHeight: CGFloat = 8
 
     var body: some View {
-        // A page's small chatter bubble sits on the far side of the main bubble from the pet.
-        VStack(spacing: 0) {
-            if !layout.tailPointsUp { pageLineBubble }
-            mainBubble
-            if layout.tailPointsUp { pageLineBubble }
-        }
-        .fixedSize()
-        .environment(\.colorScheme, .light) // the bubble is always white, even in Dark Mode
-        .onGeometryChange(for: CGSize.self, of: \.size) { _ in
-            layout.onContentSizeChange?()
-        }
-    }
-
-    private static let pageLineTailHeight: CGFloat = 6
-
-    /// A to-do cheer or a personality preview, above the open page. It fades away on its own.
-    @ViewBuilder
-    private var pageLineBubble: some View {
-        if menu.isOpen, let line = chatter.pageLine {
-            WrappingWidth(maxWidth: 170) {
-                Text(line)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .multilineTextAlignment(.center)
+        mainBubble
+            .fixedSize()
+            .environment(\.colorScheme, .light) // the bubble is always white, even in Dark Mode
+            .onGeometryChange(for: CGSize.self, of: \.size) { _ in
+                layout.onContentSizeChange?()
             }
-            .foregroundStyle(.black)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .padding(layout.tailPointsUp ? .top : .bottom, Self.pageLineTailHeight)
-            .background {
-                GeometryReader { geometry in
-                    // `BubbleShape` measures its tail from 2pt to the left of the shape.
-                    let shape = BubbleShape(
-                        tailX: geometry.size.width / 2 + 2,
-                        tailHeight: Self.pageLineTailHeight,
-                        tailPointsUp: layout.tailPointsUp
-                    )
-                    shape.fill(.white)
-                    shape.stroke(.black, lineWidth: 2)
-                }
-            }
-            .padding(2) // room for the outline
-            .id(line)
-            .transition(.opacity)
-        }
     }
 
     private var mainBubble: some View {
