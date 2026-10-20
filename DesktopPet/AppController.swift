@@ -318,6 +318,7 @@ final class AppController {
 
     @ObservationIgnored private var lastDueCount = 0
     @ObservationIgnored private var lastHeadsUpKeys: Set<String> = []
+    @ObservationIgnored private var lastDueKeys: Set<String> = []
     /// The hop takes about 0.6s; her line follows a beat after it.
     private static let headsUpLineDelay: TimeInterval = 2
 
@@ -334,7 +335,16 @@ final class AppController {
         if reminders.due.count > lastDueCount || newHeadsUp != nil { petPanel?.hop() }
         // Her personality's take goes beside her while the main bubble shows the reminder (nothing with Chatter on None).
         // It waits until the hop is over and a beat more, so the two bubbles don't pop up at once.
-        if let newHeadsUp, AppPreferences.chatter != nil {
+        // A reminder coming due wins over a heads-up arriving at the same moment.
+        let newDue = reminders.due.first { !lastDueKeys.contains($0.occurrenceKey) }
+        if let newDue, AppPreferences.chatter != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.headsUpLineDelay) { [weak self] in
+                // Skipped if it was clicked away meanwhile.
+                guard let self, let personality = AppPreferences.chatter,
+                      reminders.due.contains(where: { $0.occurrenceKey == newDue.occurrenceKey }) else { return }
+                chatter.sayAbovePage(Chatter.line(.reminderDue, personality))
+            }
+        } else if let newHeadsUp, AppPreferences.chatter != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.headsUpLineDelay) { [weak self] in
                 // Skipped if the heads-up was clicked away (or came due) meanwhile.
                 guard let self, let personality = AppPreferences.chatter,
@@ -343,6 +353,7 @@ final class AppController {
             }
         }
         lastDueCount = reminders.due.count
+        lastDueKeys = Set(reminders.due.map(\.occurrenceKey))
         lastHeadsUpKeys = headsUpKeys
     }
 
@@ -529,6 +540,7 @@ final class AppController {
     /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
+    /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first);
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color]` says that line now (deck order is used up as normal; `color` is coral);
@@ -553,6 +565,9 @@ final class AppController {
             startTimer(duration: seconds, label: value(after: "--label"))
         }
         if args.contains("--pause") { timer.pause() }
+        if let seconds = value(after: "--remind-in").flatMap(TimeInterval.init) {
+            reminders.addForTesting(at: Date().addingTimeInterval(seconds), message: value(after: "--label"))
+        }
         if args.contains("--greeting") {
             Task { @MainActor [weak self] in
                 guard let self else { return }

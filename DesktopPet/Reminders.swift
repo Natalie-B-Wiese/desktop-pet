@@ -91,7 +91,18 @@ final class ReminderStore {
         onChange?()
     }
 
-    /// Moves a reminder to the next time the clock shows `time`'s hour and minute, and changes its days and message.
+    /// For testing: a one-time reminder at exactly `date` (seconds included, unlike `add`), with no heads-up.
+    func addForTesting(at date: Date, message: String?) {
+        let reminder = Reminder(date: date, message: message, repeatDays: nil)
+        reminders.append(reminder)
+        headsUpDone.insert(reminder.occurrenceKey)
+        reminders.sort { $0.date < $1.date }
+        save()
+        refresh()
+        onChange?()
+    }
+
+        /// Moves a reminder to the next time the clock shows `time`'s hour and minute, and changes its days and message.
     func update(_ id: Reminder.ID, at time: Date, repeatDays: Set<Int>, message: String?) {
         guard let index = reminders.firstIndex(where: { $0.id == id }) else { return }
         let days = repeatDays.isEmpty ? nil : repeatDays

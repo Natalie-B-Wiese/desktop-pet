@@ -30,6 +30,8 @@ enum ChatterMoment: Equatable {
     /// In the side bubble (shortly after the hop), a few minutes before a reminder (Settings → Reminders), while the main bubble
     /// shows the reminder itself, so the lines never say when it is.
     case headsUp
+    /// In the side bubble (shortly after the hop) when any reminder comes due, meetings included, so the lines fit any reminder.
+    case reminderDue
     /// In the side bubble after picking a color (Clipboard). Lines may say `{color}`, `{Color}` or `{COLOR}`, filled
     /// with its everyday name; `ownColorPicked` is for a color that matches one of hers.
     case colorPicked, ownColorPicked
@@ -47,6 +49,7 @@ enum ChatterMoment: Equatable {
         case .allTodosDone: "allTodosDone"
         case .preview: "preview"
         case .headsUp: "headsUp"
+        case .reminderDue: "reminderDue"
         case .colorPicked: "colorPicked"
         case .ownColorPicked: "ownColorPicked"
         case .screenshot: "screenshot"
@@ -135,6 +138,7 @@ enum Chatter {
             "Don't lock-in too hard. Reminder incoming!",
             "Boop! Reminder for you!",
         ]
+        case .reminderDue: ["It's time! It's TIME!", "Ding ding! Let's GO!", "You've got this! I'll be right here!"]
         case .colorPicked: ["{COLOR}! Such a vibe!", "Whoa, {color}! Great pick!", "Nice! {Color} acquired."]
         case .ownColorPicked: ["Hey! That's MY color! Good pick!"]
         case .screenshot: ["Say cheese!", "Snap! Saved for later!", "Got it! Great shot!"]
@@ -175,6 +179,11 @@ enum Chatter {
             "Plans? Without me?",
             "Something's coming up. I'll allow it.",
         ]
+        case .reminderDue: [
+            "Your reminder, delivered with style.",
+            "It's time. I reminded you, naturally.",
+            "Don't keep it waiting. Only I get to do that.",
+        ]
         case .colorPicked: ["Ah, {color}. Bold choice.", "{Color}. I'd look stunning in it.", "{Color}? Approved."]
         case .ownColorPicked: ["My color. Obviously the best one."]
         case .screenshot: ["Did you get my good side?", "Captured. Hopefully I was in it.", "Another masterpiece for the archives."]
@@ -213,6 +222,7 @@ enum Chatter {
             "Quick sync incoming.",
             "Calendar update from management.",
         ]
+        case .reminderDue: ["Action item: due now.", "Showtime. Let's make it happen.", "Go get 'em. I'll hold your calls."]
         case .colorPicked: [
             "{Color}. Very on-brand.",
             "{Color} has been approved by the design team.",
@@ -266,6 +276,7 @@ enum Chatter {
             "Plot twist incoming.",
             "Psst. Heads up.",
         ]
+        case .reminderDue: ["Right on schedule. Suspiciously.", "And so, it begins.", "Good luck. I'll hold your spot."]
         case .colorPicked: ["{Color}. Interesting choice.", "{Color}. I knew you'd pick that one.", "{Color}. Good color for a book cover."]
         case .ownColorPicked: ["That's my color. I'm flattered."]
         case .screenshot: ["A moment, saved. Like a bookmark.", "Got it. Some things are worth remembering.", "Saved. They'll never know."]
