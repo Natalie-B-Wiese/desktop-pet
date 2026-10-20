@@ -87,35 +87,37 @@ enum Chatter {
         }
     }
 
+    /// Golden-retriever energy (for cats and dogs alike: no fetch, barking or sunbeams), a little Gen-Z, loves food and coffee.
     private static func bubbly(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .morning: ["Morning! Power-up first? (Coffee.)", "Coffee first, then greatness."]
-        case .afternoon: ["Afternoons go hard."]
-        case .evening: ["Evening! Let's keep it chill."]
+        case .morning: ["Morning! Power-up first? (Coffee.)", "Morning! You're here! Best part of my day."]
+        case .afternoon: ["Afternoons go hard.", "Afternoon! Snack break? SNACK BREAK?"]
+        case .evening: ["Evening! Let's keep it chill.", "Evening zoomies, anyone?"]
         case .weekday(let day):
             switch day {
             case 1: ["Sunday. Snacks and vibes only."]
-            case 2: ["Fresh week. We're so back."]
+            case 2: ["Fresh week. We're SO back!"]
             case 3: ["Tuesday. Lowkey a great day."]
             case 4: ["Wednesday. Halfway there."]
             case 5: ["Thursday. Basically Friday's warm-up."]
-            case 6: ["It's Friday. We made it."]
+            case 6: ["It's FRIDAY! We made it!"]
             default: ["Weekend mode: on."]
             }
-        case .lunch: ["Lunch break? Asking for a friend.", "Food buff time."]
+        case .lunch: ["LUNCH?! Did someone say LUNCH?!", "Food buff time.", "Lunch break? Asking for a friend."]
         case .todoChecked: [
+            "Checkbox go BOOP!",
+            "Much productive. Very wow.",
             "That one never stood a chance.",
             "Task complete! Efficiency +1",
-            "It's giving productive.",
-            "That's one less thing living rent-free in your head.",
             "Main character energy, honestly. Respect.",
         ]
-        case .allTodosDone: ["Cleared the whole list? Iconic.", "You're the GOAT."]
-        case .preview: ["Vibe check: PASSED!"]
+        case .allTodosDone: ["Zoomies unlocked!", "The WHOLE list?! You're the GOAT."]
+        // Non-breaking spaces keep "Best. Day. EVER." on one line.
+        case .preview: ["Hiii! You picked me! Best.\u{A0}Day.\u{A0}EVER."]
         case .headsUp: [
+            "Zoomies incoming! Maybe the Zoom kind.",
             "Don't lock-in too hard. Reminder incoming!",
-            "Something's coming up. We're so ready.",
-            "Heads up!",
+            "Boop! Reminder for you!",
         ]
         }
     }
