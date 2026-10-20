@@ -40,9 +40,10 @@ enum ColorNames {
         return referenceLabs.min { distance($0.lab, target) < distance($1.lab, target) }?.name ?? "that color"
     }
 
-    /// Whether two colors look about the same (Lab distance under about 8).
+    /// Whether two colors are close enough to count as the same (Lab distance under 15: a few shades lighter,
+    /// darker or tinted still count; Natalie found 8 too picky, missing a grey near Topsy's).
     static func looksAlike(_ a: NSColor, _ b: NSColor) -> Bool {
-        distance(lab(a), lab(b)) < 8
+        distance(lab(a), lab(b)) < 15
     }
 
     private typealias Lab = (l: Double, a: Double, b: Double)
