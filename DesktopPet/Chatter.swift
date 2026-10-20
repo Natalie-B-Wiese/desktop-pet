@@ -4,12 +4,13 @@ import SwiftUI
 
 /// How the pet talks, picked as Chatter in Settings; every chatter line comes in each one's voice.
 enum Personality: String, CaseIterable {
-    case bubbly, sassy
+    case bubbly, sassy, boss
 
     var title: String {
         switch self {
         case .bubbly: "Bubbly"
         case .sassy: "Sassy"
+        case .boss: "Boss"
         }
     }
 }
@@ -80,6 +81,7 @@ enum Chatter {
         switch personality {
         case .bubbly: bubbly(moment)
         case .sassy: sassy(moment)
+        case .boss: boss(moment)
         }
     }
 
@@ -149,6 +151,41 @@ enum Chatter {
             "A little warning, because I'm generous.",
             "Plans? Without me?",
             "Something's coming up. I'll allow it.",
+        ]
+        }
+    }
+
+    /// Topsy as the CEO of a tiny company where you're the star employee. Management approves of everything you do;
+    /// never a real boss (no deadlines, "back to work" or working late).
+    private static func boss(_ moment: ChatterMoment) -> [String] {
+        switch moment {
+        case .morning: ["Good morning, team. Today's agenda: greatness.", "Morning! Coffee is a business expense."]
+        case .afternoon: ["Good afternoon. Let's circle back to excellence.", "Afternoon. Profits are up. I checked."]
+        case .evening: ["Good evening. Your dedication has been noted."]
+        case .weekday(let day):
+            switch day {
+            case 1: ["Sunday. The office is closed. Even I'm off."]
+            case 2: ["Monday. New week, new goals."]
+            case 3: ["Tuesday. Momentum is building."]
+            case 4: ["Wednesday. Midweek report: we're crushing it."]
+            case 5: ["Thursday. Friday is on the roadmap."]
+            case 6: ["Friday. Let's close out the week strong."]
+            default: ["Saturday. Company-wide day off. I signed it."]
+            }
+        case .lunch: ["The company has approved your lunch break!", "Lunch is now a mandatory meeting."]
+        case .todoChecked: [
+            "Now that's synergy.",
+            "Impact player!",
+            "Huge win for the team.",
+            "That boosts morale!",
+            "Great work! I'll tell the shareholders!",
+        ]
+        case .allTodosDone: ["Record quarter! Bonuses for everyone. (Treats.)", "Every item delivered. The board is speechless."]
+        case .preview: ["Welcome aboard! Glad to have you on the team."]
+        case .headsUp: [
+            "Per my last email: something's coming up.",
+            "Quick sync incoming.",
+            "Calendar update from management.",
         ]
         }
     }
