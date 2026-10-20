@@ -118,7 +118,7 @@ enum Chatter {
 
     private static func sassy(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .morning: ["Good morning. Yes, I woke up flawless.", "The star of your desktop has arrived."]
+        case .morning: ["Good morning. Yes, I woke up flawless.", "Good morning. The day may now begin."]
         case .afternoon: [
             "Good afternoon. I've been fabulous all day without you.",
             "I've been fabulous for hours. It's tiring.",
@@ -144,7 +144,7 @@ enum Chatter {
             "Handled. Under my supervision.",
         ]
         case .allTodosDone: ["Flawless. I'd expect nothing less from my human.", "A clean list. We make a stunning team."]
-        case .preview: ["Bow down. Kidding. Mostly."]
+        case .preview: ["The star of your desktop has arrived."]
         case .headsUp: [
             "A little warning, because I'm generous.",
             "Plans? Without me?",
