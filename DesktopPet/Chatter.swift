@@ -30,6 +30,11 @@ enum ChatterMoment: Equatable {
     /// In the side bubble (shortly after the hop), a few minutes before a reminder (Settings → Reminders), while the main bubble
     /// shows the reminder itself, so the lines never say when it is.
     case headsUp
+    /// In the side bubble after picking a color (Clipboard). Lines may say `{color}`, `{Color}` or `{COLOR}`, filled
+    /// with its everyday name; `ownColorPicked` is for a color that matches one of hers.
+    case colorPicked, ownColorPicked
+    /// In the side bubble after taking a screenshot (Clipboard).
+    case screenshot
 
     fileprivate var key: String {
         switch self {
@@ -42,6 +47,9 @@ enum ChatterMoment: Equatable {
         case .allTodosDone: "allTodosDone"
         case .preview: "preview"
         case .headsUp: "headsUp"
+        case .colorPicked: "colorPicked"
+        case .ownColorPicked: "ownColorPicked"
+        case .screenshot: "screenshot"
         }
     }
 }
@@ -49,6 +57,14 @@ enum ChatterMoment: Equatable {
 enum Chatter {
     /// A line for `moment`. Lines are dealt from a shuffled deck (saved across launches),
     /// so none repeats until all of that moment's lines have shown.
+    /// `color` fills in a `.colorPicked` line's `{color}` ("sky blue"), `{Color}` ("Sky blue") or `{COLOR}` ("SKY BLUE").
+    static func line(_ moment: ChatterMoment, _ personality: Personality, color: String) -> String {
+        line(moment, personality)
+            .replacingOccurrences(of: "{color}", with: color)
+            .replacingOccurrences(of: "{Color}", with: color.prefix(1).uppercased() + color.dropFirst())
+            .replacingOccurrences(of: "{COLOR}", with: color.uppercased())
+    }
+
     static func line(_ moment: ChatterMoment, _ personality: Personality) -> String {
         let all = lines(moment, personality)
         let key = "chatter.deck.\(personality.rawValue).\(moment.key)"
@@ -119,6 +135,9 @@ enum Chatter {
             "Don't lock-in too hard. Reminder incoming!",
             "Boop! Reminder for you!",
         ]
+        case .colorPicked: ["{COLOR}! Such a vibe!", "Whoa, {color}! Great pick!", "Nice! {Color} acquired."]
+        case .ownColorPicked: ["Hey! That's MY color! Good pick!"]
+        case .screenshot: ["Say cheese!", "Snap! Saved for later!", "Got it! Great shot!"]
         }
     }
 
@@ -156,6 +175,9 @@ enum Chatter {
             "Plans? Without me?",
             "Something's coming up. I'll allow it.",
         ]
+        case .colorPicked: ["Ah, {color}. Bold choice.", "{Color}. I'd look stunning in it.", "{Color}? Approved."]
+        case .ownColorPicked: ["My color. Obviously the best one."]
+        case .screenshot: ["Did you get my good side?", "Captured. Hopefully I was in it.", "Another masterpiece for the archives."]
         }
     }
 
@@ -190,6 +212,17 @@ enum Chatter {
             "Per my last email: something's coming up.",
             "Quick sync incoming.",
             "Calendar update from management.",
+        ]
+        case .colorPicked: [
+            "{Color}. Very on-brand.",
+            "{Color} has been approved by the design team.",
+            "{Color}. Let's put it in the brand guide.",
+        ]
+        case .ownColorPicked: ["Ah, the company colors."]
+        case .screenshot: [
+            "Documented. Great for the slide deck.",
+            "Saved for the quarterly report.",
+            "Excellent. Put that in the meeting notes.",
         ]
         }
     }
@@ -233,6 +266,9 @@ enum Chatter {
             "Plot twist incoming.",
             "Psst. Heads up.",
         ]
+        case .colorPicked: ["{Color}. Interesting choice.", "{Color}. I knew you'd pick that one.", "{Color}. Good color for a book cover."]
+        case .ownColorPicked: ["That's my color. I'm flattered."]
+        case .screenshot: ["A moment, saved. Like a bookmark.", "Got it. Some things are worth remembering.", "Saved. They'll never know."]
         }
     }
 }
