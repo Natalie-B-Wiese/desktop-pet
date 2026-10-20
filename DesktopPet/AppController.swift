@@ -318,7 +318,6 @@ final class AppController {
     @ObservationIgnored private var lastHeadsUpKeys: Set<String> = []
 
     private func remindersChanged() {
-        chatter.updateHeadsUpLines(for: reminders.headsUp, personality: AppPreferences.chatter)
         // A due reminder or a heads-up needs the cat to be seen, so bring it back.
         if (!reminders.due.isEmpty || !reminders.headsUp.isEmpty) && !isPetVisible {
             setPetVisible(true)
@@ -327,7 +326,13 @@ final class AppController {
         }
         // Hop only when a new reminder or heads-up arrives, not when one is closed or deleted.
         let headsUpKeys = Set(reminders.headsUp.map(\.occurrenceKey))
-        if reminders.due.count > lastDueCount || !headsUpKeys.subtracting(lastHeadsUpKeys).isEmpty { petPanel?.hop() }
+        let newHeadsUp = reminders.headsUp.first { !lastHeadsUpKeys.contains($0.occurrenceKey) }
+        if reminders.due.count > lastDueCount || newHeadsUp != nil { petPanel?.hop() }
+        // Her personality's take goes beside her while the main bubble shows the reminder (nothing with Chatter on None).
+        if let newHeadsUp, let personality = AppPreferences.chatter {
+            let line = Chatter.headsUpLine(personality, minutes: Chatter.minutesLeft(until: newHeadsUp.date))
+            chatter.sayAbovePage(line, for: ChatterStore.headsUpLineDuration)
+        }
         lastDueCount = reminders.due.count
         lastHeadsUpKeys = headsUpKeys
     }

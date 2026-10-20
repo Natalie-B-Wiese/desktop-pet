@@ -27,8 +27,8 @@ enum ChatterMoment: Equatable {
     case todoChecked, allTodosDone
     /// In the small bubble beside the pet, when picking a personality in Settings.
     case preview
-    /// In the main bubble, a few minutes before a reminder (Settings → Reminders). `{time}` is "5 min",
-    /// `{n}` the number of minutes. Shown even with Chatter on None, in plain words.
+    /// In the side bubble for 15s, a few minutes before a reminder (Settings → Reminders), while the main bubble
+    /// shows the reminder itself. `{time}` is "5 min", `{n}` the number of minutes.
     case headsUp
 
     fileprivate var key: String {
@@ -68,12 +68,16 @@ enum Chatter {
         return line
     }
 
-    /// The heads-up line for a reminder `minutes` away, in plain words when `personality` is nil (Chatter: None).
-    static func headsUpLine(_ personality: Personality?, minutes: Int) -> String {
-        let template = personality.map { line(.headsUp, $0) } ?? "Reminder in {time}"
-        return template
+    /// The personality's heads-up line for a reminder `minutes` away, for the side bubble.
+    static func headsUpLine(_ personality: Personality, minutes: Int) -> String {
+        line(.headsUp, personality)
             .replacingOccurrences(of: "{time}", with: durationText(minutes: minutes))
             .replacingOccurrences(of: "{n}", with: "\(minutes)")
+    }
+
+    /// Whole minutes left until `date`, rounded up, at least 1.
+    static func minutesLeft(until date: Date, from now: Date = Date()) -> Int {
+        max(1, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
     }
 
     /// "5 min", "1 hr", "1 hr 30 min", with non-breaking spaces so "min" never wraps away from its number.
@@ -197,21 +201,6 @@ final class ChatterStore {
         didSet { if line != oldValue { onChange?() } }
     }
 
-    /// Each heads-up's line, by `Reminder.occurrenceKey`, picked once when it appears so it doesn't change.
-    private(set) var headsUpLines: [String: String] = [:]
-
-    /// Picks lines for new heads-ups and forgets ones that are gone.
-    func updateHeadsUpLines(for reminders: [Reminder], personality: Personality?) {
-        var lines: [String: String] = [:]
-        for reminder in reminders {
-            let key = reminder.occurrenceKey
-            // The real time left (rounded up), which is less than the setting if the app opened partway in.
-            let minutes = max(1, Int((reminder.date.timeIntervalSinceNow / 60).rounded(.up)))
-            lines[key] = headsUpLines[key] ?? Chatter.headsUpLine(personality, minutes: minutes)
-        }
-        if lines != headsUpLines { headsUpLines = lines }
-    }
-
     /// The small bubble beside the pet.
     private(set) var pageLine: String? {
         didSet { if pageLine != oldValue { onChange?() } }
@@ -223,6 +212,8 @@ final class ChatterStore {
 
     static let lineDuration: TimeInterval = 7
     static let pageLineDuration: TimeInterval = 4
+    /// Longer for a heads-up, which comes with a hop and is worth reading.
+    static let headsUpLineDuration: TimeInterval = 15
 
     func say(_ text: String) {
         lineID += 1
@@ -233,11 +224,11 @@ final class ChatterStore {
         }
     }
 
-    func sayAbovePage(_ text: String) {
+    func sayAbovePage(_ text: String, for duration: TimeInterval = pageLineDuration) {
         pageLineID += 1
         let id = pageLineID
         pageLine = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pageLineDuration) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
             guard let self, pageLineID == id else { return }
             pageLine = nil
         }
@@ -249,35 +240,33 @@ final class ChatterStore {
     }
 }
 
-/// A heads-up in the main bubble: her line, then the reminder in grey. Clicking the bubble closes it.
+/// A heads-up in the main bubble, laid out like a due reminder: "🔔 In 5 min · 8:20 PM" over the message.
+/// Clicking the bubble closes it. Her personality's line goes in the side bubble.
 struct BubbleHeadsUp: View {
     let reminder: Reminder
-    let line: String
     /// How many more are waiting after this one, like the due reminder's "· N more".
     let moreCount: Int
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 1) {
+            // Counts down while it waits to be clicked.
+            TimelineView(.periodic(from: .now, by: 5)) { context in
+                HStack(spacing: 4) {
+                    // Meetings get the meeting rows' calendar mark, your own reminders the bell.
+                    Image(systemName: reminder.meetingID == nil ? "bell.fill" : "calendar")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("In \(Chatter.durationText(minutes: Chatter.minutesLeft(until: reminder.date, from: context.date))) · \(AppPreferences.clockText(reminder.shownDate))")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
+                }
+            }
             WrappingWidth(maxWidth: 180) {
-                Text(line)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(reminder.message ?? "Reminder")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
             }
-            HStack(spacing: 4) {
-                // Meetings get the meeting rows' calendar mark, your own reminders the bell.
-                Image(systemName: reminder.meetingID == nil ? "bell.fill" : "calendar")
-                    .font(.system(size: 9, weight: .bold))
-                Text("\(reminder.message ?? "Reminder") · \(AppPreferences.clockText(reminder.shownDate))")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .frame(maxWidth: 180)
-            .opacity(0.6)
             Text(moreCount > 0 ? "Click to close · \(moreCount) more" : "Click to close")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)
-                .padding(.top, 2)
         }
     }
 }

@@ -382,12 +382,7 @@ struct BubbleView: View {
             // A due reminder takes priority; the timer shows again once it's closed.
             BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1 + reminders.headsUp.count + waitingAfterHeadsUps)
         } else if let reminder = reminders.headsUp.first {
-            BubbleHeadsUp(
-                reminder: reminder,
-                line: chatter.headsUpLines[reminder.occurrenceKey]
-                    ?? Chatter.headsUpLine(nil, minutes: AppPreferences.headsUpMinutes),
-                moreCount: reminders.headsUp.count - 1 + waitingAfterHeadsUps
-            )
+            BubbleHeadsUp(reminder: reminder, moreCount: reminders.headsUp.count - 1 + waitingAfterHeadsUps)
         } else if let greeting = greetings.current {
             // Ahead of the timer too; the timer shows again once it's closed.
             BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount, moreCount: waitingAfterGreeting)
