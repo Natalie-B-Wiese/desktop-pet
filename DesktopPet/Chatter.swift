@@ -238,7 +238,9 @@ enum Chatter {
 }
 
 /// What the pet is saying right now: a line in the bubble while the menu is closed, or a small
-/// second bubble beside her (to-dos, Settings, heads-ups). Both type themselves out and go away on their own.
+/// second bubble beside her (to-dos, Settings, heads-ups). Both type themselves out, and each stays until
+/// the mouse comes near her (`noticeMouse`), then goes away on its own, so a line said while you're
+/// looking elsewhere waits for you.
 @Observable
 final class ChatterStore {
     /// Shown in the bubble when nothing else is (no menu, reminder, greeting or timer). Clicking closes it.
@@ -254,45 +256,34 @@ final class ChatterStore {
     }
     private(set) var pageLineStart = Date.distantPast
 
-    /// The last line, if it faded on its own (so it may have gone unseen). A small "…" bubble beside her
-    /// stands for it until hovering over her says it again.
-    private(set) var missed: String? {
-        didSet { if missed != oldValue { onChange?() } }
-    }
-
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored private var lineID = 0
     @ObservationIgnored private var pageLineID = 0
+    /// Whether the mouse has come near since the line was said, which starts its fade countdown.
+    @ObservationIgnored private var lineNoticed = false
+    @ObservationIgnored private var pageLineNoticed = false
 
-    /// How long a line stays once it's fully typed.
+    /// How long a line stays once it's been noticed and fully typed.
     static let lineDuration: TimeInterval = 7
     static let pageLineDuration: TimeInterval = 4
 
-    func say(_ text: String) {
-        lineID += 1
-        let id = lineID
-        missed = nil
-        lineStart = Date()
-        line = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + TypewriterText.typingTime(text) + Self.lineDuration) { [weak self] in
-            guard let self, lineID == id, line == text else { return }
-            line = nil
-            missed = text
-        }
+    /// Whether a line is waiting for the mouse to come near.
+    var isWaitingToBeNoticed: Bool {
+        (line != nil && !lineNoticed) || (pageLine != nil && !pageLineNoticed)
     }
 
-    /// `remember: false` for lines you're surely looking at (the Settings preview, a replay), so no "…" follows them.
-    func sayAbovePage(_ text: String, remember: Bool = true) {
+    func say(_ text: String) {
+        lineID += 1
+        lineNoticed = false
+        lineStart = Date()
+        line = text
+    }
+
+    func sayAbovePage(_ text: String) {
         pageLineID += 1
-        let id = pageLineID
-        missed = nil
+        pageLineNoticed = false
         pageLineStart = Date()
         pageLine = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + TypewriterText.typingTime(text) + Self.pageLineDuration) { [weak self] in
-            guard let self, pageLineID == id else { return }
-            pageLine = nil
-            if remember { missed = text }
-        }
     }
 
     func clearPageLine() {
@@ -300,15 +291,26 @@ final class ChatterStore {
         pageLine = nil
     }
 
-    /// Says the missed line again, beside her.
-    func replayMissed() {
-        guard let missed, pageLine == nil else { return }
-        sayAbovePage(missed, remember: false)
+    /// The mouse is over her or one of her bubbles: waiting lines start counting down, from when they're fully typed.
+    func noticeMouse() {
+        if let line, !lineNoticed {
+            lineNoticed = true
+            let id = lineID
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.timeLeft(line, from: lineStart, staying: Self.lineDuration)) { [weak self] in
+                if self?.lineID == id { self?.line = nil }
+            }
+        }
+        if let pageLine, !pageLineNoticed {
+            pageLineNoticed = true
+            let id = pageLineID
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.timeLeft(pageLine, from: pageLineStart, staying: Self.pageLineDuration)) { [weak self] in
+                if self?.pageLineID == id { self?.pageLine = nil }
+            }
+        }
     }
 
-    /// For testing: shows the "…" bubble for `text` right away.
-    func markMissed(_ text: String) {
-        missed = text
+    private static func timeLeft(_ text: String, from start: Date, staying: TimeInterval) -> TimeInterval {
+        max(0, start.addingTimeInterval(TypewriterText.typingTime(text)).timeIntervalSinceNow) + staying
     }
 }
 
@@ -395,7 +397,7 @@ struct BubblePageLine: View {
     /// Her on the left, so the tail points left; false when the bubble sits on her left.
     let tailOnLeft: Bool
 
-    fileprivate static let tailWidth: CGFloat = 6
+    private static let tailWidth: CGFloat = 6
 
     var body: some View {
         WrappingWidth(maxWidth: 170) {
@@ -409,31 +411,6 @@ struct BubblePageLine: View {
         .padding(tailOnLeft ? .leading : .trailing, Self.tailWidth)
         .background {
             let shape = SideBubbleShape(tailWidth: Self.tailWidth, tailOnLeft: tailOnLeft)
-            shape.fill(.white)
-            shape.stroke(.black, lineWidth: 2)
-        }
-        .padding(2) // room for the outline
-        .fixedSize()
-        .environment(\.colorScheme, .light)
-    }
-}
-
-/// The small "…" bubble beside the pet after a line faded on its own; hovering over her says it again.
-struct BubbleMissedMark: View {
-    let tailOnLeft: Bool
-
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { _ in
-                Circle().frame(width: 4, height: 4)
-            }
-        }
-        .foregroundStyle(.black)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
-        .padding(tailOnLeft ? .leading : .trailing, BubblePageLine.tailWidth)
-        .background {
-            let shape = SideBubbleShape(tailWidth: BubblePageLine.tailWidth, tailOnLeft: tailOnLeft)
             shape.fill(.white)
             shape.stroke(.black, lineWidth: 2)
         }
