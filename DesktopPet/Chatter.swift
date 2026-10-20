@@ -4,13 +4,14 @@ import SwiftUI
 
 /// How the pet talks, picked as Chatter in Settings; every chatter line comes in each one's voice.
 enum Personality: String, CaseIterable {
-    case bubbly, sassy, boss
+    case bubbly, sassy, boss, dark
 
     var title: String {
         switch self {
         case .bubbly: "Bubbly"
         case .sassy: "Sassy"
         case .boss: "Boss"
+        case .dark: "Dark"
         }
     }
 }
@@ -82,6 +83,7 @@ enum Chatter {
         case .bubbly: bubbly(moment)
         case .sassy: sassy(moment)
         case .boss: boss(moment)
+        case .dark: dark(moment)
         }
     }
 
@@ -186,6 +188,48 @@ enum Chatter {
             "Per my last email: something's coming up.",
             "Quick sync incoming.",
             "Calendar update from management.",
+        ]
+        }
+    }
+
+    /// A chill, cozy old soul who loves reading and tea, deadpan and a little off the wall, with a running bit about "they".
+    /// Playfully mysterious but warm, never wary of you; no detective or fortune-teller lines.
+    private static func dark(_ moment: ChatterMoment) -> [String] {
+        switch moment {
+        case .morning: ["Morning. Coffee first. Talking later.", "Good morning. I've been reading. Don't ask what."]
+        case .afternoon: [
+            "Good afternoon. Halfway through the day. And my book.",
+            "Afternoon. The shadows are getting longer. Coincidence?",
+        ]
+        case .evening: [
+            "Evening. My favorite time to think.",
+            "Good evening. The best books are read at night.",
+            "Long day? Tea and a book to relax?",
+        ]
+        case .weekday(let day):
+            switch day {
+            case 1: ["Sunday. Blankets and books. You're invited."]
+            case 2: ["Monday. Who keeps resetting the week?"]
+            case 3: ["Tuesday. Nobody talks about Tuesday. I respect that."]
+            case 4: ["Wednesday. They put the middle right where you'd expect it."]
+            case 5: ["Thursday. I peeked ahead. The weekend's close."]
+            case 6: ["Friday. They want you to think the week is over."]
+            default: ["Saturday. No plans. Exactly as planned."]
+            }
+        case .lunch: ["Lunch. My belly has been quiet. Too quiet.", "Go eat. I'll keep watch."]
+        case .todoChecked: [
+            "You're getting suspiciously good at this.",
+            "The other to-dos are getting nervous.",
+            "They'll be impressed.",
+            "That's the end of that chapter.",
+            "Nice. One less thing to overthink.",
+        ]
+        case .allTodosDone: ["The list is empty. Too empty.", "All done. You've earned a quiet evening."]
+        case .preview: ["Hello. Don't mind me. I'm just reading."]
+        case .headsUp: [
+            "Bookmark that thought. Something's coming up.",
+            "Plot twist incoming.",
+            "Psst. Heads up.",
         ]
         }
     }
