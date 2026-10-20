@@ -316,6 +316,8 @@ final class AppController {
 
     @ObservationIgnored private var lastDueCount = 0
     @ObservationIgnored private var lastHeadsUpKeys: Set<String> = []
+    /// The hop takes about 0.6s; her line follows a beat after it.
+    private static let headsUpLineDelay: TimeInterval = 2
 
     private func remindersChanged() {
         // A due reminder or a heads-up needs the cat to be seen, so bring it back.
@@ -329,9 +331,14 @@ final class AppController {
         let newHeadsUp = reminders.headsUp.first { !lastHeadsUpKeys.contains($0.occurrenceKey) }
         if reminders.due.count > lastDueCount || newHeadsUp != nil { petPanel?.hop() }
         // Her personality's take goes beside her while the main bubble shows the reminder (nothing with Chatter on None).
-        if let newHeadsUp, let personality = AppPreferences.chatter {
-            let line = Chatter.headsUpLine(personality, minutes: Chatter.minutesLeft(until: newHeadsUp.date))
-            chatter.sayAbovePage(line, for: ChatterStore.headsUpLineDuration)
+        // It waits until the hop is over and a beat more, so the two bubbles don't pop up at once.
+        if let newHeadsUp, AppPreferences.chatter != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.headsUpLineDelay) { [weak self] in
+                // Skipped if the heads-up was clicked away (or came due) meanwhile.
+                guard let self, let personality = AppPreferences.chatter,
+                      reminders.headsUp.contains(where: { $0.occurrenceKey == newHeadsUp.occurrenceKey }) else { return }
+                chatter.sayAbovePage(Chatter.headsUpLine(personality, minutes: Chatter.minutesLeft(until: newHeadsUp.date)))
+            }
         }
         lastDueCount = reminders.due.count
         lastHeadsUpKeys = headsUpKeys

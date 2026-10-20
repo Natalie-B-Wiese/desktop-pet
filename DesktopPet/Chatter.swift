@@ -27,7 +27,7 @@ enum ChatterMoment: Equatable {
     case todoChecked, allTodosDone
     /// In the small bubble beside the pet, when picking a personality in Settings.
     case preview
-    /// In the side bubble for 15s, a few minutes before a reminder (Settings → Reminders), while the main bubble
+    /// In the side bubble (shortly after the hop), a few minutes before a reminder (Settings → Reminders), while the main bubble
     /// shows the reminder itself. `{time}` is "5 min", `{n}` the number of minutes.
     case headsUp
 
@@ -212,8 +212,6 @@ final class ChatterStore {
 
     static let lineDuration: TimeInterval = 7
     static let pageLineDuration: TimeInterval = 4
-    /// Longer for a heads-up, which comes with a hop and is worth reading.
-    static let headsUpLineDuration: TimeInterval = 15
 
     func say(_ text: String) {
         lineID += 1
@@ -224,11 +222,11 @@ final class ChatterStore {
         }
     }
 
-    func sayAbovePage(_ text: String, for duration: TimeInterval = pageLineDuration) {
+    func sayAbovePage(_ text: String) {
         pageLineID += 1
         let id = pageLineID
         pageLine = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pageLineDuration) { [weak self] in
             guard let self, pageLineID == id else { return }
             pageLine = nil
         }
