@@ -102,10 +102,7 @@ enum Chatter {
         case .todoChecked: [
             "That one never stood a chance.",
             "Task complete! Efficiency +1",
-            "Ate. No crumbs.",
-            "We love to see it.",
             "It's giving productive.",
-            "I'd high-five you, but paws.",
             "That's one less thing living rent-free in your head.",
             "Main character energy, honestly. Respect.",
         ]
@@ -141,12 +138,9 @@ enum Chatter {
         case .lunch: ["Feed yourself. I need my human at full strength.", "Lunch. Something worthy of us, please."]
         case .todoChecked: [
             "Clearly my influence.",
-            "Not bad. I taught you that.",
-            "Done? Of course. You have me.",
-            "Another one. I'm a great motivator.",
+            "Stunning work. I'd know.",
             "I'll accept your thanks now.",
             "Impressive. Almost as impressive as me.",
-            "Was there ever any doubt?",
             "Handled. Under my supervision.",
         ]
         case .allTodosDone: ["Flawless. I'd expect nothing less from my human.", "A clean list. We make a stunning team."]
