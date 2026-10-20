@@ -35,7 +35,7 @@ enum AppPreferences {
         UserDefaults.standard.object(forKey: morningGreetingKey) as? Bool ?? true
     }
 
-    /// Topsy's little comments (the greeting in her voice, welcome back, lunch, late night and to-dos)
+    /// Topsy's little comments (the greeting in her voice, lunch, late night, to-dos and reminder heads-ups)
     /// in a personality's voice, or nil for None (the default), which keeps her quiet.
     static let chatterKey = "settings.chatter"
     /// None first, then the personalities, in the Settings picker's order.

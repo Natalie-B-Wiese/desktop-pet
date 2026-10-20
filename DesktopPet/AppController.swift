@@ -379,7 +379,6 @@ final class AppController {
             guard let self else { return }
             await pullMeetingsIfNewDay()
             await greetIfNewDay()
-            welcomeBackIfAway()
             isRunningMorningCheck = false
         }
     }
@@ -399,8 +398,7 @@ final class AppController {
         guard AppPreferences.showsMorningGreeting, !greetings.shownToday,
               Calendar.current.component(.hour, from: Date()) >= MorningGreeting.earliestHour else { return }
         greetings.show(await makeGreeting())
-        // The greeting already said hello, so no welcome back now, and no late-night line on top of a late greeting.
-        awaySince = nil
+        // No late-night line on top of a late greeting.
         if Self.isLateNight(Date()) { UserDefaults.standard.set(Date(), forKey: Self.lastLateNightKey) }
     }
 
@@ -426,48 +424,20 @@ final class AppController {
 
     // MARK: - Chatter
 
-    /// When the Mac went to sleep or locked, for welcome back. Cleared once you're back.
-    @ObservationIgnored private var awaySince: Date?
-    @ObservationIgnored private var lastWelcomeBack: Date?
     /// When the last line in the bubble was said (to-do cheers don't count).
     @ObservationIgnored private var lastChatter: Date?
-    @ObservationIgnored private var chatterObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var chatterClock: Timer?
 
     /// At most one line in the bubble this often.
     private static let chatterGap: TimeInterval = 5 * 60
-    /// Welcome back only after being away this long, and at most this often.
-    private static let awayForWelcome: TimeInterval = 60 * 60
-    private static let welcomeBackGap: TimeInterval = 3 * 60 * 60
     private static let lastLunchKey = "chatter.lastLunch"
     private static let lastLateNightKey = "chatter.lastLateNight"
 
-    /// Watches for the Mac sleeping or locking (welcome back), and checks the clock each minute (lunch, late night).
+    /// Checks the clock each minute, for lunch and late night.
     private func startChatter() {
-        let markAway: (Notification) -> Void = { [weak self] _ in
-            guard let self, awaySince == nil else { return }
-            awaySince = Date()
-        }
-        chatterObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main, using: markAway))
-        chatterObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main, using: markAway))
-        chatterObservers.append(DistributedNotificationCenter.default().addObserver(
-            forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main, using: markAway))
-
         chatterClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.checkChatterClock()
         }
-    }
-
-    /// Runs after the morning check that follows waking or unlocking, so the greeting goes first.
-    private func welcomeBackIfAway() {
-        guard let away = awaySince, !Self.isScreenLocked else { return } // still locked: wait for the unlock
-        awaySince = nil
-        guard Date().timeIntervalSince(away) >= Self.awayForWelcome,
-              lastWelcomeBack.map({ Date().timeIntervalSince($0) >= Self.welcomeBackGap }) ?? true,
-              say(.welcomeBack) else { return }
-        lastWelcomeBack = Date()
     }
 
     /// Lunch around noon and the first sign of you after 10 PM, each once, only while you're at the Mac.
@@ -559,7 +529,7 @@ final class AppController {
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
-    /// `--chatter [welcome|lunch|late-night|todo|all-done|preview]` says that line now (deck order is used up as normal);
+    /// `--chatter [lunch|late-night|todo|all-done|preview]` says that line now (deck order is used up as normal);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (plus any typing time),
@@ -596,9 +566,8 @@ final class AppController {
                 case "todo": chatter.sayAbovePage(Chatter.line(.todoChecked, personality))
                 case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, personality))
                 case "preview": chatter.sayAbovePage(Chatter.line(.preview, personality))
-                case "lunch": say(.lunch, force: true)
                 case "late-night": say(.lateNight, force: true)
-                default: say(.welcomeBack, force: true)
+                default: say(.lunch, force: true)
                 }
             }
         }

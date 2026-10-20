@@ -20,8 +20,6 @@ enum ChatterMoment: Equatable {
     case morning, afternoon, evening
     /// The greeting's day line, by `Calendar` weekday (1 = Sunday).
     case weekday(Int)
-    /// Back after the Mac was asleep or locked for a while.
-    case welcomeBack
     case lunch, lateNight
     /// In the small bubble above the To-dos page.
     case todoChecked, allTodosDone
@@ -37,7 +35,6 @@ enum ChatterMoment: Equatable {
         case .afternoon: "afternoon"
         case .evening: "evening"
         case .weekday(let day): "weekday\(day)"
-        case .welcomeBack: "welcomeBack"
         case .lunch: "lunch"
         case .lateNight: "lateNight"
         case .todoChecked: "todoChecked"
@@ -102,12 +99,6 @@ enum Chatter {
             case 6: ["It's Friday. We made it."]
             default: ["Weekend mode: on."]
             }
-        case .welcomeBack: [
-            "You're back! I saved your seat.",
-            "Oh hey, missed you.",
-            "Welcome back. Coffee refill?",
-            "You're back! Reminder: you're my favorite human.",
-        ]
         case .lunch: ["Lunch break? Asking for a friend.", "Food buff time."]
         case .lateNight: [
             "Tomorrow-you can handle the rest. They're great.",
@@ -153,11 +144,6 @@ enum Chatter {
             case 6: ["Friday. Finally, an event worthy of me."]
             default: ["Saturday. I deserve it. You too, I suppose."]
             }
-        case .welcomeBack: [
-            "You left me. Alone. …I forgive you.",
-            "Where were you?! The drama!",
-            "I didn't miss you. (I did.)",
-        ]
         case .lunch: ["Feed yourself. I need my human at full strength.", "Lunch. Something worthy of us, please."]
         case .lateNight: [
             "Even royalty needs beauty sleep. So do you.",
