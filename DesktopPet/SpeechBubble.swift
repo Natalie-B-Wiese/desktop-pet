@@ -139,6 +139,8 @@ final class SpeechBubbleController {
             guard let timer, let reminders, let greetings, let chatter else { return }
             if !reminders.due.isEmpty {
                 reminders.dismissFirstDue()
+            } else if !reminders.headsUp.isEmpty {
+                reminders.dismissFirstHeadsUp()
             } else if greetings.current != nil {
                 greetings.dismiss()
             } else if chatter.line != nil {
@@ -178,8 +180,8 @@ final class SpeechBubbleController {
 
     /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
-        guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty || greetings.current != nil
-                || chatter.line != nil else {
+        guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty || !reminders.headsUp.isEmpty
+                || greetings.current != nil || chatter.line != nil else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
             updatePageLine()
@@ -378,7 +380,14 @@ struct BubbleView: View {
             .frame(width: Self.width(of: page))
         } else if let reminder = reminders.due.first {
             // A due reminder takes priority; the timer shows again once it's closed.
-            BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1 + waitingAfterReminders)
+            BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1 + reminders.headsUp.count + waitingAfterHeadsUps)
+        } else if let reminder = reminders.headsUp.first {
+            BubbleHeadsUp(
+                reminder: reminder,
+                line: chatter.headsUpLines[reminder.occurrenceKey]
+                    ?? Chatter.headsUpLine(nil, minutes: AppPreferences.headsUpMinutes),
+                moreCount: reminders.headsUp.count - 1 + waitingAfterHeadsUps
+            )
         } else if let greeting = greetings.current {
             // Ahead of the timer too; the timer shows again once it's closed.
             BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount, moreCount: waitingAfterGreeting)
@@ -392,8 +401,8 @@ struct BubbleView: View {
     /// What's queued behind the greeting: "Time's up!" or a finished Pomodoro period, which waits for a click.
     private var waitingAfterGreeting: Int { timer.state == .finished ? 1 : 0 }
 
-    /// What's queued behind the due reminders: the greeting, then a finished timer. "· 2 more" counts them all.
-    private var waitingAfterReminders: Int { (greetings.current != nil ? 1 : 0) + waitingAfterGreeting }
+    /// What's queued behind the due reminders and heads-ups: the greeting, then a finished timer. "· 2 more" counts them all.
+    private var waitingAfterHeadsUps: Int { (greetings.current != nil ? 1 : 0) + waitingAfterGreeting }
 
     /// The Timer page falls back to the main menu if there's no longer anything to show on it.
     private func effectivePage(_ page: BubbleMenu.Page) -> BubbleMenu.Page {

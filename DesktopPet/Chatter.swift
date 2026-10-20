@@ -25,8 +25,11 @@ enum ChatterMoment: Equatable {
     case lunch, lateNight
     /// In the small bubble above the To-dos page.
     case todoChecked, allTodosDone
-    /// In the small bubble above Settings, when picking a personality.
+    /// In the small bubble beside the pet, when picking a personality in Settings.
     case preview
+    /// In the main bubble, a few minutes before a reminder (Settings → Reminders). `{time}` is "5 min",
+    /// `{n}` the number of minutes. Shown even with Chatter on None, in plain words.
+    case headsUp
 
     fileprivate var key: String {
         switch self {
@@ -40,6 +43,7 @@ enum ChatterMoment: Equatable {
         case .todoChecked: "todoChecked"
         case .allTodosDone: "allTodosDone"
         case .preview: "preview"
+        case .headsUp: "headsUp"
         }
     }
 }
@@ -62,6 +66,21 @@ enum Chatter {
         defaults.set(deck, forKey: key)
         defaults.set(line, forKey: key + ".last")
         return line
+    }
+
+    /// The heads-up line for a reminder `minutes` away, in plain words when `personality` is nil (Chatter: None).
+    static func headsUpLine(_ personality: Personality?, minutes: Int) -> String {
+        let template = personality.map { line(.headsUp, $0) } ?? "Reminder in {time}"
+        return template
+            .replacingOccurrences(of: "{time}", with: durationText(minutes: minutes))
+            .replacingOccurrences(of: "{n}", with: "\(minutes)")
+    }
+
+    /// "5 min", "1 hr", "1 hr 30 min", with non-breaking spaces so "min" never wraps away from its number.
+    static func durationText(minutes: Int) -> String {
+        let hours = minutes / 60, rest = minutes % 60
+        if hours == 0 { return "\(minutes)\u{A0}min" }
+        return rest == 0 ? "\(hours)\u{A0}hr" : "\(hours)\u{A0}hr\u{A0}\(rest)\u{A0}min"
     }
 
     static func lines(_ moment: ChatterMoment, _ personality: Personality) -> [String] {
@@ -111,6 +130,11 @@ enum Chatter {
         ]
         case .allTodosDone: ["Cleared the whole list? Iconic.", "You're the GOAT."]
         case .preview: ["Ready when you are."]
+        case .headsUp: [
+            "Don't lock-in too hard. Reminder incoming in {time}!",
+            "Something's coming up in {time}. We're so ready.",
+            "Heads up: {n}-minute warning!",
+        ]
         }
     }
 
@@ -155,6 +179,11 @@ enum Chatter {
         ]
         case .allTodosDone: ["Flawless. I'd expect nothing less from my human.", "A clean list. We make a stunning team."]
         case .preview: ["Bow down. Kidding. Mostly."]
+        case .headsUp: [
+            "A little warning, because I'm generous. {time}.",
+            "In {time}, you have plans. Not with me, apparently.",
+            "Something's coming up in {time}. I'll allow it.",
+        ]
         }
     }
 }
@@ -168,7 +197,22 @@ final class ChatterStore {
         didSet { if line != oldValue { onChange?() } }
     }
 
-    /// The small bubble above the open page.
+    /// Each heads-up's line, by `Reminder.occurrenceKey`, picked once when it appears so it doesn't change.
+    private(set) var headsUpLines: [String: String] = [:]
+
+    /// Picks lines for new heads-ups and forgets ones that are gone.
+    func updateHeadsUpLines(for reminders: [Reminder], personality: Personality?) {
+        var lines: [String: String] = [:]
+        for reminder in reminders {
+            let key = reminder.occurrenceKey
+            // The real time left (rounded up), which is less than the setting if the app opened partway in.
+            let minutes = max(1, Int((reminder.date.timeIntervalSinceNow / 60).rounded(.up)))
+            lines[key] = headsUpLines[key] ?? Chatter.headsUpLine(personality, minutes: minutes)
+        }
+        if lines != headsUpLines { headsUpLines = lines }
+    }
+
+    /// The small bubble beside the pet.
     private(set) var pageLine: String? {
         didSet { if pageLine != oldValue { onChange?() } }
     }
@@ -202,6 +246,39 @@ final class ChatterStore {
     func clearPageLine() {
         pageLineID += 1
         pageLine = nil
+    }
+}
+
+/// A heads-up in the main bubble: her line, then the reminder in grey. Clicking the bubble closes it.
+struct BubbleHeadsUp: View {
+    let reminder: Reminder
+    let line: String
+    /// How many more are waiting after this one, like the due reminder's "· N more".
+    let moreCount: Int
+
+    var body: some View {
+        VStack(spacing: 3) {
+            WrappingWidth(maxWidth: 180) {
+                Text(line)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+            }
+            HStack(spacing: 4) {
+                // Meetings get the meeting rows' calendar mark, your own reminders the bell.
+                Image(systemName: reminder.meetingID == nil ? "bell.fill" : "calendar")
+                    .font(.system(size: 9, weight: .bold))
+                Text("\(reminder.message ?? "Reminder") · \(AppPreferences.clockText(reminder.shownDate))")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(maxWidth: 180)
+            .opacity(0.6)
+            Text(moreCount > 0 ? "Click to close · \(moreCount) more" : "Click to close")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .opacity(0.55)
+                .padding(.top, 2)
+        }
     }
 }
 

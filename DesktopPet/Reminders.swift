@@ -13,11 +13,14 @@ struct Reminder: Codable, Identifiable, Equatable {
     /// Set when it was pulled from a calendar meeting, so pulling again updates it instead of adding another.
     /// These can't be edited (the calendar decides their time and title), only deleted.
     var meetingID: String?
-    /// When the meeting starts. The reminder goes off `AppPreferences.meetingLeadMinutes` before this.
+    /// When the meeting starts, which is also when its reminder comes due.
     var meetingStart: Date?
 
     /// The time to show for it: the meeting's start for a meeting, otherwise when it goes off.
     var shownDate: Date { meetingStart ?? date }
+
+    /// Tells one occurrence of a repeating reminder from the next, so each gets its own heads-up.
+    var occurrenceKey: String { "\(id)|\(Int(date.timeIntervalSince1970))" }
 
     var repeats: Bool { !(repeatDays ?? []).isEmpty }
 }
@@ -32,8 +35,15 @@ final class ReminderStore {
     /// Reminders whose time has come, oldest first. The bubble shows the first one.
     private(set) var due: [Reminder] = []
 
+    /// Reminders coming up within the heads-up time (Settings → Reminders), soonest first, not yet clicked away.
+    /// The bubble shows the first one after any due reminders.
+    private(set) var headsUp: [Reminder] = []
+
     /// Reminders that haven't come due yet.
     var upcoming: [Reminder] { reminders.filter { !due.contains($0) } }
+
+    /// Heads-ups already closed, or skipped because the reminder was set inside the heads-up time.
+    @ObservationIgnored private var headsUpDone: Set<String> = []
 
     /// Called whenever reminders are added, deleted, or come due.
     @ObservationIgnored var onChange: (() -> Void)?
@@ -52,6 +62,10 @@ final class ReminderStore {
 
     init() {
         load()
+        // Meeting reminders used to go off early; now they come due at the start, and the heads-up warns ahead.
+        for index in reminders.indices {
+            if let start = reminders[index].meetingStart { reminders[index].date = start }
+        }
         refresh()
         // Timers don't fire during sleep, so check again as soon as the Mac wakes.
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -66,7 +80,9 @@ final class ReminderStore {
     /// Adds a reminder at the next time the clock shows `time`'s hour and minute (on one of `repeatDays`, if any).
     func add(at time: Date, repeatDays: Set<Int>, message: String?) {
         let days = repeatDays.isEmpty ? nil : repeatDays
-        reminders.append(Reminder(date: Self.nextOccurrence(of: time, on: days), message: message, repeatDays: days))
+        let reminder = Reminder(date: Self.nextOccurrence(of: time, on: days), message: message, repeatDays: days)
+        reminders.append(reminder)
+        skipHeadsUpIfSoon(reminder)
         reminders.sort { $0.date < $1.date }
         save()
         refresh()
@@ -80,6 +96,7 @@ final class ReminderStore {
         reminders[index].date = Self.nextOccurrence(of: time, on: days)
         reminders[index].repeatDays = days
         reminders[index].message = message
+        skipHeadsUpIfSoon(reminders[index])
         reminders.sort { $0.date < $1.date }
         save()
         refresh()
@@ -95,15 +112,15 @@ final class ReminderStore {
             let message = Self.cleanMessage(meeting.title)
             if let index = reminders.firstIndex(where: { $0.meetingID == meeting.id }) {
                 guard reminders[index].meetingStart != meeting.start || reminders[index].message != message else { continue }
-                reminders[index].date = Self.alertDate(forMeetingAt: meeting.start)
+                reminders[index].date = meeting.start
                 reminders[index].meetingStart = meeting.start
                 reminders[index].message = message
+                skipHeadsUpIfSoon(reminders[index])
                 changed += 1
             } else {
-                reminders.append(Reminder(
-                    date: Self.alertDate(forMeetingAt: meeting.start), message: message,
-                    meetingID: meeting.id, meetingStart: meeting.start
-                ))
+                let reminder = Reminder(date: meeting.start, message: message, meetingID: meeting.id, meetingStart: meeting.start)
+                reminders.append(reminder)
+                skipHeadsUpIfSoon(reminder)
                 added += 1
             }
         }
@@ -125,18 +142,24 @@ final class ReminderStore {
         return (added, changed)
     }
 
-    /// Moves every meeting reminder to match the "Meeting reminders" setting after it changes.
-    func applyMeetingLead() {
-        for index in reminders.indices {
-            if let start = reminders[index].meetingStart {
-                reminders[index].date = Self.alertDate(forMeetingAt: start)
-            }
-        }
-        reminders.sort { $0.date < $1.date }
-        save()
+    /// Rechecks heads-ups after the Settings → Reminders time changes.
+    func applyHeadsUpChange() {
         refresh()
-        onChange?()
     }
+
+    /// Closes the heads-up the bubble is showing. The reminder still comes due at its time.
+    func dismissFirstHeadsUp() {
+        guard let first = headsUp.first else { return }
+        headsUpDone.insert(first.occurrenceKey)
+        refresh()
+    }
+
+    /// A reminder set (or moved) to inside the heads-up time skips its heads-up and just comes due.
+    private func skipHeadsUpIfSoon(_ reminder: Reminder) {
+        if reminder.date.timeIntervalSinceNow < Self.headsUpLead { headsUpDone.insert(reminder.occurrenceKey) }
+    }
+
+    private static var headsUpLead: TimeInterval { 60 * Double(AppPreferences.headsUpMinutes) }
 
     func delete(_ id: Reminder.ID) {
         reminders.removeAll { $0.id == id }
@@ -164,15 +187,22 @@ final class ReminderStore {
     private func refresh() {
         let now = Date()
         let newDue = reminders.filter { $0.date <= now }
-        if newDue != due {
+        let lead = Self.headsUpLead
+        let newHeadsUp = lead <= 0 ? [] : reminders.filter {
+            $0.date > now && $0.date.timeIntervalSince(now) <= lead && !headsUpDone.contains($0.occurrenceKey)
+        }
+        if newDue != due || newHeadsUp != headsUp {
             due = newDue
+            headsUp = newHeadsUp
             onChange?()
         }
 
         timer?.invalidate()
         timer = nil
-        if let next = reminders.first(where: { $0.date > now }) {
-            let timer = Timer(fire: next.date, interval: 0, repeats: false) { [weak self] _ in
+        // The next moment something changes: a reminder comes due or its heads-up starts.
+        let next = reminders.flatMap { [$0.date, $0.date.addingTimeInterval(-lead)] }.filter { $0 > now }.min()
+        if let next {
+            let timer = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
                 self?.refresh()
             }
             RunLoop.main.add(timer, forMode: .common)
@@ -193,11 +223,6 @@ final class ReminderStore {
     }
 
     // MARK: - Helpers
-
-    /// When a meeting's reminder goes off: at its start, or a few minutes before (Settings → Meeting reminders).
-    static func alertDate(forMeetingAt start: Date) -> Date {
-        start.addingTimeInterval(-60 * Double(AppPreferences.meetingLeadMinutes))
-    }
 
     /// The next moment (after now) whose hour and minute match `time`, on one of `days` (weekday numbers) if given.
     static func nextOccurrence(of time: Date, on days: Set<Int>? = nil, after now: Date = Date()) -> Date {

@@ -26,6 +26,8 @@ final class AppController {
     private static let visibleKey = "petVisible"
 
     private init() {
+        AppPreferences.moveMeetingLeadToHeadsUp()
+        reminders.applyHeadsUpChange() // the reminders loaded before the setting moved
         settings.onChange = { [weak self] in self?.refreshPetImage() }
         settings.onScaleChange = { [weak self] in
             guard let self else { return }
@@ -313,17 +315,21 @@ final class AppController {
     // MARK: - Reminders
 
     @ObservationIgnored private var lastDueCount = 0
+    @ObservationIgnored private var lastHeadsUpKeys: Set<String> = []
 
     private func remindersChanged() {
-        // A due reminder needs the cat to be seen, so bring it back.
-        if !reminders.due.isEmpty && !isPetVisible {
+        chatter.updateHeadsUpLines(for: reminders.headsUp, personality: AppPreferences.chatter)
+        // A due reminder or a heads-up needs the cat to be seen, so bring it back.
+        if (!reminders.due.isEmpty || !reminders.headsUp.isEmpty) && !isPetVisible {
             setPetVisible(true)
         } else {
             bubble?.update()
         }
-        // Hop only when a new reminder arrives, not when one is closed or deleted.
-        if reminders.due.count > lastDueCount { petPanel?.hop() }
+        // Hop only when a new reminder or heads-up arrives, not when one is closed or deleted.
+        let headsUpKeys = Set(reminders.headsUp.map(\.occurrenceKey))
+        if reminders.due.count > lastDueCount || !headsUpKeys.subtracting(lastHeadsUpKeys).isEmpty { petPanel?.hop() }
         lastDueCount = reminders.due.count
+        lastHeadsUpKeys = headsUpKeys
     }
 
 
@@ -477,7 +483,7 @@ final class AppController {
     private func say(_ moment: ChatterMoment, force: Bool = false) -> Bool {
         if !force {
             guard AppPreferences.chatter != nil, isPetVisible, !(bubble?.menu.isOpen ?? false),
-                  reminders.due.isEmpty, greetings.current == nil, !timer.isActive,
+                  reminders.due.isEmpty, reminders.headsUp.isEmpty, greetings.current == nil, !timer.isActive,
                   lastChatter.map({ Date().timeIntervalSince($0) >= Self.chatterGap }) ?? true,
                   !CalendarMeetings.isInMeeting() else { return false }
         }

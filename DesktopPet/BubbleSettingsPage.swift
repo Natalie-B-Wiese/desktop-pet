@@ -8,13 +8,25 @@ enum AppPreferences {
 
     static var usesMilitaryTime: Bool { UserDefaults.standard.bool(forKey: militaryTimeKey) }
 
-    /// How many minutes before a Google Calendar meeting its reminder goes off (0 = when it starts).
-    /// Only meetings: a reminder you set for 3:00 yourself still goes off at 3:00.
-    static let meetingLeadKey = "settings.meetingLeadMinutes"
+    /// How many minutes before every reminder (your own and meetings) Topsy hops with a heads-up (0 = none).
+    /// The reminder itself still comes due at its time; a meeting's at its start.
+    static let headsUpKey = "settings.headsUpMinutes"
     /// Up to 3 hours, for leaving early to get somewhere.
-    static let meetingLeadRange = 0...180
+    static let headsUpRange = 0...180
+    static let defaultHeadsUpMinutes = 5
 
-    static var meetingLeadMinutes: Int { UserDefaults.standard.integer(forKey: meetingLeadKey) }
+    static var headsUpMinutes: Int {
+        UserDefaults.standard.object(forKey: headsUpKey) as? Int ?? defaultHeadsUpMinutes
+    }
+
+    /// The old "Meeting reminders" setting (meetings went off this early) becomes the heads-up for all reminders.
+    static func moveMeetingLeadToHeadsUp() {
+        let defaults = UserDefaults.standard
+        let oldKey = "settings.meetingLeadMinutes"
+        guard let old = defaults.object(forKey: oldKey) as? Int else { return }
+        if defaults.object(forKey: headsUpKey) == nil { defaults.set(old, forKey: headsUpKey) }
+        defaults.removeObject(forKey: oldKey)
+    }
 
     /// Topsy greets you once a day with your to-dos and meetings. On unless turned off.
     static let morningGreetingKey = "settings.morningGreeting"
@@ -69,7 +81,7 @@ struct BubbleSettingsPage: View {
     /// Meeting reminders move as soon as the lead time changes.
     let reminders: ReminderStore
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
-    @AppStorage(AppPreferences.meetingLeadKey) private var meetingLead = 0
+    @AppStorage(AppPreferences.headsUpKey) private var headsUp = AppPreferences.defaultHeadsUpMinutes
     @AppStorage(AppPreferences.morningGreetingKey) private var morningGreeting = true
     @AppStorage(AppPreferences.chatterKey) private var chatter = "none"
     /// Called after picking a Chatter personality, so she says a line in her new voice.
@@ -115,28 +127,17 @@ struct BubbleSettingsPage: View {
             hopSoundPicker
 
             VStack(alignment: .leading, spacing: 5) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 4) {
-                        // The same calendar mark as meeting rows on the Reminders page.
-                        Image(systemName: "calendar")
-                            .font(.system(size: 11, weight: .bold))
-                            .opacity(0.55)
-                        Text("Meeting reminders")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    }
-                    Text("Google Calendar meetings only")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .opacity(0.55)
-                }
+                Text("Reminders")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
                 HStack(spacing: 6) {
-                    TextField("", text: TimerDraft.digits($meetingLead, in: AppPreferences.meetingLeadRange))
+                    TextField("", text: TimerDraft.digits($headsUp, in: AppPreferences.headsUpRange))
                         .bubbleNumberBoxStyle(width: 52, fontSize: 18)
                         .focused($leadFocused)
                     CaretStepper(
-                        canIncrement: meetingLead < AppPreferences.meetingLeadRange.upperBound,
-                        canDecrement: meetingLead > AppPreferences.meetingLeadRange.lowerBound,
-                        increment: { meetingLead += 1 },
-                        decrement: { meetingLead -= 1 }
+                        canIncrement: headsUp < AppPreferences.headsUpRange.upperBound,
+                        canDecrement: headsUp > AppPreferences.headsUpRange.lowerBound,
+                        increment: { headsUp += 1 },
+                        decrement: { headsUp -= 1 }
                     )
                     Text("min before")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -148,14 +149,14 @@ struct BubbleSettingsPage: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
-            // Waits for typing or holding a caret to settle, so a meeting doesn't come due
+            // Waits for typing or holding a caret to settle, so a heads-up doesn't pop up
             // (and make Topsy hop) at an in-between number like the 1 of "15".
             .onAppear {
                 DispatchQueue.main.async { leadFocused = false }
             }
-            .task(id: meetingLead) {
+            .task(id: headsUp) {
                 try? await Task.sleep(for: .milliseconds(600))
-                if !Task.isCancelled { reminders.applyMeetingLead() }
+                if !Task.isCancelled { reminders.applyHeadsUpChange() }
             }
         }
     }
