@@ -7,6 +7,8 @@ struct Meeting {
     let id: String
     let start: Date
     let title: String
+    /// Its Zoom, Meet or Teams link, if the invitation has one.
+    let link: URL?
 }
 
 /// Reads today's meetings with EventKit. Going through the Calendar app means no Google sign-in of our own.
@@ -36,7 +38,8 @@ enum CalendarMeetings {
                 return Meeting(
                     id: "\(event.eventIdentifier ?? event.calendarItemIdentifier)|\(Int(occurrence))",
                     start: event.startDate,
-                    title: title.isEmpty ? "Meeting" : title
+                    title: title.isEmpty ? "Meeting" : title,
+                    link: MeetingLink.find(in: [event.url?.absoluteString, event.location, event.notes])
                 )
             }
     }

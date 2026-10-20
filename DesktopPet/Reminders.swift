@@ -15,6 +15,8 @@ struct Reminder: Codable, Identifiable, Equatable {
     var meetingID: String?
     /// When the meeting starts, which is also when its reminder comes due.
     var meetingStart: Date?
+    /// The meeting's Zoom (or Meet, Teams) link, shown as a Join button.
+    var meetingLink: URL?
 
     /// The time to show for it: the meeting's start for a meeting, otherwise when it goes off.
     var shownDate: Date { meetingStart ?? date }
@@ -111,14 +113,16 @@ final class ReminderStore {
         for meeting in meetings {
             let message = Self.cleanMessage(meeting.title)
             if let index = reminders.firstIndex(where: { $0.meetingID == meeting.id }) {
-                guard reminders[index].meetingStart != meeting.start || reminders[index].message != message else { continue }
+                guard reminders[index].meetingStart != meeting.start || reminders[index].message != message
+                        || reminders[index].meetingLink != meeting.link else { continue }
                 reminders[index].date = meeting.start
                 reminders[index].meetingStart = meeting.start
                 reminders[index].message = message
+                reminders[index].meetingLink = meeting.link
                 skipHeadsUpIfSoon(reminders[index])
                 changed += 1
             } else {
-                let reminder = Reminder(date: meeting.start, message: message, meetingID: meeting.id, meetingStart: meeting.start)
+                let reminder = Reminder(date: meeting.start, message: message, meetingID: meeting.id, meetingStart: meeting.start, meetingLink: meeting.link)
                 reminders.append(reminder)
                 skipHeadsUpIfSoon(reminder)
                 added += 1

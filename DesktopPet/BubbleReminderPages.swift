@@ -136,6 +136,19 @@ struct BubbleRemindersPage: View {
                 .help("Edit reminder")
             }
 
+            if let link = reminder.meetingLink {
+                Button {
+                    MeetingLink.open(link)
+                } label: {
+                    Image(systemName: "video.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Join \(MeetingLink.service(of: link) ?? "call")")
+            }
+
             Button {
                 store.delete(reminder.id)
             } label: {
@@ -380,10 +393,12 @@ private struct RepeatLabelStyle: LabelStyle {
 }
 
 /// What the bubble shows when a reminder comes due.
-struct BubbleReminderAlert: View {
+struct BubbleReminderAlert<Join: View>: View {
     let reminder: Reminder
     /// How many more are waiting after this one: other due reminders, the greeting and a finished timer.
     let moreCount: Int
+    /// A meeting's Join button, under the message.
+    @ViewBuilder var join: Join
 
     var body: some View {
         VStack(spacing: 1) {
@@ -400,6 +415,7 @@ struct BubbleReminderAlert: View {
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
             }
+            join
             Text(moreCount > 0 ? "Click to close · \(moreCount) more" : "Click to close")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)

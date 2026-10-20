@@ -11,6 +11,9 @@ final class BubbleLayout {
     /// Called when the bubble's contents change size (e.g. switching Timer/Pomodoro tabs),
     /// so its window can be resized to fit.
     @ObservationIgnored var onContentSizeChange: (() -> Void)?
+
+    /// Where a meeting's Join button is (in the bubble's SwiftUI coordinates), so clicks on it aren't taken as "close".
+    @ObservationIgnored var joinButtonFrame: CGRect?
 }
 
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
@@ -150,6 +153,10 @@ final class SpeechBubbleController {
             } else if timer.hasCountdown {
                 timer.togglePause()
             }
+        }
+        container.passesClick = { [weak self] point in
+            guard let self, !menu.isOpen, let button = layout.joinButtonFrame else { return false }
+            return button.contains(hostingView.convert(point, from: container))
         }
         menu.onChange = { [weak self] in self?.menuChanged() }
         layout.onContentSizeChange = { [weak self] in
@@ -304,10 +311,15 @@ private final class BubblePanel: NSPanel {
 private final class BubbleContainer: NSView {
     var onClick: (() -> Void)?
     var passesClicksToContent = false
+    /// Spots (in this view's coordinates) whose clicks go to the content even when the bubble is one click target,
+    /// like a meeting's Join button.
+    var passesClick: ((NSPoint) -> Bool)?
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         if passesClicksToContent { return super.hitTest(point) }
-        return frame.contains(point) ? self : nil
+        guard frame.contains(point) else { return nil }
+        if passesClick?(convert(point, from: superview)) == true { return super.hitTest(point) }
+        return self
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -380,9 +392,13 @@ struct BubbleView: View {
             .frame(width: Self.width(of: page))
         } else if let reminder = reminders.due.first {
             // A due reminder takes priority; the timer shows again once it's closed.
-            BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1 + reminders.headsUp.count + waitingAfterHeadsUps)
+            BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1 + reminders.headsUp.count + waitingAfterHeadsUps) {
+                joinButton(for: reminder)
+            }
         } else if let reminder = reminders.headsUp.first {
-            BubbleHeadsUp(reminder: reminder, moreCount: reminders.headsUp.count - 1 + waitingAfterHeadsUps)
+            BubbleHeadsUp(reminder: reminder, moreCount: reminders.headsUp.count - 1 + waitingAfterHeadsUps) {
+                joinButton(for: reminder)
+            }
         } else if let greeting = greetings.current {
             // Ahead of the timer too; the timer shows again once it's closed.
             BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount, moreCount: waitingAfterGreeting)
@@ -390,6 +406,15 @@ struct BubbleView: View {
             BubbleChatterLine(text: line)
         } else {
             timerContent
+        }
+    }
+
+    /// "Join Zoom" for a meeting with a link. Joining is going to the meeting, so its reminder is done
+    /// (from the heads-up too, so it doesn't come due again at the start).
+    @ViewBuilder
+    private func joinButton(for reminder: Reminder) -> some View {
+        if let link = reminder.meetingLink {
+            JoinMeetingButton(url: link, layout: layout) { reminders.delete(reminder.id) }
         }
     }
 

@@ -202,10 +202,12 @@ final class ChatterStore {
 
 /// A heads-up in the main bubble, laid out like a due reminder: "🔔 In 5 min · 8:20 PM" over the message.
 /// Clicking the bubble closes it. Her personality's line goes in the side bubble.
-struct BubbleHeadsUp: View {
+struct BubbleHeadsUp<Join: View>: View {
     let reminder: Reminder
     /// How many more are waiting after this one, like the due reminder's "· N more".
     let moreCount: Int
+    /// A meeting's Join button, under the message.
+    @ViewBuilder var join: Join
 
     var body: some View {
         VStack(spacing: 1) {
@@ -224,6 +226,7 @@ struct BubbleHeadsUp: View {
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
             }
+            join
             Text(moreCount > 0 ? "Click to close · \(moreCount) more" : "Click to close")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .opacity(0.55)
