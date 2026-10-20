@@ -20,7 +20,7 @@ enum ChatterMoment: Equatable {
     case morning, afternoon, evening
     /// The greeting's day line, by `Calendar` weekday (1 = Sunday).
     case weekday(Int)
-    case lunch, lateNight
+    case lunch
     /// In the small bubble above the To-dos page.
     case todoChecked, allTodosDone
     /// In the small bubble beside the pet, when picking a personality in Settings.
@@ -36,7 +36,6 @@ enum ChatterMoment: Equatable {
         case .evening: "evening"
         case .weekday(let day): "weekday\(day)"
         case .lunch: "lunch"
-        case .lateNight: "lateNight"
         case .todoChecked: "todoChecked"
         case .allTodosDone: "allTodosDone"
         case .preview: "preview"
@@ -100,11 +99,6 @@ enum Chatter {
             default: ["Weekend mode: on."]
             }
         case .lunch: ["Lunch break? Asking for a friend.", "Food buff time."]
-        case .lateNight: [
-            "Tomorrow-you can handle the rest. They're great.",
-            "You did so much today. Go rest.",
-            "Logging off is self-care, actually.",
-        ]
         case .todoChecked: [
             "That one never stood a chance.",
             "Task complete! Efficiency +1",
@@ -145,10 +139,6 @@ enum Chatter {
             default: ["Saturday. I deserve it. You too, I suppose."]
             }
         case .lunch: ["Feed yourself. I need my human at full strength.", "Lunch. Something worthy of us, please."]
-        case .lateNight: [
-            "Even royalty needs beauty sleep. So do you.",
-            "Still up? Bedtime is very glamorous, you know.",
-        ]
         case .todoChecked: [
             "Clearly my influence.",
             "Not bad. I taught you that.",

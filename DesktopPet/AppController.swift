@@ -398,8 +398,6 @@ final class AppController {
         guard AppPreferences.showsMorningGreeting, !greetings.shownToday,
               Calendar.current.component(.hour, from: Date()) >= MorningGreeting.earliestHour else { return }
         greetings.show(await makeGreeting())
-        // No late-night line on top of a late greeting.
-        if Self.isLateNight(Date()) { UserDefaults.standard.set(Date(), forKey: Self.lastLateNightKey) }
     }
 
     @MainActor
@@ -431,16 +429,15 @@ final class AppController {
     /// At most one line in the bubble this often.
     private static let chatterGap: TimeInterval = 5 * 60
     private static let lastLunchKey = "chatter.lastLunch"
-    private static let lastLateNightKey = "chatter.lastLateNight"
 
-    /// Checks the clock each minute, for lunch and late night.
+    /// Checks the clock each minute, for lunch.
     private func startChatter() {
         chatterClock = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.checkChatterClock()
         }
     }
 
-    /// Lunch around noon and the first sign of you after 10 PM, each once, only while you're at the Mac.
+    /// Lunch around noon, once a day, only while you're at the Mac.
     private func checkChatterClock() {
         let now = Date()
         guard Self.secondsSinceInput < 120, !Self.isScreenLocked else { return }
@@ -451,11 +448,6 @@ final class AppController {
            !((defaults.object(forKey: Self.lastLunchKey) as? Date).map(calendar.isDateInToday) ?? false),
            say(.lunch) {
             defaults.set(now, forKey: Self.lastLunchKey)
-        }
-        if Self.isLateNight(now),
-           (defaults.object(forKey: Self.lastLateNightKey) as? Date).map({ Self.night(of: $0) != Self.night(of: now) }) ?? true,
-           say(.lateNight) {
-            defaults.set(now, forKey: Self.lastLateNightKey)
         }
     }
 
@@ -478,17 +470,6 @@ final class AppController {
     private func cheerTodo(allDone: Bool) {
         guard let personality = AppPreferences.chatter else { return }
         chatter.sayAbovePage(Chatter.line(allDone ? .allTodosDone : .todoChecked, personality))
-    }
-
-    /// 10 PM until the 4 AM greeting cutoff.
-    private static func isLateNight(_ date: Date) -> Bool {
-        let hour = Calendar.current.component(.hour, from: date)
-        return hour >= 22 || hour < MorningGreeting.earliestHour
-    }
-
-    /// The evening a late-night moment belongs to, so 1 AM counts as the night before.
-    private static func night(of date: Date) -> Date {
-        Calendar.current.startOfDay(for: date.addingTimeInterval(-Double(MorningGreeting.earliestHour) * 3600))
     }
 
     private static var secondsSinceInput: TimeInterval {
@@ -529,7 +510,7 @@ final class AppController {
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
-    /// `--chatter [lunch|late-night|todo|all-done|preview]` says that line now (deck order is used up as normal);
+    /// `--chatter [lunch|todo|all-done|preview]` says that line now (deck order is used up as normal);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (plus any typing time),
@@ -566,7 +547,6 @@ final class AppController {
                 case "todo": chatter.sayAbovePage(Chatter.line(.todoChecked, personality))
                 case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, personality))
                 case "preview": chatter.sayAbovePage(Chatter.line(.preview, personality))
-                case "late-night": say(.lateNight, force: true)
                 default: say(.lunch, force: true)
                 }
             }
