@@ -60,6 +60,7 @@ final class AppController {
             pickColor: { [weak self] in self?.pickColor() }
         ))
         panel.onClick = { [weak bubble] in bubble?.toggleMenu() }
+        panel.onHover = { [weak chatter] in chatter?.replayMissed() }
         self.bubble = bubble
 
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
@@ -510,7 +511,7 @@ final class AppController {
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
-    /// `--chatter [lunch|todo|all-done|preview]` says that line now (deck order is used up as normal);
+    /// `--chatter [lunch|todo|all-done|preview|missed]` says that line now (deck order is used up as normal; `missed` shows the "…" bubble for a to-do line);
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (plus any typing time),
@@ -546,7 +547,8 @@ final class AppController {
                 switch moment {
                 case "todo": chatter.sayAbovePage(Chatter.line(.todoChecked, personality))
                 case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, personality))
-                case "preview": chatter.sayAbovePage(Chatter.line(.preview, personality))
+                case "preview": chatter.sayAbovePage(Chatter.line(.preview, personality), remember: false)
+                case "missed": chatter.markMissed(Chatter.line(.todoChecked, personality))
                 default: say(.lunch, force: true)
                 }
             }

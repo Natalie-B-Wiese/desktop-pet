@@ -238,48 +238,105 @@ enum Chatter {
 }
 
 /// What the pet is saying right now: a line in the bubble while the menu is closed, or a small
-/// second bubble above an open page (to-dos, Settings). Both go away on their own.
+/// second bubble beside her (to-dos, Settings, heads-ups). Both type themselves out and go away on their own.
 @Observable
 final class ChatterStore {
     /// Shown in the bubble when nothing else is (no menu, reminder, greeting or timer). Clicking closes it.
     var line: String? {
         didSet { if line != oldValue { onChange?() } }
     }
+    /// When `line` started typing.
+    private(set) var lineStart = Date.distantPast
 
     /// The small bubble beside the pet.
     private(set) var pageLine: String? {
         didSet { if pageLine != oldValue { onChange?() } }
+    }
+    private(set) var pageLineStart = Date.distantPast
+
+    /// The last line, if it faded on its own (so it may have gone unseen). A small "…" bubble beside her
+    /// stands for it until hovering over her says it again.
+    private(set) var missed: String? {
+        didSet { if missed != oldValue { onChange?() } }
     }
 
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored private var lineID = 0
     @ObservationIgnored private var pageLineID = 0
 
+    /// How long a line stays once it's fully typed.
     static let lineDuration: TimeInterval = 7
     static let pageLineDuration: TimeInterval = 4
 
     func say(_ text: String) {
         lineID += 1
         let id = lineID
+        missed = nil
+        lineStart = Date()
         line = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.lineDuration) { [weak self] in
-            if self?.lineID == id { self?.line = nil }
+        DispatchQueue.main.asyncAfter(deadline: .now() + TypewriterText.typingTime(text) + Self.lineDuration) { [weak self] in
+            guard let self, lineID == id, line == text else { return }
+            line = nil
+            missed = text
         }
     }
 
-    func sayAbovePage(_ text: String) {
+    /// `remember: false` for lines you're surely looking at (the Settings preview, a replay), so no "…" follows them.
+    func sayAbovePage(_ text: String, remember: Bool = true) {
         pageLineID += 1
         let id = pageLineID
+        missed = nil
+        pageLineStart = Date()
         pageLine = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pageLineDuration) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + TypewriterText.typingTime(text) + Self.pageLineDuration) { [weak self] in
             guard let self, pageLineID == id else { return }
             pageLine = nil
+            if remember { missed = text }
         }
     }
 
     func clearPageLine() {
         pageLineID += 1
         pageLine = nil
+    }
+
+    /// Says the missed line again, beside her.
+    func replayMissed() {
+        guard let missed, pageLine == nil else { return }
+        sayAbovePage(missed, remember: false)
+    }
+
+    /// For testing: shows the "…" bubble for `text` right away.
+    func markMissed(_ text: String) {
+        missed = text
+    }
+}
+
+/// Text that types itself out a letter at a time. The hidden letters are drawn clear, so the text
+/// wraps and sizes as the whole line from the start and the bubble never grows.
+struct TypewriterText: View {
+    let text: String
+    let start: Date
+
+    static let perLetter: TimeInterval = 0.03
+
+    static func typingTime(_ text: String) -> TimeInterval {
+        Double(text.count) * perLetter
+    }
+
+    var body: some View {
+        let done = Date().timeIntervalSince(start) >= Self.typingTime(text)
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: done)) { context in
+            let shown = Int(context.date.timeIntervalSince(start) / Self.perLetter)
+            Text(revealed(done ? text.count : min(max(shown, 0), text.count)))
+        }
+    }
+
+    private func revealed(_ count: Int) -> AttributedString {
+        let split = text.index(text.startIndex, offsetBy: count)
+        var hidden = AttributedString(String(text[split...]))
+        hidden.foregroundColor = .clear
+        return AttributedString(String(text[..<split])) + hidden
     }
 }
 
@@ -320,10 +377,11 @@ struct BubbleHeadsUp<Join: View>: View {
 /// The line in the bubble while the menu is closed.
 struct BubbleChatterLine: View {
     let text: String
+    let start: Date
 
     var body: some View {
         WrappingWidth(maxWidth: 180) {
-            Text(text)
+            TypewriterText(text: text, start: start)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.center)
         }
@@ -333,14 +391,15 @@ struct BubbleChatterLine: View {
 /// The small bubble beside the pet (in its own window), with its tail pointing at her.
 struct BubblePageLine: View {
     let text: String
+    let start: Date
     /// Her on the left, so the tail points left; false when the bubble sits on her left.
     let tailOnLeft: Bool
 
-    private static let tailWidth: CGFloat = 6
+    fileprivate static let tailWidth: CGFloat = 6
 
     var body: some View {
         WrappingWidth(maxWidth: 170) {
-            Text(text)
+            TypewriterText(text: text, start: start)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.center)
         }
@@ -350,6 +409,31 @@ struct BubblePageLine: View {
         .padding(tailOnLeft ? .leading : .trailing, Self.tailWidth)
         .background {
             let shape = SideBubbleShape(tailWidth: Self.tailWidth, tailOnLeft: tailOnLeft)
+            shape.fill(.white)
+            shape.stroke(.black, lineWidth: 2)
+        }
+        .padding(2) // room for the outline
+        .fixedSize()
+        .environment(\.colorScheme, .light)
+    }
+}
+
+/// The small "…" bubble beside the pet after a line faded on its own; hovering over her says it again.
+struct BubbleMissedMark: View {
+    let tailOnLeft: Bool
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { _ in
+                Circle().frame(width: 4, height: 4)
+            }
+        }
+        .foregroundStyle(.black)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .padding(tailOnLeft ? .leading : .trailing, BubblePageLine.tailWidth)
+        .background {
+            let shape = SideBubbleShape(tailWidth: BubblePageLine.tailWidth, tailOnLeft: tailOnLeft)
             shape.fill(.white)
             shape.stroke(.black, lineWidth: 2)
         }

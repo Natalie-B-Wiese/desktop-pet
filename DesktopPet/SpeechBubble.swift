@@ -65,7 +65,10 @@ final class SpeechBubbleController {
     private let panel: BubblePanel
     /// The small chatter bubble above an open page. Its own window, so the main bubble never moves for it.
     private let linePanel: NSPanel
-    private let lineView = NSHostingView(rootView: BubblePageLine(text: "", tailOnLeft: true))
+    private let lineView = NSHostingView(rootView: BubblePageLine(text: "", start: .distantPast, tailOnLeft: true))
+    /// The small "…" bubble beside the pet after a line faded unseen. Hovering over it (or her) says the line again.
+    private let markPanel: NSPanel
+    private let markView = NSHostingView(rootView: BubbleMissedMark(tailOnLeft: true))
     private let container: BubbleContainer
     private let hostingView: FirstClickHostingView<BubbleView>
     private weak var pet: PetPanel?
@@ -136,6 +139,19 @@ final class SpeechBubbleController {
         linePanel.hidesOnDeactivate = false
         linePanel.ignoresMouseEvents = true
         linePanel.contentView = lineView
+
+        markPanel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        markPanel.isOpaque = false
+        markPanel.backgroundColor = .clear
+        markPanel.hasShadow = false
+        markPanel.level = .floating
+        markPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        markPanel.isReleasedWhenClosed = false
+        markPanel.hidesOnDeactivate = false
+        let markHover = HoverView()
+        markHover.onHover = { [weak chatter] in chatter?.replayMissed() }
+        markHover.addSubview(markView)
+        markPanel.contentView = markHover
 
         // Clicking the bubble closes a due reminder, the greeting, a chatter line or "Time's up!", or pauses/resumes a countdown.
         container.onClick = { [weak timer, weak reminders, weak greetings, weak chatter] in
@@ -236,10 +252,23 @@ final class SpeechBubbleController {
     }
 
     private var shownPageLine: String?
+    private var showsMark = false
 
-    /// Shows the small chatter bubble beside the pet's head (on her right, or her left near the screen's edge),
-    /// fading in and out. It stays through page changes and closing the menu until it fades on its own.
+    /// Where a bubble of `size` goes beside the pet: on her right, or her left near the screen's edge,
+    /// with its tail (halfway down) level with her mouth.
+    private func sideFrame(for size: NSSize, of pet: PetPanel) -> (frame: NSRect, onRight: Bool) {
+        let screen = (pet.screen ?? NSScreen.main)?.visibleFrame ?? .infinite
+        let onRight = pet.frame.maxX + Self.gap + size.width <= screen.maxX
+        let x = onRight ? pet.frame.maxX + Self.gap : pet.frame.minX - Self.gap - size.width
+        let mouth = pet.frame.maxY - settings.character.species.mouthY * pet.frame.height / PetRenderer.pixelSize.height
+        let y = min(max(mouth - size.height / 2, screen.minY + 4), screen.maxY - size.height - 4)
+        return (NSRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height), onRight)
+    }
+
+    /// Shows the small chatter bubble beside the pet's head, fading in and out.
+    /// It stays through page changes and closing the menu until it fades on its own.
     private func updatePageLine() {
+        defer { updateMark() }
         guard let pet, pet.isVisible, let text = chatter.pageLine else {
             if shownPageLine != nil {
                 shownPageLine = nil
@@ -250,21 +279,18 @@ final class SpeechBubbleController {
                     guard let self, shownPageLine == nil else { return }
                     linePanel.parent?.removeChildWindow(linePanel)
                     linePanel.orderOut(nil)
+                    // Stops the typing clock while hidden.
+                    lineView.rootView = BubblePageLine(text: "", start: .distantPast, tailOnLeft: true)
                 })
             }
             return
         }
-        lineView.rootView = BubblePageLine(text: text, tailOnLeft: true)
+        let start = chatter.pageLineStart
+        lineView.rootView = BubblePageLine(text: text, start: start, tailOnLeft: true)
         lineView.layoutSubtreeIfNeeded()
-        let size = lineView.fittingSize
-        let screen = (pet.screen ?? NSScreen.main)?.visibleFrame ?? .infinite
-        let fitsRight = pet.frame.maxX + Self.gap + size.width <= screen.maxX
-        if !fitsRight { lineView.rootView = BubblePageLine(text: text, tailOnLeft: false) }
-        let x = fitsRight ? pet.frame.maxX + Self.gap : pet.frame.minX - Self.gap - size.width
-        // The tail (halfway down the bubble) level with her mouth, kept on screen.
-        let mouth = pet.frame.maxY - settings.character.species.mouthY * pet.frame.height / PetRenderer.pixelSize.height
-        let y = min(max(mouth - size.height / 2, screen.minY + 4), screen.maxY - size.height - 4)
-        linePanel.setFrame(NSRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height), display: true)
+        let placed = sideFrame(for: lineView.fittingSize, of: pet)
+        if !placed.onRight { lineView.rootView = BubblePageLine(text: text, start: start, tailOnLeft: false) }
+        linePanel.setFrame(placed.frame, display: true)
         lineView.frame = linePanel.contentView?.bounds ?? .zero
         if linePanel.parent == nil { pet.addChildWindow(linePanel, ordered: .above) }
         if shownPageLine == nil {
@@ -278,6 +304,44 @@ final class SpeechBubbleController {
             linePanel.orderFront(nil)
         }
         shownPageLine = text
+    }
+
+    /// Shows the "…" bubble where the side bubble goes, once the line it stands for has faded.
+    private func updateMark() {
+        guard let pet, pet.isVisible, chatter.missed != nil, chatter.pageLine == nil else {
+            if showsMark {
+                showsMark = false
+                NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = 0.2
+                    markPanel.animator().alphaValue = 0
+                }, completionHandler: { [weak self] in
+                    guard let self, !showsMark else { return }
+                    markPanel.parent?.removeChildWindow(markPanel)
+                    markPanel.orderOut(nil)
+                })
+            }
+            return
+        }
+        markView.rootView = BubbleMissedMark(tailOnLeft: true)
+        markView.layoutSubtreeIfNeeded()
+        let placed = sideFrame(for: markView.fittingSize, of: pet)
+        if !placed.onRight { markView.rootView = BubbleMissedMark(tailOnLeft: false) }
+        markPanel.setFrame(placed.frame, display: true)
+        markView.frame = markPanel.contentView?.bounds ?? .zero
+        if markPanel.parent == nil { pet.addChildWindow(markPanel, ordered: .above) }
+        if !showsMark {
+            showsMark = true
+            markPanel.alphaValue = 0
+            markPanel.orderFront(nil)
+            // After the line's own fade-out, so the two don't overlap.
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.8
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.5, 0, 1, 1)
+                markPanel.animator().alphaValue = 1
+            }
+        } else {
+            markPanel.orderFront(nil)
+        }
     }
 
     private func menuChanged() {
@@ -403,7 +467,7 @@ struct BubbleView: View {
             // Ahead of the timer too; the timer shows again once it's closed.
             BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount, moreCount: waitingAfterGreeting)
         } else if let line = chatter.line {
-            BubbleChatterLine(text: line)
+            BubbleChatterLine(text: line, start: chatter.lineStart)
         } else {
             timerContent
         }
@@ -552,7 +616,7 @@ struct BubbleView: View {
         case .settings:
             BubbleSettingsPage(reminders: reminders) { personality in
                 if let personality {
-                    chatter.sayAbovePage(Chatter.line(.preview, personality))
+                    chatter.sayAbovePage(Chatter.line(.preview, personality), remember: false)
                 } else {
                     chatter.clearPageLine()
                 }
@@ -1213,5 +1277,20 @@ struct BubbleShape: Shape {
         tail.closeSubpath()
         path = path.union(tail)
         return path
+    }
+}
+
+/// A view that reports the mouse coming over it, even while the app is in the background.
+final class HoverView: NSView {
+    var onHover: (() -> Void)?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        onHover?()
     }
 }

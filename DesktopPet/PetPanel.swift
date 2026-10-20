@@ -9,6 +9,12 @@ final class PetPanel: NSPanel {
         set { petView.menuProvider = newValue }
     }
 
+    /// Called when the mouse comes over the pet.
+    var onHover: (() -> Void)? {
+        get { petView.onHover }
+        set { petView.onHover = newValue }
+    }
+
     /// Called on a plain click (press and release without dragging).
     var onClick: (() -> Void)? {
         get { petView.onClick }
@@ -137,6 +143,7 @@ final class PetPanel: NSPanel {
 final class PetView: NSView {
     var menuProvider: (() -> NSMenu)?
     var onClick: (() -> Void)?
+    var onHover: (() -> Void)?
 
     /// How far the mouse must move before a press counts as a drag instead of a click.
     private static let dragThreshold: CGFloat = 3
@@ -156,6 +163,17 @@ final class PetView: NSView {
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        // Not mid-drag (dragging her across the "…" bubble shouldn't replay it).
+        if mouseDownLocation == nil { onHover?() }
+    }
 
     override func mouseDown(with event: NSEvent) {
         (window as? PetPanel)?.stopHop() // land first, so dragging starts from the ground
