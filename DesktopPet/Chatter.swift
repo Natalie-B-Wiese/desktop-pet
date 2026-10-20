@@ -107,7 +107,6 @@ enum Chatter {
             "Oh hey, missed you.",
             "Welcome back. Coffee refill?",
             "You're back! Reminder: you're my favorite human.",
-            "Welcome back. Vibe check: passed.",
         ]
         case .lunch: ["Lunch break? Asking for a friend.", "Food buff time."]
         case .lateNight: [
@@ -126,7 +125,7 @@ enum Chatter {
             "Main character energy, honestly. Respect.",
         ]
         case .allTodosDone: ["Cleared the whole list? Iconic.", "You're the GOAT."]
-        case .preview: ["Ready when you are."]
+        case .preview: ["Vibe check: PASSED!"]
         case .headsUp: [
             "Don't lock-in too hard. Reminder incoming!",
             "Something's coming up. We're so ready.",
