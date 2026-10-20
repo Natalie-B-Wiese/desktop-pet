@@ -28,7 +28,7 @@ enum ChatterMoment: Equatable {
     /// In the small bubble beside the pet, when picking a personality in Settings.
     case preview
     /// In the side bubble (shortly after the hop), a few minutes before a reminder (Settings → Reminders), while the main bubble
-    /// shows the reminder itself. `{time}` is "5 min", `{n}` the number of minutes.
+    /// shows the reminder itself, so the lines never say when it is.
     case headsUp
 
     fileprivate var key: String {
@@ -66,13 +66,6 @@ enum Chatter {
         defaults.set(deck, forKey: key)
         defaults.set(line, forKey: key + ".last")
         return line
-    }
-
-    /// The personality's heads-up line for a reminder `minutes` away, for the side bubble.
-    static func headsUpLine(_ personality: Personality, minutes: Int) -> String {
-        line(.headsUp, personality)
-            .replacingOccurrences(of: "{time}", with: durationText(minutes: minutes))
-            .replacingOccurrences(of: "{n}", with: "\(minutes)")
     }
 
     /// Whole minutes left until `date`, rounded up, at least 1.
@@ -135,9 +128,9 @@ enum Chatter {
         case .allTodosDone: ["Cleared the whole list? Iconic.", "You're the GOAT."]
         case .preview: ["Ready when you are."]
         case .headsUp: [
-            "Don't lock-in too hard. Reminder incoming in {time}!",
-            "Something's coming up in {time}. We're so ready.",
-            "Heads up: {n}-minute warning!",
+            "Don't lock-in too hard. Reminder incoming!",
+            "Something's coming up. We're so ready.",
+            "Heads up!",
         ]
         }
     }
@@ -184,9 +177,9 @@ enum Chatter {
         case .allTodosDone: ["Flawless. I'd expect nothing less from my human.", "A clean list. We make a stunning team."]
         case .preview: ["Bow down. Kidding. Mostly."]
         case .headsUp: [
-            "A little warning, because I'm generous. {time}.",
-            "In {time}, you have plans. Not with me, apparently.",
-            "Something's coming up in {time}. I'll allow it.",
+            "A little warning, because I'm generous.",
+            "Plans? Without me?",
+            "Something's coming up. I'll allow it.",
         ]
         }
     }

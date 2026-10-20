@@ -337,7 +337,7 @@ final class AppController {
                 // Skipped if the heads-up was clicked away (or came due) meanwhile.
                 guard let self, let personality = AppPreferences.chatter,
                       reminders.headsUp.contains(where: { $0.occurrenceKey == newHeadsUp.occurrenceKey }) else { return }
-                chatter.sayAbovePage(Chatter.headsUpLine(personality, minutes: Chatter.minutesLeft(until: newHeadsUp.date)))
+                chatter.sayAbovePage(Chatter.line(.headsUp, personality))
             }
         }
         lastDueCount = reminders.due.count
