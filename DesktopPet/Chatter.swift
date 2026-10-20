@@ -117,13 +117,13 @@ enum Chatter {
         ]
         case .todoChecked: [
             "That one never stood a chance.",
-            "+10 XP!",
             "Task complete! Efficiency +1",
             "Ate. No crumbs.",
-            "Another one handled.",
             "We love to see it.",
             "It's giving productive.",
             "I'd high-five you, but paws.",
+            "That's one less thing living rent-free in your head.",
+            "Main character energy, honestly. Respect.",
         ]
         case .allTodosDone: ["Cleared the whole list? Iconic.", "You're the GOAT."]
         case .preview: ["Ready when you are."]
