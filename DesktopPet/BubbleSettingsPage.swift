@@ -15,9 +15,9 @@ enum AppPreferences {
     static let headsUpChoices = [0, 1, 2, 5, 10, 15, 30, 60]
     static let defaultHeadsUpMinutes = 5
 
-    /// "5 min early" (0 too, rather than "Off").
+    /// "Off", "5 min".
     static func headsUpText(_ minutes: Int) -> String {
-        "\(minutes)\u{00A0}min\u{00A0}early"
+        minutes == 0 ? "Off" : "\(minutes)\u{00A0}min"
     }
 
     static var headsUpMinutes: Int {
@@ -193,10 +193,10 @@ extension BubbleSettingsPage {
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
     }
 
-    /// "Reminders  ‹ 5 min ›" (the heads-up before each reminder), like the Notification row.
+    /// "Early reminders  ‹ 5 min ›" (the heads-up before each reminder), like the Notification row.
     private var headsUpPicker: some View {
         HStack(spacing: 0) {
-            Text("Reminders")
+            Text("Early reminders")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .lineLimit(1)
                 .fixedSize()
@@ -207,7 +207,7 @@ extension BubbleSettingsPage {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .fixedSize()
-                    .frame(width: 76)
+                    .frame(width: 52)
                 HeaderIconButton(systemImage: "chevron.right", help: "More time", width: 18) { stepHeadsUp(1) }
             }
         }
