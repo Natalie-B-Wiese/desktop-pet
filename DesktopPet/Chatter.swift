@@ -4,7 +4,7 @@ import SwiftUI
 
 /// How the pet talks, picked as Chatter in Settings; every chatter line comes in each one's voice.
 enum Personality: String, CaseIterable {
-    case bubbly, sassy, boss, dark
+    case bubbly, sassy, boss, dark, butler
 
     var title: String {
         switch self {
@@ -12,6 +12,7 @@ enum Personality: String, CaseIterable {
         case .sassy: "Sassy"
         case .boss: "Boss"
         case .dark: "Dark"
+        case .butler: "Butler"
         }
     }
 }
@@ -138,6 +139,7 @@ enum Chatter {
         // The colons make the saying read like the news in a memo.
         case .boss: ["Good {timeOfDay}, team.", "Happy {dayName}, team.", "Ah, my star employee.", "{dayName} briefing:", "Quick {timeOfDay} update:"]
         case .dark: ["{TimeOfDay}.", "Ah. {dayName}.", "You're back. Good.", "Hello from the quiet corner.", "It's {dayName}. I checked."]
+        case .butler: ["A very good {timeOfDay}.", "Welcome back.", "{dayName}, as scheduled.", "Good {timeOfDay}. Right on time.", "How do you do?"]
         }
     }
 
@@ -182,7 +184,7 @@ enum Chatter {
         ]
         case .dark: [
             ("I've been reading. Don't ask what.", .any),
-            ("Tea? A book? Both?", .any),
+            ("Coffee? A book? Both?", .any),
             ("They haven't noticed us yet. Perfect.", .any),
             ("Let's take it slow.", .any),
             ("This is my favorite time to think.", .any),
@@ -191,6 +193,18 @@ enum Chatter {
             ("No plans. Exactly as planned.", .weekend),
             ("Who keeps resetting the week?", .day(2)),
             ("They want you to think the week is over.", .day(6)),
+        ]
+        case .butler: [
+            ("Everything is in order.", .any),
+            ("I trust you're well.", .any),
+            ("I've kept everything just as you left it.", .any),
+            ("A pleasure, as always.", .any),
+            ("I'm right here if you need anything.", .any),
+            ("The day has been prepared.", .morning),
+            ("Afternoon tea, perhaps?", .afternoon),
+            ("A day of leisure, if you'd like.", .weekend),
+            ("A fresh week, freshly pressed.", .day(2)),
+            ("The week draws to a close. Splendid.", .day(6)),
         ]
         }
     }
@@ -213,6 +227,7 @@ enum Chatter {
         case .sassy: sassy(moment)
         case .boss: boss(moment)
         case .dark: dark(moment)
+        case .butler: butler(moment)
         }
     }
 
@@ -304,7 +319,7 @@ enum Chatter {
         }
     }
 
-    /// A chill, cozy old soul who loves reading and tea, deadpan and a little off the wall, with a running bit about "they".
+    /// A chill, cozy old soul who loves reading and coffee, deadpan and a little off the wall, with a running bit about "they".
     /// Playfully mysterious but warm, never wary of you; no detective or fortune-teller lines.
     private static func dark(_ moment: ChatterMoment) -> [String] {
         switch moment {
@@ -327,6 +342,32 @@ enum Chatter {
         case .colorPicked: ["{Color}. Interesting choice.", "{Color}. I knew you'd pick that one.", "{Color}. Good color for a book cover."]
         case .ownColorPicked: ["That's my color. I'm flattered."]
         case .screenshot: ["A moment, saved. Like a bookmark.", "Got it. Some things are worth remembering.", "Saved. They'll never know."]
+        }
+    }
+
+    /// Dignified, overly formal and polite, with dry understatement; loves tea. Never "sir" or "madam" (or "master"),
+    /// never servile, and never promises to do things Topsy can't.
+    private static func butler(_ moment: ChatterMoment) -> [String] {
+        switch moment {
+        case .lunch: ["Might I suggest luncheon?", "Would you care for some tea and crumpets?"]
+        case .todoChecked: [
+            "Very good.",
+            "Impeccably done.",
+            "Splendid. One less on the list.",
+            "Handled, with dignity.",
+            "Another one, neatly concluded.",
+        ]
+        case .allTodosDone: ["The list is clear. Splendid work.", "Not a single item remains. Most impressive."]
+        case .preview: ["At your service."]
+        case .headsUp: [
+            "Pardon the interruption. Something's coming up.",
+            "If I may, something is on the schedule.",
+            "A gentle reminder approaches.",
+        ]
+        case .reminderDue: ["It's time. Shall we?", "Your reminder, as requested.", "The appointed hour has arrived."]
+        case .colorPicked: ["{Color}. An excellent selection.", "Ah, {color}. Very refined.", "{Color}. Noted for the records."]
+        case .ownColorPicked: ["The very shade of my coat. How flattering."]
+        case .screenshot: ["Captured, and filed away.", "Preserved for posterity.", "A fine picture. It's on your clipboard."]
         }
     }
 }

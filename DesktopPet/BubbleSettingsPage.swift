@@ -44,7 +44,7 @@ enum AppPreferences {
     /// in a personality's voice, or nil for None (the default), which keeps her quiet.
     static let chatterKey = "settings.chatter"
     /// None first, then the personalities, in the Settings picker's order.
-    static let chatterChoices: [Personality?] = [nil, .sassy, .bubbly, .boss, .dark]
+    static let chatterChoices: [Personality?] = [nil, .sassy, .bubbly, .boss, .dark, .butler]
 
     static var chatter: Personality? {
         UserDefaults.standard.string(forKey: chatterKey).flatMap(Personality.init)
