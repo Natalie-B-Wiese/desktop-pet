@@ -443,12 +443,7 @@ final class AppController {
 
     // MARK: - Chatter
 
-    /// When the last line in the bubble was said (to-do cheers don't count).
-    @ObservationIgnored private var lastChatter: Date?
     @ObservationIgnored private var chatterClock: Timer?
-
-    /// At most one line in the bubble this often.
-    private static let chatterGap: TimeInterval = 5 * 60
     private static let lastLunchKey = "chatter.lastLunch"
 
     /// Checks the clock each minute, for lunch.
@@ -458,32 +453,31 @@ final class AppController {
         }
     }
 
-    /// Lunch around noon, once a day, only while you're at the Mac.
+    /// Lunch at noon, once a day, like a pet with a routine (Natalie found 11:45 felt random). If you're away or busy
+    /// then, she says it when you're back, until 12:30.
     private func checkChatterClock() {
         let now = Date()
         guard Self.secondsSinceInput < 120, !Self.isScreenLocked else { return }
         let defaults = UserDefaults.standard
         let calendar = Calendar.current
         let minute = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
-        if (11 * 60 + 45...12 * 60 + 15).contains(minute),
+        if (12 * 60..<12 * 60 + 30).contains(minute),
            !((defaults.object(forKey: Self.lastLunchKey) as? Date).map(calendar.isDateInToday) ?? false),
-           say(.lunch) {
+           sayLunch() {
             defaults.set(now, forKey: Self.lastLunchKey)
         }
     }
 
-    /// Says a line in the bubble, unless chatter is off, it's busy, a meeting is on, or she spoke a moment ago.
-    /// Returns whether she said it, so a missed moment can try again.
+    /// Lunch in the small bubble beside her, unless chatter is off, she's hidden, a meeting is on, or something else
+    /// is being said (a reminder, the greeting, or another line beside her). Returns whether she said it, so she can try again.
     @discardableResult
-    private func say(_ moment: ChatterMoment, force: Bool = false) -> Bool {
+    private func sayLunch(force: Bool = false) -> Bool {
+        guard let personality = AppPreferences.chatter ?? (force ? .bubbly : nil) else { return false }
         if !force {
-            guard AppPreferences.chatter != nil, isPetVisible, !(bubble?.menu.isOpen ?? false),
-                  reminders.due.isEmpty, reminders.headsUp.isEmpty, greetings.current == nil, !timer.isActive,
-                  lastChatter.map({ Date().timeIntervalSince($0) >= Self.chatterGap }) ?? true,
-                  !CalendarMeetings.isInMeeting() else { return false }
+            guard isPetVisible, reminders.due.isEmpty, reminders.headsUp.isEmpty, greetings.current == nil,
+                  chatter.pageLine == nil, !CalendarMeetings.isInMeeting() else { return false }
         }
-        lastChatter = Date()
-        chatter.say(Chatter.line(moment, AppPreferences.chatter ?? .bubbly))
+        chatter.sayAbovePage(Chatter.line(.lunch, personality))
         return true
     }
 
@@ -595,7 +589,7 @@ final class AppController {
                 case "color", "own-color":
                     // A coral pick, or her own body color.
                     cheerColor(moment == "color" ? NSColor(srgbRed: 1, green: 0.5, blue: 0.31, alpha: 1) : settings.palette.main)
-                default: say(.lunch, force: true)
+                default: sayLunch(force: true)
                 }
             }
         }
