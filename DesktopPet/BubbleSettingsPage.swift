@@ -126,26 +126,29 @@ struct BubbleSettingsPage: View {
 
             hopSoundPicker
 
-            VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 0) {
                 Text("Reminders")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                HStack(spacing: 6) {
-                    TextField("", text: TimerDraft.digits($headsUp, in: AppPreferences.headsUpRange))
-                        .bubbleNumberBoxStyle(width: 52, fontSize: 18)
-                        .focused($leadFocused)
-                    CaretStepper(
-                        canIncrement: headsUp < AppPreferences.headsUpRange.upperBound,
-                        canDecrement: headsUp > AppPreferences.headsUpRange.lowerBound,
-                        increment: { headsUp += 1 },
-                        decrement: { headsUp -= 1 }
-                    )
+                    .lineLimit(1)
+                    .fixedSize()
+                Spacer(minLength: 0)
+                VStack(spacing: 1) {
+                    HStack(spacing: 6) {
+                        TextField("", text: TimerDraft.digits($headsUp, in: AppPreferences.headsUpRange))
+                            .bubbleNumberBoxStyle(width: 52, fontSize: 18)
+                            .focused($leadFocused)
+                        CaretStepper(
+                            canIncrement: headsUp < AppPreferences.headsUpRange.upperBound,
+                            canDecrement: headsUp > AppPreferences.headsUpRange.lowerBound,
+                            increment: { headsUp += 1 },
+                            decrement: { headsUp -= 1 }
+                        )
+                    }
                     Text("min before")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
                         .opacity(0.55)
                 }
-                .frame(maxWidth: .infinity) // centered in the box
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
