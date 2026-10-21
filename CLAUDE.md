@@ -47,7 +47,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - ⚠️ `defaults import` **merges**; it doesn't remove keys added while testing. After restoring, `defaults delete` any test-only keys, then compare the XML (`plutil -convert xml1`) with the backup.
   - `~/Library/Application Support/DesktopPet/Clipboard/`
 - Only write defaults (`defaults write com.nataliewiese.DesktopPet …`) while the app is **not running**, or the running app overwrites them.
-- Her current settings: Military time **off** (as of 2026-10-07; check before assuming).
+- Her current settings: Military time **off** (as of 2026-10-07), Chatter **Sassy** (as of 2026-10-21; Topsy is a sassy personality, so put it back to Sassy after testing). Check before assuming.
 - Topsy's look (as of 2026-10-12). She's the second pet in `screenshots/pets.png`, after the orange tabby. Put her back after changing pets for screenshots:
   - name `Topsy`, scale `4`
   - `character` and `character.cat` = `tortie.up-long` (cat, shape 1/4 "up-long", tortie pattern); `character.dog` = `dog.down-long`
