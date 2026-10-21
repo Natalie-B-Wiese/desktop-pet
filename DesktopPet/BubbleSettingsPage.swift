@@ -121,7 +121,7 @@ struct BubbleSettingsPage: View {
 
             Toggle(isOn: $morningGreeting) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Morning greeting")
+                    Text("Daily greeting")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                     Text("Your to-dos and meetings")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
