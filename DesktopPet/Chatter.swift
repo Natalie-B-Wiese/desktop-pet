@@ -115,8 +115,8 @@ enum Chatter {
         default: "evening"
         }
         let dayName = date.formatted(.dateTime.weekday(.wide))
-        // Each half on its own line, so neither wraps mid-phrase ("You and / me? Iconic.").
-        return "\(greeting)\n\(saying)"
+        // One sentence run together, so it reads as one thought (Natalie tried each half on its own line).
+        return "\(greeting) \(saying)"
             .replacingOccurrences(of: "{dayName}", with: dayName)
             .replacingOccurrences(of: "{DAYNAME}", with: dayName.uppercased())
             .replacingOccurrences(of: "{timeOfDay}", with: timeOfDay)
