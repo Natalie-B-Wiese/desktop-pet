@@ -61,7 +61,7 @@ struct BubbleClipboardPage: View {
             }
             // Pins are kept, so with pins it only clears the unpinned copies.
             if history.entries.count > history.pinnedCount {
-                BubbleButton(history.pinnedCount > 0 ? "Clear all but pins" : "Clear all", systemImage: "trash", action: history.clear)
+                BubbleButton(history.pinnedCount > 0 ? "Delete all but pins" : "Delete all", systemImage: "trash", action: history.clear)
                     .help(history.pinnedCount > 0 ? "Deletes every copy except the pinned ones" : "Deletes every copy")
             }
 
