@@ -94,7 +94,16 @@ struct BubbleSettingsPage: View {
     @AppStorage(AppPreferences.hopSoundKey) private var hopSound = AppPreferences.defaultHopSound
 
     var body: some View {
+        // Reminders first, as the most used.
         VStack(spacing: 6) {
+            headsUpPicker
+            // Waits for the arrows to settle, so a heads-up doesn't pop up
+            // (and make Topsy hop) at a choice clicked past on the way.
+            .task(id: headsUp) {
+                try? await Task.sleep(for: .milliseconds(600))
+                if !Task.isCancelled { reminders.applyHeadsUpChange() }
+            }
+
             Toggle(isOn: $militaryTime) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Military time")
@@ -125,17 +134,9 @@ struct BubbleSettingsPage: View {
             .padding(.vertical, 6)
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
 
-            chatterPicker
-
             hopSoundPicker
 
-            headsUpPicker
-            // Waits for the arrows to settle, so a heads-up doesn't pop up
-            // (and make Topsy hop) at a choice clicked past on the way.
-            .task(id: headsUp) {
-                try? await Task.sleep(for: .milliseconds(600))
-                if !Task.isCancelled { reminders.applyHeadsUpChange() }
-            }
+            chatterPicker
         }
     }
 }
