@@ -135,8 +135,11 @@ final class SpeechBubbleController {
         linePanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         linePanel.isReleasedWhenClosed = false
         linePanel.hidesOnDeactivate = false
-        linePanel.ignoresMouseEvents = true
-        linePanel.contentView = lineView
+        // Clicking it closes it right away (Natalie wanted a way to wave it off without waiting).
+        let lineClicks = ClickCatcherView()
+        lineClicks.addSubview(lineView)
+        linePanel.contentView = lineClicks
+        lineClicks.onClick = { [weak chatter] in chatter?.clearPageLine() }
 
 
         // Clicking the bubble closes a due reminder, the greeting, a chatter line or "Time's up!", or pauses/resumes a countdown.
@@ -354,6 +357,15 @@ private final class BubbleContainer: NSView {
         guard !passesClicksToContent else { return }
         onClick?()
     }
+}
+
+/// Catches every click on the small bubble beside her as one "close it", even the first click while another app is active.
+private final class ClickCatcherView: NSView {
+    var onClick: (() -> Void)?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { frame.contains(point) ? self : nil }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { onClick?() }
 }
 
 /// The bubble never becomes the active window, so its buttons must respond to the very first click.

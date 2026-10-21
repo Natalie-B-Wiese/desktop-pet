@@ -546,6 +546,7 @@ final class AppController {
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color]` says that line now (deck order is used up as normal; `color` is coral);
+    /// `--click-line` clicks the small bubble beside her after 2s;
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
     /// `--snapshot <path.png>` saves a picture of each open app window as <path>-<n>.png after 1.5s (or `--snapshot-delay <sec>`; plus any typing time),
@@ -629,6 +630,23 @@ final class AppController {
                             windowNumber: window.windowNumber, context: nil,
                             characters: characters, charactersIgnoringModifiers: characters,
                             isARepeat: false, keyCode: isBackspace ? 51 : 0
+                        ) else { continue }
+                        NSApp.postEvent(event, atStart: false)
+                    }
+                }
+            }
+        }
+        if args.contains("--click-line") {
+            // Clicks the middle of the small bubble beside her after 2s, to check it closes.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                for window in NSApp.windows where window.isVisible
+                    && String(describing: type(of: window.contentView!)).contains("ClickCatcher") {
+                    let bounds = window.contentView!.bounds
+                    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                        guard let event = NSEvent.mouseEvent(
+                            with: type, location: NSPoint(x: bounds.midX, y: bounds.midY), modifierFlags: [],
+                            timestamp: 0, windowNumber: window.windowNumber, context: nil,
+                            eventNumber: 0, clickCount: 1, pressure: 1
                         ) else { continue }
                         NSApp.postEvent(event, atStart: false)
                     }
