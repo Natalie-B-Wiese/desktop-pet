@@ -418,8 +418,7 @@ final class AppController {
         // `hasAccess` first, so the greeting never asks for Calendar access.
         let meetings = CalendarMeetings.hasAccess ? try? await CalendarMeetings.todaysUpcoming() : nil
         return MorningGreeting(
-            date: Date(), meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents(),
-            personality: AppPreferences.chatter
+            date: Date(), meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents()
         )
     }
 

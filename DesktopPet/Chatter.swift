@@ -18,9 +18,9 @@ enum Personality: String, CaseIterable {
 
 /// When the pet says something. She only talks when something happens, so she never gets distracting.
 enum ChatterMoment: Equatable {
-    /// The greeting's top line, by the time of the first visit of the day.
+    /// The greeting's opener, by the time of the first visit of the day (unused for now: moving to the side bubble).
     case morning, afternoon, evening
-    /// The greeting's day line, by `Calendar` weekday (1 = Sunday).
+    /// The greeting's day line, by `Calendar` weekday (1 = Sunday; unused for now, like the openers).
     case weekday(Int)
     case lunch
     /// In the small bubble above the To-dos page.
