@@ -142,17 +142,22 @@ struct BubbleClipboardPage: View {
             .disabled(!canPin)
             .help(entry.isPinned ? "Unpin" : (canPin ? "Pin to the top so it's never pushed out" : "Unpin one first (\(ClipboardHistory.pinLimit) at most)"))
 
-            Button {
-                history.delete(entry.id)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .heavy))
-                    .opacity(0.5)
-                    .frame(width: 18, height: 18)
-                    .contentShape(Rectangle())
+            if entry.isPinned {
+                // No ✕ on a pin, so it can't be deleted by accident; unpin it first. The gap keeps the pins lined up.
+                Color.clear.frame(width: 18, height: 18)
+            } else {
+                Button {
+                    history.delete(entry.id)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .heavy))
+                        .opacity(0.5)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Remove")
             }
-            .buttonStyle(.plain)
-            .help("Remove")
         }
         .padding(.leading, 5)
         .padding(.trailing, 3)
