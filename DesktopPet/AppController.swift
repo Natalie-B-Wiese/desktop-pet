@@ -583,7 +583,7 @@ final class AppController {
             }
         }
         if let moment = value(after: "--chatter") {
-            // Says a line now, skipping the usual checks; `todo`, `all-done` and `preview` need their page open; with Chatter on None, lines are Bubbly's.
+            // Says a line now, skipping the usual checks; `todo`, `all-done` and `preview` need their page open; with Chatter on None, lines are Upbeat's.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self else { return }
                 let personality = AppPreferences.chatter ?? .bubbly

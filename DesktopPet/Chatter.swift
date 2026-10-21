@@ -4,14 +4,15 @@ import SwiftUI
 
 /// How the pet talks, picked as Chatter in Settings; every chatter line comes in each one's voice.
 enum Personality: String, CaseIterable {
+    // Saved by these raw values; Bubbly and Dark were renamed Upbeat and Deadpan in Settings only.
     case bubbly, sassy, boss, dark, butler
 
     var title: String {
         switch self {
-        case .bubbly: "Bubbly"
+        case .bubbly: "Upbeat"
         case .sassy: "Sassy"
         case .boss: "Boss"
-        case .dark: "Dark"
+        case .dark: "Deadpan"
         case .butler: "Butler"
         }
     }
