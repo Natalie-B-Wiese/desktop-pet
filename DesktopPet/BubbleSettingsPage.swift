@@ -11,9 +11,14 @@ enum AppPreferences {
     /// How many minutes before every reminder (your own and meetings) Topsy hops with a heads-up (0 = none).
     /// The reminder itself still comes due at its time; a meeting's at its start.
     static let headsUpKey = "settings.headsUpMinutes"
-    /// Up to 3 hours, for leaving early to get somewhere.
-    static let headsUpRange = 0...180
+    /// The Settings picker's choices, in order (0 = Off).
+    static let headsUpChoices = [0, 1, 2, 5, 10, 15, 30, 60]
     static let defaultHeadsUpMinutes = 5
+
+    /// "Off", "5 min".
+    static func headsUpText(_ minutes: Int) -> String {
+        minutes == 0 ? "Off" : "\(minutes)\u{00A0}min"
+    }
 
     static var headsUpMinutes: Int {
         UserDefaults.standard.object(forKey: headsUpKey) as? Int ?? defaultHeadsUpMinutes
@@ -87,8 +92,6 @@ struct BubbleSettingsPage: View {
     /// Called after picking a Chatter personality, so she says a line in her new voice.
     var onChatterChange: (Personality?) -> Void = { _ in }
     @AppStorage(AppPreferences.hopSoundKey) private var hopSound = AppPreferences.defaultHopSound
-    /// Kept unfocused on open (like Customize's name), so a stray keypress can't change the minutes.
-    @FocusState private var leadFocused: Bool
 
     var body: some View {
         VStack(spacing: 6) {
@@ -126,37 +129,9 @@ struct BubbleSettingsPage: View {
 
             hopSoundPicker
 
-            HStack(spacing: 0) {
-                Text("Reminders")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .fixedSize()
-                Spacer(minLength: 0)
-                VStack(spacing: 1) {
-                    HStack(spacing: 6) {
-                        TextField("", text: TimerDraft.digits($headsUp, in: AppPreferences.headsUpRange))
-                            .bubbleNumberBoxStyle(width: 52, fontSize: 18)
-                            .focused($leadFocused)
-                        CaretStepper(
-                            canIncrement: headsUp < AppPreferences.headsUpRange.upperBound,
-                            canDecrement: headsUp > AppPreferences.headsUpRange.lowerBound,
-                            increment: { headsUp += 1 },
-                            decrement: { headsUp -= 1 }
-                        )
-                    }
-                    Text("min before")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .opacity(0.55)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
-            // Waits for typing or holding a caret to settle, so a heads-up doesn't pop up
-            // (and make Topsy hop) at an in-between number like the 1 of "15".
-            .onAppear {
-                DispatchQueue.main.async { leadFocused = false }
-            }
+            headsUpPicker
+            // Waits for the arrows to settle, so a heads-up doesn't pop up
+            // (and make Topsy hop) at a choice clicked past on the way.
             .task(id: headsUp) {
                 try? await Task.sleep(for: .milliseconds(600))
                 if !Task.isCancelled { reminders.applyHeadsUpChange() }
@@ -215,6 +190,39 @@ extension BubbleSettingsPage {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    /// "Reminders  ‹ 5 min ›" (the heads-up before each reminder), like the Notification row.
+    private var headsUpPicker: some View {
+        HStack(spacing: 0) {
+            Text("Reminders")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .fixedSize()
+            Spacer(minLength: 0)
+            HStack(spacing: 0) {
+                HeaderIconButton(systemImage: "chevron.left", help: "Less time", width: 18) { stepHeadsUp(-1) }
+                Text(AppPreferences.headsUpText(headsUp))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .frame(width: 52)
+                HeaderIconButton(systemImage: "chevron.right", help: "More time", width: 18) { stepHeadsUp(1) }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+        .help("How long before each reminder Topsy gives you a heads-up")
+    }
+
+    /// Steps to the next choice, wrapping around. A saved number that isn't a choice (from the old
+    /// number box) steps to the nearest choice in that direction.
+    private func stepHeadsUp(_ step: Int) {
+        let choices = AppPreferences.headsUpChoices
+        if step > 0 {
+            headsUp = choices.first { $0 > headsUp } ?? choices[0]
+        } else {
+            headsUp = choices.last { $0 < headsUp } ?? choices[choices.count - 1]
+        }
     }
 
     private func stepChatter(_ step: Int) {
