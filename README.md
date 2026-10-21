@@ -78,6 +78,16 @@ Keeps the last 5 things you copied anywhere on your Mac: text, images and files.
 
 Clipboard and screenshots need macOS permissions. See [Permissions](#permissions).
 
+## Chatter
+
+Your pet can talk now and then, in a personality you pick in **Settings → Chatter**. She starts out quiet (**None**). Her speech bubble fades once you've seen it, or click it to close it right away.
+
+- **Butler:** formal and polite, with dry wit. Fond of tea.
+- **Upbeat:** excited about everything, with Gen-Z vibes.
+- **Boss:** a CEO who thinks you're the star employee.
+- **Sassy:** dramatic and a little full of herself.
+- **Deadpan:** says odd things with a straight face.
+
 ## Math
 
 Click the pet and choose **Math**. The page has three tabs: **Calculator**, **Time** and **Convert**. The app remembers which tab you used last.
@@ -194,7 +204,7 @@ If you clicked **Don't Allow**, click **Open Settings** on the Reminders page, o
 
 After the first pull, Topsy pulls meetings by herself once a day: when she launches, when your Mac wakes up, or at midnight. Use the button to catch meetings added later in the day.
 
-Each meeting's reminder goes off when the meeting starts. To get it earlier, open **Settings → Meeting reminders** and enter how many minutes before (up to 180), for example to leave in time to get there. That setting only affects meetings, not reminders you add yourself.
+Each meeting's reminder goes off when the meeting starts. A few minutes before, Topsy gives you a heads-up, for meetings and your own reminders alike. Choose how early in **Settings → Early reminders** (5 minutes unless you change it), or turn it off.
 
 Pull meetings skips all-day events, canceled meetings and ones you declined. Pulling again won't add duplicates. It updates reminders for meetings that moved or were renamed, and removes reminders for meetings that were canceled.
 
