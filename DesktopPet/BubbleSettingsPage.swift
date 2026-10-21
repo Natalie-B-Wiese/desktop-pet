@@ -15,9 +15,9 @@ enum AppPreferences {
     static let headsUpChoices = [0, 1, 2, 5, 10, 15, 30, 60]
     static let defaultHeadsUpMinutes = 5
 
-    /// "Off", "5 min".
+    /// "5 min early" (0 too, rather than "Off").
     static func headsUpText(_ minutes: Int) -> String {
-        minutes == 0 ? "Off" : "\(minutes)\u{00A0}min"
+        "\(minutes)\u{00A0}min\u{00A0}early"
     }
 
     static var headsUpMinutes: Int {
@@ -204,7 +204,9 @@ extension BubbleSettingsPage {
                 HeaderIconButton(systemImage: "chevron.left", help: "Less time", width: 18) { stepHeadsUp(-1) }
                 Text(AppPreferences.headsUpText(headsUp))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .frame(width: 52)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(width: 76)
                 HeaderIconButton(systemImage: "chevron.right", help: "More time", width: 18) { stepHeadsUp(1) }
             }
         }

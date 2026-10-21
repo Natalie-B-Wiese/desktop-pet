@@ -460,7 +460,8 @@ struct BubbleView: View {
         switch page {
         case .main: 3 * MenuTile.width + 2 * tileSpacing
         case .startTimer: 228
-        case .timerControls, .reminders, .addReminder, .editReminder, .settings: 190
+        case .timerControls, .reminders, .addReminder, .editReminder: 190
+        case .settings: 206 // room for "Reminders ‹ 60 min early ›"
         case .todos: 210
         case .math: 260 // room for the Range boxes and long date answers
         case .notes: 220
@@ -581,7 +582,7 @@ struct BubbleView: View {
                     chatter.clearPageLine()
                 }
             }
-                .frame(width: 190)
+                .frame(width: 206)
         case .todos:
             BubbleTodoPage(store: todos, onClose: { menu.page = nil })
                 .frame(width: 210)
