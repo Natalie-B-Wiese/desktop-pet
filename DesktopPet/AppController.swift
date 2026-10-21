@@ -430,6 +430,15 @@ final class AppController {
             bubble?.update()
         }
         if greetings.current != nil { petPanel?.hop() }
+        // Her hello goes beside her, after the hop like a heads-up's line (nothing with Chatter on None).
+        if let greeting = greetings.current, AppPreferences.chatter != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.headsUpLineDelay) { [weak self] in
+                // Skipped if it was clicked away meanwhile, or is waiting behind a reminder.
+                guard let self, let personality = AppPreferences.chatter, greetings.current == greeting,
+                      reminders.due.isEmpty, reminders.headsUp.isEmpty else { return }
+                chatter.sayAbovePage(Chatter.greetingLine(personality, at: greeting.date))
+            }
+        }
     }
 
     // MARK: - Chatter

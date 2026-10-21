@@ -18,10 +18,6 @@ enum Personality: String, CaseIterable {
 
 /// When the pet says something. She only talks when something happens, so she never gets distracting.
 enum ChatterMoment: Equatable {
-    /// The greeting's opener, by the time of the first visit of the day (unused for now: moving to the side bubble).
-    case morning, afternoon, evening
-    /// The greeting's day line, by `Calendar` weekday (1 = Sunday; unused for now, like the openers).
-    case weekday(Int)
     case lunch
     /// In the small bubble above the To-dos page.
     case todoChecked, allTodosDone
@@ -40,10 +36,6 @@ enum ChatterMoment: Equatable {
 
     fileprivate var key: String {
         switch self {
-        case .morning: "morning"
-        case .afternoon: "afternoon"
-        case .evening: "evening"
-        case .weekday(let day): "weekday\(day)"
         case .lunch: "lunch"
         case .todoChecked: "todoChecked"
         case .allTodosDone: "allTodosDone"
@@ -69,20 +61,138 @@ enum Chatter {
     }
 
     static func line(_ moment: ChatterMoment, _ personality: Personality) -> String {
-        let all = lines(moment, personality)
-        let key = "chatter.deck.\(personality.rawValue).\(moment.key)"
+        deal("chatter.deck.\(personality.rawValue).\(moment.key)", from: lines(moment, personality))
+    }
+
+    /// The next card in a shuffled deck saved under `key` that `fits`; a card that doesn't fit yet stays in the deck
+    /// for later. A new deck starts once nothing left fits, never with the card just dealt.
+    private static func deal(_ key: String, from all: [String], where fits: (String) -> Bool = { _ in true }) -> String {
         let defaults = UserDefaults.standard
+        let last = defaults.string(forKey: key + ".last")
         // Lines removed since the deck was saved are dropped.
         var deck = (defaults.stringArray(forKey: key) ?? []).filter(all.contains)
-        if deck.isEmpty {
+        if !deck.contains(where: fits) {
             deck = all.shuffled()
-            // A fresh deck never starts with the line just said.
-            if deck.count > 1, deck.first == defaults.string(forKey: key + ".last") { deck.swapAt(0, 1) }
+            if let first = deck.firstIndex(where: fits), deck[first] == last, deck.filter(fits).count > 1 {
+                deck.append(deck.remove(at: first))
+            }
         }
-        let line = deck.removeFirst()
+        guard let index = deck.firstIndex(where: fits) else { return all.first ?? "" }
+        let card = deck.remove(at: index)
         defaults.set(deck, forKey: key)
-        defaults.set(line, forKey: key + ".last")
-        return line
+        defaults.set(card, forKey: key + ".last")
+        return card
+    }
+
+    // MARK: Greeting
+
+    /// Her line beside the morning greeting: a greeting ("It's {dayName}!") and a saying that fits the time and day,
+    /// each from its own deck, so the pairs keep changing. (Natalie chose this over whole lines per weekday and
+    /// time of day: 5 greetings and 10 sayings each, 5 for any time and 5 for a time of day, the weekend or a day.)
+    /// `{dayName}`/`{DAYNAME}` and `{timeOfDay}`/`{TimeOfDay}`/`{TIMEOFDAY}` are filled in.
+    static func greetingLine(_ personality: Personality, at date: Date = Date()) -> String {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+        let time: GreetingFit = switch calendar.component(.hour, from: date) {
+        case ..<12: .morning
+        case ..<17: .afternoon
+        default: .evening
+        }
+        let sayings = greetingSayings(personality)
+        let key = "chatter.deck.\(personality.rawValue).greeting"
+        let greeting = deal(key, from: greetingOpeners(personality))
+        let saying = deal(key + "Saying", from: sayings.map(\.text)) { text in
+            switch sayings.first(where: { $0.text == text })?.fit ?? .any {
+            case .any: true
+            case .day(let day): day == weekday
+            case .weekend: weekday == 1 || weekday == 7
+            case let fit: fit == time
+            }
+        }
+        let timeOfDay = switch time {
+        case .morning: "morning"
+        case .afternoon: "afternoon"
+        default: "evening"
+        }
+        let dayName = date.formatted(.dateTime.weekday(.wide))
+        // Each half on its own line, so neither wraps mid-phrase ("You and / me? Iconic.").
+        return "\(greeting)\n\(saying)"
+            .replacingOccurrences(of: "{dayName}", with: dayName)
+            .replacingOccurrences(of: "{DAYNAME}", with: dayName.uppercased())
+            .replacingOccurrences(of: "{timeOfDay}", with: timeOfDay)
+            .replacingOccurrences(of: "{TimeOfDay}", with: timeOfDay.capitalized)
+            .replacingOccurrences(of: "{TIMEOFDAY}", with: timeOfDay.uppercased())
+    }
+
+    /// When a greeting saying fits. `day` is a `Calendar` weekday (1 = Sunday).
+    private enum GreetingFit: Equatable {
+        case any, morning, afternoon, evening, weekend
+        case day(Int)
+    }
+
+    /// Greetings fit any time. None of Sassy's is cheery, so one can come before her Monday complaint.
+    private static func greetingOpeners(_ personality: Personality) -> [String] {
+        switch personality {
+        case .bubbly: ["Happy {dayName}!", "Hiii!", "Heyyy! You're here!", "GOOOOD {TIMEOFDAY}!", "{dayName}! It's {DAYNAME}!"]
+        case .sassy: ["Good {timeOfDay}.", "Ah, {dayName}.", "Oh, it's {dayName}.", "{dayName}, is it?", "I've arrived."]
+        // The colons make the saying read like the news in a memo.
+        case .boss: ["Good {timeOfDay}, team.", "Happy {dayName}, team.", "Ah, my star employee.", "{dayName} briefing:", "Quick {timeOfDay} update:"]
+        case .dark: ["{TimeOfDay}.", "Ah. {dayName}.", "You're back. Good.", "Hello from the quiet corner.", "It's {dayName}. I checked."]
+        }
+    }
+
+    /// Sayings never name the day, since some greetings already do, and must read well after every greeting.
+    private static func greetingSayings(_ personality: Personality) -> [(text: String, fit: GreetingFit)] {
+        switch personality {
+        case .bubbly: [
+            ("Lowkey a great day already.", .any),
+            ("{TimeOfDay}s go hard.", .any),
+            ("Zoomies, anyone?", .any),
+            ("Big day? Small day? Let's GO!", .any),
+            ("Seeing you? Best part of my day.", .any),
+            ("Power-up first? (Coffee.)", .morning),
+            ("Snack time? SNACK TIME?", .afternoon),
+            ("Weekend mode: on.", .weekend),
+            ("We're SO back!", .day(2)),
+            ("We made it!", .day(6)),
+        ]
+        case .sassy: [
+            ("Looking for me?", .any),
+            ("Try not to be dazzled.", .any),
+            ("Today had better impress me.", .any),
+            ("You and me? Iconic.", .any),
+            ("Let's give them something to talk about.", .any),
+            ("The day may now begin.", .morning),
+            ("Evenings were made for me.", .evening),
+            ("A day of rest. I'm a natural.", .weekend),
+            ("The audacity of this day.", .day(2)),
+            ("Finally, an event worthy of me.", .day(6)),
+        ]
+        case .boss: [
+            ("Today's agenda: greatness.", .any),
+            ("Profits are up. I checked.", .any),
+            ("Your dedication has been noted.", .any),
+            ("Let's circle back to excellence.", .any),
+            ("Morale is at an all-time high.", .any),
+            ("Coffee is a business expense.", .morning),
+            ("Afternoon snacks are fully funded.", .afternoon),
+            ("Company-wide day off. I signed it.", .weekend),
+            ("New week, new goals.", .day(2)),
+            ("Let's close out the week strong.", .day(6)),
+        ]
+        case .dark: [
+            ("I've been reading. Don't ask what.", .any),
+            ("Tea? A book? Both?", .any),
+            ("They haven't noticed us yet. Perfect.", .any),
+            ("Let's take it slow.", .any),
+            ("This is my favorite time to think.", .any),
+            ("Coffee first. Talking later.", .morning),
+            ("The best books are read at night.", .evening),
+            ("No plans. Exactly as planned.", .weekend),
+            ("Who keeps resetting the week?", .day(2)),
+            ("They want you to think the week is over.", .day(6)),
+        ]
+        }
     }
 
     /// Whole minutes left until `date`, rounded up, at least 1.
@@ -109,19 +219,6 @@ enum Chatter {
     /// Golden-retriever energy (for cats and dogs alike: no fetch, barking or sunbeams), a little Gen-Z, loves food and coffee.
     private static func bubbly(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .morning: ["Morning! Power-up first? (Coffee.)", "Morning! You're here! Best part of my day."]
-        case .afternoon: ["Afternoons go hard.", "Afternoon! Snack break? SNACK BREAK?"]
-        case .evening: ["Evening! Let's keep it chill.", "Evening zoomies, anyone?"]
-        case .weekday(let day):
-            switch day {
-            case 1: ["Sunday. Snacks and vibes only."]
-            case 2: ["Fresh week. We're SO back!"]
-            case 3: ["Tuesday. Lowkey a great day."]
-            case 4: ["Wednesday. Halfway there."]
-            case 5: ["Thursday. Basically Friday's warm-up."]
-            case 6: ["It's FRIDAY! We made it!"]
-            default: ["Weekend mode: on."]
-            }
         case .lunch: ["LUNCH?! Did someone say LUNCH?!", "Food buff time.", "Lunch break? Asking for a friend."]
         case .todoChecked: [
             "Checkbox go BOOP!",
@@ -147,23 +244,6 @@ enum Chatter {
 
     private static func sassy(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .morning: ["Good morning. Yes, I woke up flawless.", "Good morning. The day may now begin."]
-        case .afternoon: [
-            "Good afternoon. I've been fabulous all day without you.",
-            "I've been fabulous for hours. It's tiring.",
-            "This afternoon could use more me.",
-        ]
-        case .evening: ["Good evening. Fashionably late, I see."]
-        case .weekday(let day):
-            switch day {
-            case 1: ["Sunday. A day of rest. I'm a natural."]
-            case 2: ["Monday. How dare it."]
-            case 3: ["Tuesday. Monday's less famous sequel."]
-            case 4: ["Wednesday. Halfway to my weekend."]
-            case 5: ["Thursday. Friday's opening act."]
-            case 6: ["Friday. Finally, an event worthy of me."]
-            default: ["Saturday. I deserve it. You too, I suppose."]
-            }
         case .lunch: ["Feed yourself. I need my human at full strength.", "Lunch. Something worthy of us, please."]
         case .todoChecked: [
             "Clearly my influence.",
@@ -194,19 +274,6 @@ enum Chatter {
     /// never a real boss (no deadlines, "back to work" or working late).
     private static func boss(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .morning: ["Good morning, team. Today's agenda: greatness.", "Morning! Coffee is a business expense."]
-        case .afternoon: ["Good afternoon. Let's circle back to excellence.", "Afternoon. Profits are up. I checked."]
-        case .evening: ["Good evening. Your dedication has been noted."]
-        case .weekday(let day):
-            switch day {
-            case 1: ["Sunday. The office is closed. Even I'm off."]
-            case 2: ["Monday. New week, new goals."]
-            case 3: ["Tuesday. Momentum is building."]
-            case 4: ["Wednesday. Midweek report: we're crushing it."]
-            case 5: ["Thursday. Friday is on the roadmap."]
-            case 6: ["Friday. Let's close out the week strong."]
-            default: ["Saturday. Company-wide day off. I signed it."]
-            }
         case .lunch: ["The company has approved your lunch break!", "Lunch is now a mandatory meeting."]
         case .todoChecked: [
             "Now that's synergy.",
@@ -241,26 +308,6 @@ enum Chatter {
     /// Playfully mysterious but warm, never wary of you; no detective or fortune-teller lines.
     private static func dark(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .morning: ["Morning. Coffee first. Talking later.", "Good morning. I've been reading. Don't ask what."]
-        case .afternoon: [
-            "Good afternoon. Halfway through the day. And my book.",
-            "Afternoon. The shadows are getting longer. Coincidence?",
-        ]
-        case .evening: [
-            "Evening. My favorite time to think.",
-            "Good evening. The best books are read at night.",
-            "Long day? Tea and a book to relax?",
-        ]
-        case .weekday(let day):
-            switch day {
-            case 1: ["Sunday. Blankets and books. You're invited."]
-            case 2: ["Monday. Who keeps resetting the week?"]
-            case 3: ["Tuesday. Nobody talks about Tuesday. I respect that."]
-            case 4: ["Wednesday. They put the middle right where you'd expect it."]
-            case 5: ["Thursday. I peeked ahead. The weekend's close."]
-            case 6: ["Friday. They want you to think the week is over."]
-            default: ["Saturday. No plans. Exactly as planned."]
-            }
         case .lunch: ["Lunch. My belly has been quiet. Too quiet.", "Go eat. I'll keep watch."]
         case .todoChecked: [
             "You're getting suspiciously good at this.",
