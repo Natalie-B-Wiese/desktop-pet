@@ -30,6 +30,12 @@ enum ChatterMoment: Equatable {
     case headsUp
     /// In the side bubble (shortly after the hop) when any reminder comes due, meetings included, so the lines fit any reminder.
     case reminderDue
+    /// A repeating reminder coming due: these routine lines are mixed in with her usual `reminderDue` ones, so a daily
+    /// reminder only hears one now and then.
+    case repeatingDue
+    /// The day's last reminder coming due, when another already came due today ("the last one" is odd after only one).
+    /// Wins over `repeatingDue`, since it tells you something.
+    case lastDue
     /// In the side bubble after picking a color (Clipboard). Lines may say `{color}`, `{Color}` or `{COLOR}`, filled
     /// with its everyday name; `ownColorPicked` is for a color that matches one of hers.
     case colorPicked, ownColorPicked
@@ -44,6 +50,8 @@ enum ChatterMoment: Equatable {
         case .preview: "preview"
         case .headsUp: "headsUp"
         case .reminderDue: "reminderDue"
+        case .repeatingDue: "repeatingDue"
+        case .lastDue: "lastDue"
         case .colorPicked: "colorPicked"
         case .ownColorPicked: "ownColorPicked"
         case .screenshot: "screenshot"
@@ -223,6 +231,13 @@ enum Chatter {
     }
 
     static func lines(_ moment: ChatterMoment, _ personality: Personality) -> [String] {
+        if moment == .repeatingDue {
+            return lines(.reminderDue, personality) + ownLines(.repeatingDue, personality)
+        }
+        return ownLines(moment, personality)
+    }
+
+    private static func ownLines(_ moment: ChatterMoment, _ personality: Personality) -> [String] {
         switch personality {
         case .bubbly: bubbly(moment)
         case .sassy: sassy(moment)
@@ -252,6 +267,8 @@ enum Chatter {
             "Boop! Reminder for you!",
         ]
         case .reminderDue: ["It's time! It's TIME!", "Ding ding! Let's GO!", "You've got this! I'll be right here!"]
+        case .repeatingDue: ["Our thing! It's time for our thing!", "Same time, same us!", "This one's tradition!"]
+        case .lastDue: ["Last one today! Big finish!", "Final boss of the day!", "Last one! Let's finish strong!"]
         case .colorPicked: ["{COLOR}! Such a vibe!", "Whoa, {color}! Great pick!", "Nice! {Color} acquired."]
         case .ownColorPicked: ["Hey! That's MY color! Good pick!"]
         case .screenshot: ["Say cheese!", "Snap! Saved for later!", "Got it! Great shot!"]
@@ -280,6 +297,8 @@ enum Chatter {
             "It's time. I reminded you, naturally.",
             "Don't keep it waiting. Only I get to do that.",
         ]
+        case .repeatingDue: ["Like clockwork. Like me.", "Again? I'll allow it.", "A classic. It never goes out of style."]
+        case .lastDue: ["The grand finale. Make it count.", "Saving the best for last, I see.", "The final act. Hold your applause."]
         case .colorPicked: ["Ah, {color}. Bold choice.", "{Color}. I'd look stunning in it.", "{Color}? Approved."]
         case .ownColorPicked: ["My color. Obviously the best one."]
         case .screenshot: ["Did you get my good side?", "Captured. Hopefully I was in it.", "Another masterpiece for the archives."]
@@ -306,6 +325,8 @@ enum Chatter {
             "Calendar update from management.",
         ]
         case .reminderDue: ["Action item: due now.", "Showtime. Let's make it happen.", "Go get 'em. I'll hold your calls."]
+        case .repeatingDue: ["A standing item. Love the consistency.", "Like clockwork. That's company culture.", "Back by popular demand."]
+        case .lastDue: ["Final item on today's agenda.", "Last action item. Then we're adjourned.", "Closing out today's agenda with this one."]
         case .colorPicked: [
             "{Color}. Very on-brand.",
             "{Color} has been approved by the design team.",
@@ -340,6 +361,8 @@ enum Chatter {
             "Psst. Heads up.",
         ]
         case .reminderDue: ["Right on schedule. Suspiciously.", "And so, it begins.", "Good luck. I'll hold your spot."]
+        case .repeatingDue: ["This again. It's tradition now.", "Same time. They must be watching.", "The ritual continues."]
+        case .lastDue: ["This is the last one. They've run out of ideas.", "Last one. Then nothing. Perfect.", "The final chapter. For today."]
         case .colorPicked: ["{Color}. Interesting choice.", "{Color}. I knew you'd pick that one.", "{Color}. Good color for a book cover."]
         case .ownColorPicked: ["That's my color. I'm flattered."]
         case .screenshot: ["A moment, saved. Like a bookmark.", "Got it. Some things are worth remembering.", "Saved. They'll never know."]
@@ -366,6 +389,8 @@ enum Chatter {
             "A gentle reminder approaches.",
         ]
         case .reminderDue: ["It's time. Shall we?", "Your reminder, as requested.", "The appointed hour has arrived."]
+        case .repeatingDue: ["Right on schedule, as ever.", "Your usual obligation.", "The customary appointment."]
+        case .lastDue: ["The last matter of the day.", "And now, the final engagement of the day.", "The day's last item, if I may."]
         case .colorPicked: ["{Color}. An excellent selection.", "Ah, {color}. Very refined.", "{Color}. Noted for the records."]
         case .ownColorPicked: ["The very shade of my coat. How flattering."]
         case .screenshot: ["Captured, and filed away.", "Preserved for posterity.", "A fine picture. It's on your clipboard."]

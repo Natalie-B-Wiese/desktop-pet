@@ -322,6 +322,25 @@ final class AppController {
     /// The hop takes about 0.6s; her line follows a beat after it.
     private static let headsUpLineDelay: TimeInterval = 2
 
+    private static let dueTodayKey = "chatter.dueToday"
+    private static let dueTodayKeysKey = "chatter.dueTodayKeys"
+
+    /// Remembers which reminders came due today (saved by occurrence, so a relaunch doesn't count one twice) and picks
+    /// her line: the last one today once two or more came due, a repeating one, or any other.
+    private func dueMoment(for newDue: Reminder) -> ChatterMoment {
+        let defaults = UserDefaults.standard
+        let calendar = Calendar.current
+        let now = Date()
+        var keys = (defaults.object(forKey: Self.dueTodayKey) as? Date).map(calendar.isDateInToday) == true
+            ? Set(defaults.stringArray(forKey: Self.dueTodayKeysKey) ?? []) : []
+        keys.formUnion(reminders.due.map(\.occurrenceKey))
+        defaults.set(now, forKey: Self.dueTodayKey)
+        defaults.set(Array(keys), forKey: Self.dueTodayKeysKey)
+        let laterToday = reminders.reminders.contains { $0.date > now && calendar.isDateInToday($0.date) }
+        if !laterToday && keys.count >= 2 { return .lastDue }
+        return newDue.repeats ? .repeatingDue : .reminderDue
+    }
+
     private func remindersChanged() {
         // A due reminder or a heads-up needs the cat to be seen, so bring it back.
         if (!reminders.due.isEmpty || !reminders.headsUp.isEmpty) && !isPetVisible {
@@ -337,12 +356,13 @@ final class AppController {
         // It waits until the hop is over and a beat more, so the two bubbles don't pop up at once.
         // A reminder coming due wins over a heads-up arriving at the same moment.
         let newDue = reminders.due.first { !lastDueKeys.contains($0.occurrenceKey) }
-        if let newDue, AppPreferences.chatter != nil {
+        let moment = newDue.map(dueMoment(for:))
+        if let newDue, let moment, AppPreferences.chatter != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.headsUpLineDelay) { [weak self] in
                 // Skipped if it was clicked away meanwhile.
                 guard let self, let personality = AppPreferences.chatter,
                       reminders.due.contains(where: { $0.occurrenceKey == newDue.occurrenceKey }) else { return }
-                chatter.sayAbovePage(Chatter.line(.reminderDue, personality))
+                chatter.sayAbovePage(Chatter.line(moment, personality))
             }
         } else if let newHeadsUp, AppPreferences.chatter != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.headsUpLineDelay) { [weak self] in
@@ -545,7 +565,7 @@ final class AppController {
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first);
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
-    /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color]` says that line now (deck order is used up as normal; `color` is coral);
+    /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--click-line` clicks the small bubble beside her after 2s;
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
@@ -587,6 +607,9 @@ final class AppController {
                 case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, personality))
                 case "preview": chatter.sayAbovePage(Chatter.line(.preview, personality))
                 case "screenshot": cheer(.screenshot)
+                case "reminder-due": chatter.sayAbovePage(Chatter.line(.reminderDue, personality))
+                case "repeating-due": chatter.sayAbovePage(Chatter.line(.repeatingDue, personality))
+                case "last-due": chatter.sayAbovePage(Chatter.line(.lastDue, personality))
                 case "color", "own-color":
                     // A coral pick, or her own body color.
                     cheerColor(moment == "color" ? NSColor(srgbRed: 1, green: 0.5, blue: 0.31, alpha: 1) : settings.palette.main)
