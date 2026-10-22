@@ -21,6 +21,7 @@ final class BubbleLayout {
 final class BubbleMenu {
     enum Page: Equatable {
         case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
+        case games, spinner
         case editReminder(Reminder.ID)
     }
 
@@ -42,7 +43,6 @@ struct BubbleActions {
     var stopTimer: () -> Void
     var togglePause: () -> Void
     var startNextPomodoroPeriod: () -> Void
-    var hide: () -> Void
     var takeScreenshot: () -> Void
     var pickColor: () -> Void
 }
@@ -61,6 +61,7 @@ final class SpeechBubbleController {
     private let timeHistory = MathHistory(storageKey: "timeHistory")
     private let clipboard: ClipboardHistory
     private let notes: NoteStore
+    private let spinner: SpinnerStore
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     /// The small chatter bubble above an open page. Its own window, so the main bubble never moves for it.
@@ -78,13 +79,15 @@ final class SpeechBubbleController {
 
     init(
         timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
-        notes: NoteStore, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel, actions: BubbleActions
+        notes: NoteStore, spinner: SpinnerStore, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
+        actions: BubbleActions
     ) {
         self.timer = timer
         self.greetings = greetings
         self.chatter = chatter
         self.settings = settings
         self.notes = notes
+        self.spinner = spinner
         self.clipboard = clipboard
         self.reminders = reminders
         self.todos = todos
@@ -98,7 +101,6 @@ final class SpeechBubbleController {
             stopTimer: { menu.page = nil; actions.stopTimer() },
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
-            hide: { menu.page = nil; actions.hide() },
             takeScreenshot: { menu.page = nil; actions.takeScreenshot() },
             pickColor: { menu.page = nil; actions.pickColor() }
         )
@@ -106,7 +108,7 @@ final class SpeechBubbleController {
         hostingView = FirstClickHostingView(rootView: BubbleView(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
-            notes: notes, clipboard: clipboard, settings: settings,
+            notes: notes, spinner: spinner, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -215,7 +217,7 @@ final class SpeechBubbleController {
         case .startTimer, .addReminder, .editReminder, .math: true
         default: false
         }
-        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .customize, .settings].contains(menu.page)
+        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .spinner, .customize, .settings].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -382,6 +384,7 @@ struct BubbleView: View {
     let mathHistory: MathHistory
     let timeHistory: MathHistory
     let notes: NoteStore
+    let spinner: SpinnerStore
     let clipboard: ClipboardHistory
     let settings: PetSettings
     let layout: BubbleLayout
@@ -470,7 +473,8 @@ struct BubbleView: View {
 
     private static func width(of page: BubbleMenu.Page) -> CGFloat {
         switch page {
-        case .main: 3 * MenuTile.width + 2 * tileSpacing
+        case .main, .games: 3 * MenuTile.width + 2 * tileSpacing
+        case .spinner: 210
         case .startTimer: 228
         case .timerControls, .reminders, .addReminder, .editReminder: 190
         case .settings: 206 // room for "Reminders ‹ 60 min early ›"
@@ -503,6 +507,8 @@ struct BubbleView: View {
         case .clipboard: "Clipboard"
         case .customize: "Customize"
         case .settings: "Settings"
+        case .games: "Games"
+        case .spinner: "Spinner"
         }
     }
 
@@ -511,6 +517,7 @@ struct BubbleView: View {
         switch page {
         case .main: nil
         case .addReminder, .editReminder: .reminders
+        case .spinner: .games
         default: .main
         }
     }
@@ -598,6 +605,11 @@ struct BubbleView: View {
         case .todos:
             BubbleTodoPage(store: todos, onClose: { menu.page = nil })
                 .frame(width: 210)
+        case .games:
+            BubbleGamesPage { menu.page = $0 }
+        case .spinner:
+            BubbleSpinnerPage(store: spinner, onClose: { menu.page = nil })
+                .frame(width: 210)
         }
     }
 
@@ -676,7 +688,7 @@ struct BubbleView: View {
 
     private var mainMenu: some View {
         VStack(spacing: 6) {
-            // Grouped rows: time things, tools, and the pet itself.
+            // Grouped rows: time things, tools, and the pet and the app (Games are played with her).
             HStack(spacing: Self.tileSpacing) {
                 timerTile
                 MenuTile("Reminders", systemImage: "bell", badge: reminders.upcoming.count) { menu.page = .reminders }
@@ -688,9 +700,9 @@ struct BubbleView: View {
                 MenuTile("Math", systemImage: "plus.forwardslash.minus") { menu.page = .math }
             }
             HStack(spacing: Self.tileSpacing) {
+                MenuTile("Games", systemImage: "dice") { menu.page = .games }
                 MenuTile("Customize", systemImage: "paintpalette") { menu.page = .customize }
                 MenuTile("Settings", systemImage: "gearshape") { menu.page = .settings }
-                MenuTile("Hide", systemImage: "eye.slash", action: actions.hide)
             }
 
         }

@@ -16,6 +16,7 @@ final class AppController {
     let chatter = ChatterStore()
     let clipboard = ClipboardHistory()
     let notes = NoteStore()
+    let spinner = SpinnerStore()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -38,6 +39,7 @@ final class AppController {
         greetings.onChange = { [weak self] in self?.greetingChanged() }
         chatter.onChange = { [weak self] in self?.bubble?.update() }
         todos.onCheckedOff = { [weak self] allDone in self?.cheerTodo(allDone: allDone) }
+        spinner.onPicked = { [weak self] pick in self?.cheerSpinner(pick) }
     }
 
     func start() {
@@ -46,7 +48,7 @@ final class AppController {
         petPanel = panel
         let bubble = SpeechBubbleController(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
-            clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
+            spinner: spinner, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -55,7 +57,6 @@ final class AppController {
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
-            hide: { [weak self] in self?.setPetVisible(false) },
             takeScreenshot: { [weak self] in self?.takeScreenshot() },
             pickColor: { [weak self] in self?.pickColor() }
         ))
@@ -93,53 +94,9 @@ final class AppController {
         petPanel?.setImage(PetRenderer.render(settings.character, settings.palette))
     }
 
-    /// The cat's right-click menu.
+    /// The cat's right-click menu: just Hide Pet. Everything else is in the bubble menu and the menu bar.
     private func makePetMenu() -> NSMenu {
         let menu = NSMenu()
-        let timerItem = NSMenuItem(title: "Start Timer", action: nil, keyEquivalent: "")
-        let timerMenu = NSMenu()
-        for minutes in PetTimer.presetMinutes {
-            timerMenu.addItem(ClosureMenuItem(Self.presetTitle(minutes)) { [weak self] in
-                self?.startTimer(minutes: minutes)
-            })
-        }
-        timerMenu.addItem(.separator())
-        timerMenu.addItem(ClosureMenuItem("Custom…") { [weak self] in self?.showSetTimerWindow() })
-        timerItem.submenu = timerMenu
-        if !timer.isBusy { // stop the current timer first
-            menu.addItem(timerItem)
-            menu.addItem(ClosureMenuItem(startPomodoroTitle) { [weak self] in self?.startPomodoro() })
-            menu.addItem(ClosureMenuItem("Start Stopwatch") { [weak self] in self?.timer.startStopwatch() })
-        }
-        if let title = timer.nextPomodoroPeriodTitle {
-            menu.addItem(ClosureMenuItem(title) { [weak self] in self?.timer.startNextPomodoroPeriod() })
-        }
-        if timer.hasCountdown {
-            menu.addItem(ClosureMenuItem(timer.pauseTitle) { [weak self] in self?.timer.togglePause() })
-        }
-        if timer.hasCountdown && !timer.isStopwatch {
-            let editItem = NSMenuItem(title: "Edit Timer", action: nil, keyEquivalent: "")
-            let editMenu = NSMenu()
-            editMenu.autoenablesItems = false
-            for step in Self.editMenuSteps {
-                let item = ClosureMenuItem(PetTimer.editTitle(step)) { [weak self] in
-                    self?.timer.adjust(bySeconds: step)
-                }
-                item.isEnabled = timer.canAdjust(bySeconds: step)
-                editMenu.addItem(item)
-            }
-            editItem.submenu = editMenu
-            menu.addItem(editItem)
-        }
-        if timer.isActive {
-            menu.addItem(ClosureMenuItem(timer.stopTitle) { [weak self] in self?.timer.stop() })
-        }
-        menu.addItem(.separator())
-        menu.addItem(ClosureMenuItem("To-dos") { [weak self] in self?.showTodos() })
-        menu.addItem(ClosureMenuItem("Notes") { [weak self] in self?.showPage(.notes) })
-        menu.addItem(ClosureMenuItem("Take Screenshot") { [weak self] in self?.takeScreenshot() })
-        menu.addItem(ClosureMenuItem("Reminders") { [weak self] in self?.showPage(.reminders) })
-        menu.addItem(ClosureMenuItem("Customize") { [weak self] in self?.showCustomize() })
         menu.addItem(ClosureMenuItem("Hide Pet") { [weak self] in self?.setPetVisible(false) })
         return menu
     }
@@ -514,6 +471,12 @@ final class AppController {
         chatter.sayAbovePage(Chatter.line(moment, personality))
     }
 
+    /// Names the spinner's pick.
+    private func cheerSpinner(_ pick: String) {
+        guard let personality = AppPreferences.chatter else { return }
+        chatter.sayAbovePage(Chatter.line(.spinnerPicked, personality, result: pick))
+    }
+
     /// Names the color you picked, or notices it's one of hers (any part her current look uses; black and white never count).
     private func cheerColor(_ color: NSColor) {
         guard let personality = AppPreferences.chatter else { return }
@@ -565,7 +528,8 @@ final class AppController {
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first);
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
-    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings|games|spinner]` opens the cat's click menu (on that page);
+    /// `--spin` spins the Spinner after 1s (its picks and chatter line are real, so back up first);
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--say <text>` says that text in the small bubble beside her;
     /// `--click-line` clicks the small bubble beside her after 2s;
@@ -638,10 +602,16 @@ final class AppController {
             case "clipboard": .clipboard
             case "notes": .notes
             case "settings": .settings
+            case "games": .games
+            case "spinner": .spinner
             default: .main
             }
         }
 
+        if args.contains("--spin") {
+            // Spins the Spinner after a second, as clicking Spin would (pair it with `--menu spinner`).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.spinner.spin() }
+        }
         if args.contains("--flip-start-mode") {
             // Switches the Start page between Timer and Pomodoro after a second, as a click would.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {

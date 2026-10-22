@@ -41,6 +41,8 @@ enum ChatterMoment: Equatable {
     case colorPicked, ownColorPicked
     /// In the side bubble after taking a screenshot (Clipboard).
     case screenshot
+    /// In the side bubble once the Spinner stops. Lines may say `{result}`, `{Result}` or `{RESULT}`, filled with the pick.
+    case spinnerPicked
 
     fileprivate var key: String {
         switch self {
@@ -55,6 +57,7 @@ enum ChatterMoment: Equatable {
         case .colorPicked: "colorPicked"
         case .ownColorPicked: "ownColorPicked"
         case .screenshot: "screenshot"
+        case .spinnerPicked: "spinnerPicked"
         }
     }
 }
@@ -64,10 +67,20 @@ enum Chatter {
     /// so none repeats until all of that moment's lines have shown.
     /// `color` fills in a `.colorPicked` line's `{color}` ("sky blue"), `{Color}` ("Sky blue") or `{COLOR}` ("SKY BLUE").
     static func line(_ moment: ChatterMoment, _ personality: Personality, color: String) -> String {
-        line(moment, personality)
-            .replacingOccurrences(of: "{color}", with: color)
-            .replacingOccurrences(of: "{Color}", with: color.prefix(1).uppercased() + color.dropFirst())
-            .replacingOccurrences(of: "{COLOR}", with: color.uppercased())
+        fill(line(moment, personality), "color", with: color)
+    }
+
+    /// `result` fills in a `.spinnerPicked` line's `{result}` (as typed), `{Result}` or `{RESULT}`.
+    static func line(_ moment: ChatterMoment, _ personality: Personality, result: String) -> String {
+        fill(line(moment, personality), "result", with: result)
+    }
+
+    /// Fills `{name}` with `value`, `{Name}` with it capitalized and `{NAME}` with it in capitals.
+    private static func fill(_ line: String, _ name: String, with value: String) -> String {
+        line
+            .replacingOccurrences(of: "{\(name)}", with: value)
+            .replacingOccurrences(of: "{\(name.prefix(1).uppercased() + name.dropFirst())}", with: value.prefix(1).uppercased() + value.dropFirst())
+            .replacingOccurrences(of: "{\(name.uppercased())}", with: value.uppercased())
     }
 
     static func line(_ moment: ChatterMoment, _ personality: Personality) -> String {
@@ -370,6 +383,7 @@ enum Chatter {
         case .colorPicked: ["{COLOR}! Such a vibe!", "Whoa, {color}! Great pick!", "Nice! {Color} acquired."]
         case .ownColorPicked: ["Hey! That's MY color! Good pick!"]
         case .screenshot: ["Say cheese!", "Snap! Saved for later!", "Got it! Great shot!"]
+        case .spinnerPicked: ["{RESULT}! It's destiny!", "And the winner is\u{2026} {result}!", "{Result}! Ooh, great pick!"]
         }
     }
 
@@ -400,6 +414,7 @@ enum Chatter {
         case .colorPicked: ["Ah, {color}. Bold choice.", "{Color}. I'd look stunning in it.", "{Color}? Approved."]
         case .ownColorPicked: ["My color. Obviously the best one."]
         case .screenshot: ["Did you get my good side?", "Captured. Hopefully I was in it.", "Stunning. I assume I was the inspiration."]
+        case .spinnerPicked: ["{Result}. I'd have picked it too.", "{Result}. The spinner has taste. Like me.", "{Result}. Don't argue with fate. Or me."]
         }
     }
 
@@ -436,6 +451,7 @@ enum Chatter {
             "Saved for the quarterly report.",
             "Excellent. Put that in the meeting notes.",
         ]
+        case .spinnerPicked: ["{Result}. Decision made. Love the leadership.", "The board has voted: {result}.", "{Result}. A spin-credible choice."]
         }
     }
 
@@ -464,6 +480,7 @@ enum Chatter {
         case .colorPicked: ["{Color}. Interesting choice.", "{Color}. I knew you'd pick that one.", "{Color}. Good color for a book cover."]
         case .ownColorPicked: ["That's my color. I'm flattered."]
         case .screenshot: ["A moment, saved. Like a bookmark.", "Got it. Some things are worth remembering.", "Saved. They'll never know."]
+        case .spinnerPicked: ["{Result}. It was always going to be that.", "{Result}. They chose for you.", "{Result}. The spinner knows things."]
         }
     }
 
@@ -492,6 +509,7 @@ enum Chatter {
         case .colorPicked: ["{Color}. An excellent selection.", "Ah, {color}. Very refined.", "{Color}. Noted for the records."]
         case .ownColorPicked: ["The very shade of my coat. How flattering."]
         case .screenshot: ["Captured, and filed away.", "Preserved for posterity.", "A fine picture. It's on your clipboard."]
+        case .spinnerPicked: ["{Result}, it would seem.", "The decision has been made: {result}.", "{Result}. A fine outcome, if I may."]
         }
     }
 }
