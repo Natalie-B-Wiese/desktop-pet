@@ -407,7 +407,7 @@ enum Chatter {
     /// never a real boss (no deadlines, "back to work" or working late).
     private static func boss(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .lunch: ["Lunch break approved. Let's taco 'bout it.", "Lunch is now a mandatory meeting."]
+        case .lunch: ["Lunch break approved. Let's taco 'bout it.", "Lunch o'clock. Best meeting of the day."]
         case .todoChecked: [
             "Now that's synergy.",
             "Impact player!",
