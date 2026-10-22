@@ -79,7 +79,7 @@ struct BubbleGreeting: View {
                         row("calendar", "No meetings today")
                     }
                 }
-                // An advent countdown from December 1 to 23, on every Chatter setting.
+                // An advent countdown from December 1 to 24, on every Chatter setting.
                 if let days = SpecialDay.daysUntilChristmas(from: greeting.date) {
                     row("gift", days == 1 ? "1 day until Christmas" : "\(days) days until Christmas")
                 }

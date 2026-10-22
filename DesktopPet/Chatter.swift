@@ -750,10 +750,10 @@ enum SpecialDay {
         return (month, day)
     }
 
-    /// Whole days until Christmas, from December 1 to 23, for the greeting's countdown; nil otherwise.
+    /// Whole days until Christmas, from December 1 to 24, for the greeting's countdown; nil otherwise.
     static func daysUntilChristmas(from date: Date, calendar: Calendar = .current) -> Int? {
         let parts = calendar.dateComponents([.month, .day], from: date)
-        guard parts.month == 12, let day = parts.day, day <= 23 else { return nil }
+        guard parts.month == 12, let day = parts.day, day <= 24 else { return nil }
         return 25 - day
     }
 }
