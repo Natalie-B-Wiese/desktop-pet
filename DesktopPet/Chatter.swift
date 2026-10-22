@@ -399,7 +399,7 @@ enum Chatter {
         case .lastDue: ["The grand finale. Make it count.", "Saving the best for last, I see.", "The final act. Hold your applause."]
         case .colorPicked: ["Ah, {color}. Bold choice.", "{Color}. I'd look stunning in it.", "{Color}? Approved."]
         case .ownColorPicked: ["My color. Obviously the best one."]
-        case .screenshot: ["Did you get my good side?", "Captured. Hopefully I was in it.", "Another masterpiece for the archives."]
+        case .screenshot: ["Did you get my good side?", "Captured. Hopefully I was in it.", "Stunning. I assume I was the inspiration."]
         }
     }
 
