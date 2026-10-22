@@ -283,7 +283,7 @@ enum Chatter {
             ("Your dedication has been noted.", .any),
             ("Let's circle back to excellence.", .any),
             ("Morale is at an all-time high.", .any),
-            ("Coffee is a business expense.", .morning),
+            ("Coffee first. It's brew-siness as usual.", .morning),
             ("Afternoon snacks are fully funded.", .afternoon),
             ("Company-wide day off. I signed it.", .weekend),
             ("New week, new goals.", .day(2)),
@@ -407,7 +407,7 @@ enum Chatter {
     /// never a real boss (no deadlines, "back to work" or working late).
     private static func boss(_ moment: ChatterMoment) -> [String] {
         switch moment {
-        case .lunch: ["The company has approved your lunch break!", "Lunch is now a mandatory meeting."]
+        case .lunch: ["Lunch break approved. Let's taco 'bout it.", "Lunch is now a mandatory meeting."]
         case .todoChecked: [
             "Now that's synergy.",
             "Impact player!",
@@ -415,7 +415,7 @@ enum Chatter {
             "That boosts morale!",
             "Great work! I'll tell the shareholders!",
         ]
-        case .allTodosDone: ["Record quarter! Bonuses for everyone. (Treats.)", "Every item delivered. The board is speechless."]
+        case .allTodosDone: ["All checked off. That's some real check-cellence.", "Every item delivered. The board is speechless."]
         case .preview: ["Welcome aboard! Glad to have you on the team."]
         case .headsUp: [
             "Per my last email: something's coming up.",
@@ -428,7 +428,7 @@ enum Chatter {
         case .colorPicked: [
             "{Color}. Very on-brand.",
             "{Color} has been approved by the design team.",
-            "{Color}. Let's put it in the brand guide.",
+            "{Color}. A hue-ge win.",
         ]
         case .ownColorPicked: ["Ah, the company colors."]
         case .screenshot: [
