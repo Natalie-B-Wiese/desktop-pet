@@ -7,7 +7,7 @@ struct BubbleGamesPage: View {
     var body: some View {
         HStack(spacing: 6) {
             MenuTile("Spinner", systemImage: "arrow.trianglehead.2.clockwise") { onOpen(.spinner) }
-            MenuTile("Number", systemImage: "number") { onOpen(.number) }
+            MenuTile("Number", systemImage: "42.square") { onOpen(.number) }
             MenuTile("Coin", systemImage: "dollarsign.circle") { onOpen(.coin) }
         }
         .frame(maxWidth: .infinity)
