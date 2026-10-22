@@ -8,7 +8,7 @@ struct BubbleGamesPage: View {
         HStack(spacing: 6) {
             MenuTile("Spinner", systemImage: "arrow.trianglehead.2.clockwise") { onOpen(.spinner) }
             MenuTile("Number", systemImage: "number") { onOpen(.number) }
-            MenuTile("Coin", systemImage: "circle.lefthalf.filled") { onOpen(.coin) }
+            MenuTile("Coin", systemImage: "dollarsign.circle") { onOpen(.coin) }
         }
         .frame(maxWidth: .infinity)
     }
@@ -218,7 +218,7 @@ struct BubbleCoinPage: View {
     var body: some View {
         VStack(spacing: 8) {
             GameAnswer(text: coin.shown)
-            BubbleButton("Flip", systemImage: "circle.lefthalf.filled", centered: true) { coin.flip() }
+            BubbleButton("Flip", systemImage: "dollarsign.circle", centered: true) { coin.flip() }
         }
         .allowsHitTesting(!coin.isFlipping)
     }
