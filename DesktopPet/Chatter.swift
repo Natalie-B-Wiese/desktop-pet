@@ -412,7 +412,7 @@ enum Chatter {
             "Now that's synergy.",
             "Impact player!",
             "Huge win for the team.",
-            "That boosts morale!",
+            "That's a done deal!",
             "Great work! I'll tell the shareholders!",
         ]
         case .allTodosDone: ["All checked off. That's some real check-cellence.", "Every item delivered. The board is speechless."]
