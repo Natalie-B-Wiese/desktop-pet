@@ -15,9 +15,6 @@ final class SpinnerStore {
     private(set) var highlightedID: SpinnerOption.ID?
     private(set) var isSpinning = false
 
-    /// Called with the pick once the highlight stops.
-    @ObservationIgnored var onPicked: ((String) -> Void)?
-
     static let maxOptions = 10
     static let maxLength = 40
     private static let storageKey = "games.spinner.options"
@@ -84,9 +81,6 @@ final class SpinnerStore {
             }
             guard let self else { return }
             isSpinning = false
-            if let id = highlightedID, let pick = options.first(where: { $0.id == id }) {
-                onPicked?(pick.text)
-            }
         }
     }
 

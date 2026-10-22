@@ -39,7 +39,6 @@ final class AppController {
         greetings.onChange = { [weak self] in self?.greetingChanged() }
         chatter.onChange = { [weak self] in self?.bubble?.update() }
         todos.onCheckedOff = { [weak self] allDone in self?.cheerTodo(allDone: allDone) }
-        spinner.onPicked = { [weak self] pick in self?.cheerSpinner(pick) }
     }
 
     func start() {
@@ -471,12 +470,6 @@ final class AppController {
         chatter.sayAbovePage(Chatter.line(moment, personality))
     }
 
-    /// Names the spinner's pick.
-    private func cheerSpinner(_ pick: String) {
-        guard let personality = AppPreferences.chatter else { return }
-        chatter.sayAbovePage(Chatter.line(.spinnerPicked, personality, result: pick))
-    }
-
     /// Names the color you picked, or notices it's one of hers (any part her current look uses; black and white never count).
     private func cheerColor(_ color: NSColor) {
         guard let personality = AppPreferences.chatter else { return }
@@ -529,7 +522,7 @@ final class AppController {
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first);
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings|games|spinner]` opens the cat's click menu (on that page);
-    /// `--spin` spins the Spinner after 1s (its picks and chatter line are real, so back up first);
+    /// `--spin` spins the Spinner after 1s;
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--say <text>` says that text in the small bubble beside her;
     /// `--click-line` clicks the small bubble beside her after 2s;
