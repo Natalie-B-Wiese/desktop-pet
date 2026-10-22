@@ -39,6 +39,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - `--remind-in <sec>` (optionally `--label <text>`) adds a one-time reminder due that many seconds from now, with no heads-up. It's saved, so back up first.
 - `--greeting` shows the morning greeting right away without saving `greeting.lastShown`, so it doesn't use up her real one. Note that any launch also runs the real morning check, which shows and remembers today's greeting if it hasn't appeared yet.
 - `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (`color` is a coral pick, `own-color` her body color; these need `--menu clipboard`), skipping the usual checks (`todo`, `all-done`, `preview` need `--menu todos` or `--menu settings`). It uses up the deck like a real line, so back up first.
+- `--say <text>` says any text in the side bubble, to preview a new line before it goes in a deck (snapshot with `--snapshot-delay` long enough for the typing, 0.03s a letter). It uses up no deck.
 - `--click-line` clicks the side bubble after 2s (pair it with `--chatter …`), to check a click closes it. Clicks posted from the shell are blocked (no Accessibility permission), so it posts the click from inside the app.
 - `--set-timer` opens that window. `--flip-start-mode` switches the Start page tab after 1 second.
 - Example: `./build.sh --menu todos --snapshot /tmp/…/s.png`, using the session scratchpad.

@@ -566,6 +566,7 @@ final class AppController {
     /// `--greeting` shows the morning greeting now, without using up today's real one;
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
+    /// `--say <text>` says that text in the small bubble beside her;
     /// `--click-line` clicks the small bubble beside her after 2s;
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
     /// `--type <text>` types that text into the focused window after 1s, a key every 0.1s ("⌫" is Backspace);
@@ -658,6 +659,10 @@ final class AppController {
                     }
                 }
             }
+        }
+        if let text = value(after: "--say") {
+            // Says any text beside her, to see how a new line looks before it's written into a deck.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.chatter.sayAbovePage(text) }
         }
         if args.contains("--click-line") {
             // Clicks the middle of the small bubble beside her after 2s, to check it closes.
