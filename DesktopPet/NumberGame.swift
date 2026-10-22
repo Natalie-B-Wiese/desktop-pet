@@ -53,20 +53,26 @@ final class NumberGame {
     }
 }
 
-/// The Coin game: Heads or Tails, flickering between them for about half a second first.
+/// A game that picks one of a few answers, like the Coin (Heads, Tails) or rock, paper, scissors,
+/// flickering through them for about half a second first.
 @Observable
-final class CoinFlip {
-    /// Nil before the first flip.
+final class RandomPick {
+    let answers: [String]
+    /// Nil before the first pick.
     private(set) var shown: String?
-    private(set) var isFlipping = false
+    private(set) var isPicking = false
 
-    func flip() {
-        guard !isFlipping else { return }
-        let sides = ["Heads", "Tails"]
-        isFlipping = true
+    init(_ answers: [String]) {
+        self.answers = answers
+    }
+
+    func pick() {
+        guard !isPicking else { return }
+        let answers = answers
+        isPicking = true
         Task { @MainActor [weak self] in
-            await Flicker.run(to: sides.randomElement()!, frame: { sides[$0 % 2] }) { self?.shown = $0 }
-            self?.isFlipping = false
+            await Flicker.run(to: answers.randomElement()!, frame: { answers[$0 % answers.count] }) { self?.shown = $0 }
+            self?.isPicking = false
         }
     }
 }

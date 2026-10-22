@@ -1,14 +1,26 @@
 import SwiftUI
 
-/// The Games page: a tile for each game, like the main menu, so more games never crowd it.
+/// The Games page: a tile for each game in rows of three, each row centered like the main menu,
+/// so more games never crowd it.
 struct BubbleGamesPage: View {
     var onOpen: (BubbleMenu.Page) -> Void
 
+    private static let games: [(title: String, systemImage: String, page: BubbleMenu.Page)] = [
+        ("Spinner", "arrow.trianglehead.2.clockwise", .spinner),
+        ("Number", "42.square", .number),
+        ("Coin", "dollarsign.circle", .coin),
+        ("RPS", "scissors", .rockPaperScissors),
+    ]
+
     var body: some View {
-        HStack(spacing: 6) {
-            MenuTile("Spinner", systemImage: "arrow.trianglehead.2.clockwise") { onOpen(.spinner) }
-            MenuTile("Number", systemImage: "42.square") { onOpen(.number) }
-            MenuTile("Coin", systemImage: "dollarsign.circle") { onOpen(.coin) }
+        VStack(spacing: 6) {
+            ForEach(Array(stride(from: 0, to: Self.games.count, by: 3)), id: \.self) { start in
+                HStack(spacing: 6) {
+                    ForEach(Self.games[start..<min(start + 3, Self.games.count)], id: \.title) { game in
+                        MenuTile(game.title, systemImage: game.systemImage) { onOpen(game.page) }
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -211,16 +223,19 @@ struct BubbleNumberPage: View {
     }
 }
 
-/// The Coin game: Heads or Tails big and bold on top, and Flip under it.
-struct BubbleCoinPage: View {
-    let coin: CoinFlip
+/// A game that picks one of a few answers (Coin, rock, paper, scissors): the answer big and bold on top,
+/// and its button under it.
+struct BubblePickPage: View {
+    let game: RandomPick
+    let button: String
+    let systemImage: String
 
     var body: some View {
         VStack(spacing: 8) {
-            GameAnswer(text: coin.shown)
-            BubbleButton("Flip", systemImage: "dollarsign.circle", centered: true) { coin.flip() }
+            GameAnswer(text: game.shown)
+            BubbleButton(button, systemImage: systemImage, centered: true) { game.pick() }
         }
-        .allowsHitTesting(!coin.isFlipping)
+        .allowsHitTesting(!game.isPicking)
     }
 }
 
