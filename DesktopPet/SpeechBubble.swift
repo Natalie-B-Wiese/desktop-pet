@@ -21,7 +21,7 @@ final class BubbleLayout {
 final class BubbleMenu {
     enum Page: Equatable {
         case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
-        case games, spinner
+        case games, spinner, number, coin
         case editReminder(Reminder.ID)
     }
 
@@ -62,6 +62,8 @@ final class SpeechBubbleController {
     private let clipboard: ClipboardHistory
     private let notes: NoteStore
     private let spinner: SpinnerStore
+    private let numberGame: NumberGame
+    private let coin: CoinFlip
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     /// The small chatter bubble above an open page. Its own window, so the main bubble never moves for it.
@@ -79,7 +81,7 @@ final class SpeechBubbleController {
 
     init(
         timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
-        notes: NoteStore, spinner: SpinnerStore, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
+        notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, coin: CoinFlip, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
         actions: BubbleActions
     ) {
         self.timer = timer
@@ -88,6 +90,8 @@ final class SpeechBubbleController {
         self.settings = settings
         self.notes = notes
         self.spinner = spinner
+        self.numberGame = numberGame
+        self.coin = coin
         self.clipboard = clipboard
         self.reminders = reminders
         self.todos = todos
@@ -108,7 +112,7 @@ final class SpeechBubbleController {
         hostingView = FirstClickHostingView(rootView: BubbleView(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
-            notes: notes, spinner: spinner, clipboard: clipboard, settings: settings,
+            notes: notes, spinner: spinner, numberGame: numberGame, coin: coin, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -217,7 +221,7 @@ final class SpeechBubbleController {
         case .startTimer, .addReminder, .editReminder, .math: true
         default: false
         }
-        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .spinner, .customize, .settings].contains(menu.page)
+        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .spinner, .number, .customize, .settings].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -385,6 +389,8 @@ struct BubbleView: View {
     let timeHistory: MathHistory
     let notes: NoteStore
     let spinner: SpinnerStore
+    let numberGame: NumberGame
+    let coin: CoinFlip
     let clipboard: ClipboardHistory
     let settings: PetSettings
     let layout: BubbleLayout
@@ -474,7 +480,8 @@ struct BubbleView: View {
     private static func width(of page: BubbleMenu.Page) -> CGFloat {
         switch page {
         case .main, .games: 3 * MenuTile.width + 2 * tileSpacing
-        case .spinner: 210
+        case .spinner, .number: 210
+        case .coin: 150
         case .startTimer: 228
         case .timerControls, .reminders, .addReminder, .editReminder: 190
         case .settings: 206 // room for "Reminders ‹ 60 min early ›"
@@ -509,6 +516,8 @@ struct BubbleView: View {
         case .settings: "Settings"
         case .games: "Games"
         case .spinner: "Spinner"
+        case .number: "Random number"
+        case .coin: "Coin flip"
         }
     }
 
@@ -517,7 +526,7 @@ struct BubbleView: View {
         switch page {
         case .main: nil
         case .addReminder, .editReminder: .reminders
-        case .spinner: .games
+        case .spinner, .number, .coin: .games
         default: .main
         }
     }
@@ -610,6 +619,12 @@ struct BubbleView: View {
         case .spinner:
             BubbleSpinnerPage(store: spinner, onClose: { menu.page = nil })
                 .frame(width: 210)
+        case .number:
+            BubbleNumberPage(game: numberGame, onClose: { menu.page = nil })
+                .frame(width: 210)
+        case .coin:
+            BubbleCoinPage(coin: coin)
+                .frame(width: 150)
         }
     }
 

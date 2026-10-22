@@ -7,6 +7,8 @@ struct BubbleGamesPage: View {
     var body: some View {
         HStack(spacing: 6) {
             MenuTile("Spinner", systemImage: "arrow.trianglehead.2.clockwise") { onOpen(.spinner) }
+            MenuTile("Number", systemImage: "number") { onOpen(.number) }
+            MenuTile("Coin", systemImage: "circle.lefthalf.filled") { onOpen(.coin) }
         }
         .frame(maxWidth: .infinity)
     }
@@ -157,5 +159,81 @@ private struct SpinnerOptionRow: View {
         .onChange(of: option.text) { _, saved in
             if saved != text { text = saved } // e.g. trimmed after typing stopped
         }
+    }
+}
+
+/// The Number game: the answer big and bold on top, and [min]–[max] boxes with Roll beside them under it.
+/// Return in either box rolls.
+struct BubbleNumberPage: View {
+    @Bindable var game: NumberGame
+    var onClose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            GameAnswer(text: game.shown)
+
+            HStack(spacing: 6) {
+                HStack(spacing: 3) {
+                    end("min", text: $game.minText)
+                    Text("–")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                    end("max", text: $game.maxText)
+                }
+                .fixedSize() // the Roll button takes the rest, never the "–"
+                BubbleButton("Roll", systemImage: "dice", centered: true) { game.roll() }
+            }
+
+            if let problem = game.problem {
+                Text(problem)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+            }
+        }
+        .allowsHitTesting(!game.isRolling)
+    }
+
+    /// One end of the range, styled like Convert's Range boxes.
+    private func end(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: Binding(
+            get: { text.wrappedValue },
+            set: { text.wrappedValue = String($0.prefix(NumberGame.maxLength)) }
+        ))
+        .textFieldStyle(.plain)
+        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 6)
+        .frame(width: 52)
+        .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
+        .onSubmit { game.roll() }
+        .onExitCommand(perform: onClose) // Esc closes the menu
+    }
+}
+
+/// The Coin game: Heads or Tails big and bold on top, and Flip under it.
+struct BubbleCoinPage: View {
+    let coin: CoinFlip
+
+    var body: some View {
+        VStack(spacing: 8) {
+            GameAnswer(text: coin.shown)
+            BubbleButton("Flip", systemImage: "circle.lefthalf.filled", centered: true) { coin.flip() }
+        }
+        .allowsHitTesting(!coin.isFlipping)
+    }
+}
+
+/// A game's answer, big and bold; a faint "?" before the first one.
+private struct GameAnswer: View {
+    let text: String?
+
+    var body: some View {
+        Text(text ?? "?")
+            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .opacity(text == nil ? 0.2 : 1)
+            .frame(maxWidth: .infinity)
     }
 }
