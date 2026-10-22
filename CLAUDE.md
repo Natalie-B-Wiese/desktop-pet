@@ -180,6 +180,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
   - Each animal needs its own version of each accessory.
   - The agent offered to draw placeholder art, or Natalie may draw her own.
 - **Alpha in the Convert tab's Color category.** Natalie left it out of the first version because programs disagree on its range (0–1, 0–255 or a percent), so it needs its own design pass. Agreed so far: alpha is optional, and the answer only shows it when one was typed.
+- **A punnier Boss** (Natalie, 2026-10-22). His holiday lines went punny ("Our spring outlook? Egg-cellent.") and she found that funnier. Rework his everyday lines (greeting sayings, to-dos, reminders, color, screenshot) to about half puns and half his current jargon, since puns wear thin on lines that repeat often.
 - Sound or notification when a timer ends.
 - Countdown in the menu bar.
 - App icon and a real app name.
