@@ -434,11 +434,12 @@ final class AppController {
     }
 
     @MainActor
-    private func makeGreeting() async -> MorningGreeting {
+    /// `date` is for testing another day (its meetings and events are still today's).
+    private func makeGreeting(date: Date = Date()) async -> MorningGreeting {
         // `hasAccess` first, so the greeting never asks for Calendar access.
         let meetings = CalendarMeetings.hasAccess ? try? await CalendarMeetings.todaysUpcoming() : nil
         return MorningGreeting(
-            date: Date(), meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents()
+            date: date, meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents()
         )
     }
 
@@ -563,7 +564,7 @@ final class AppController {
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first);
-    /// `--greeting` shows the morning greeting now, without using up today's real one;
+    /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings]` opens the cat's click menu (on that page);
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--say <text>` says that text in the small bubble beside her;
@@ -595,7 +596,14 @@ final class AppController {
         if args.contains("--greeting") {
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                greetings.show(await makeGreeting(), remember: false)
+                // `--greeting-date 2026-10-31` pretends it's that day, at the current time of day.
+                var date = Date()
+                if let parts = value(after: "--greeting-date")?.split(separator: "-").compactMap({ Int($0) }), parts.count == 3 {
+                    var components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                    (components.year, components.month, components.day) = (parts[0], parts[1], parts[2])
+                    date = Calendar.current.date(from: components) ?? date
+                }
+                greetings.show(await makeGreeting(date: date), remember: false)
             }
         }
         if let moment = value(after: "--chatter") {

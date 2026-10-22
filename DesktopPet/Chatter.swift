@@ -108,6 +108,22 @@ enum Chatter {
         case ..<17: .afternoon
         default: .evening
         }
+        let timeOfDay = switch time {
+        case .morning: "morning"
+        case .afternoon: "afternoon"
+        default: "evening"
+        }
+        func filled(_ line: String) -> String {
+            let dayName = date.formatted(.dateTime.weekday(.wide))
+            return line
+                .replacingOccurrences(of: "{dayName}", with: dayName)
+                .replacingOccurrences(of: "{DAYNAME}", with: dayName.uppercased())
+                .replacingOccurrences(of: "{timeOfDay}", with: timeOfDay)
+                .replacingOccurrences(of: "{TimeOfDay}", with: timeOfDay.capitalized)
+                .replacingOccurrences(of: "{TIMEOFDAY}", with: timeOfDay.uppercased())
+        }
+        // A special day gets its own whole line, with no greeting before it, so it feels made for the day.
+        if let day = SpecialDay(date) { return filled(specialLine(day, personality)) }
         let sayings = greetingSayings(personality)
         let key = "chatter.deck.\(personality.rawValue).greeting"
         let greeting = deal(key, from: greetingOpeners(personality))
@@ -119,19 +135,101 @@ enum Chatter {
             case let fit: fit == time
             }
         }
-        let timeOfDay = switch time {
-        case .morning: "morning"
-        case .afternoon: "afternoon"
-        default: "evening"
+        return filled("\(greeting) \(saying)")
+    }
+
+    /// One line per personality for each special day, said in place of the greeting line (Natalie wrote these
+    /// 2026-10-22). Lines never mention chocolate, since dogs can't eat it.
+    private static func specialLine(_ day: SpecialDay, _ personality: Personality) -> String {
+        switch personality {
+        case .butler:
+            switch day {
+            case .newYearsDay: "A happy New Year to you. Have you settled on your resolutions?"
+            case .newYearsEve: "The last day of the year. Do celebrate responsibly."
+            case .valentinesDay: "Happy Valentine's Day. You are, as ever, much appreciated."
+            case .leapDay: "Happy Leap Day. An extra day, to use as you see fit."
+            case .stPatricksDay: "Happy St. Patrick's Day. I trust you're wearing green."
+            case .aprilFools: "Good {timeOfDay}. I regret to inform you the tea is now soup. It has always been soup."
+            case .easter: "Happy Easter. Might I suggest a hot cross bun?"
+            case .fourthOfJuly: "A happy Fourth of July. Fireworks this evening, I expect."
+            case .halloween: "Happy Halloween. I've dressed as a butler. Very convincing, I'm told."
+            case .thanksgiving: "Happy Thanksgiving. I'm thankful for you, if I may say so."
+            case .decemberFirst: "Welcome to December. Have you started your advent calendar?"
+            case .christmasEve: "A good Christmas Eve to you. All is calm, as it should be."
+            case .christmas: "A very merry Christmas. Tea by the tree, perhaps?"
+            case .fridayThe13th: "Friday the 13th. I've taken the usual precautions."
+            }
+        case .bubbly:
+            switch day {
+            case .newYearsDay: "HAPPY NEW YEAR! New year, new side quests!"
+            case .newYearsEve: "New Year's Eve! Midnight snacks? MIDNIGHT SNACKS!"
+            case .valentinesDay: "Happy Valentine's Day! You're my favorite human. No cap."
+            case .leapDay: "LEAP DAY! Bonus day unlocked!"
+            case .stPatricksDay: "Happy St. Patrick's Day! Feeling lucky? I'm feeling LUCKY!"
+            case .aprilFools: "Breaking news: coffee is free now! \u{2026}April Fools. Sorry. I'm sad too."
+            case .easter: "Happy Easter! Did the Easter Bunny bring treats?!"
+            case .fourthOfJuly: "Happy Fourth of July! Fireworks go BOOM! (I'll be under the bed.)"
+            case .halloween: "Happy Halloween! Trick or treat? TREAT. Always treat!"
+            case .thanksgiving: "Happy Thanksgiving! Grateful for you. And turkey. Mostly you!"
+            case .decemberFirst: "It's DECEMBER! Advent calendar time! Is there a treat behind every door?!"
+            case .christmasEve: "It's Christmas Eve! Is it tomorrow yet? Is it NOW?"
+            case .christmas: "MERRY CHRISTMAS! The wrapping paper is MINE!"
+            case .fridayThe13th: "Friday the 13th?! Lucky number 13! Right? RIGHT?"
+            }
+        // Punnier than his everyday lines (Natalie found the puns funnier for rare days).
+        case .boss:
+            switch day {
+            case .newYearsDay: "Happy New Year, team. Let's set some big Q1 goals."
+            case .newYearsEve: "Happy New Year's Eve. Let's close out the fiscal year with a bang."
+            case .valentinesDay: "Happy Valentine's Day. You're the heart of this company."
+            case .leapDay: "Happy Leap Day. Profits are taking a leap too."
+            case .stPatricksDay: "Happy St. Patrick's Day. Everything's coming up green. Like our profits."
+            case .aprilFools: "Exciting news, team: we've acquired the moon. The board is thrilled."
+            case .easter: "Happy Easter. Our spring outlook? Egg-cellent."
+            case .fourthOfJuly: "Happy Fourth of July. Let's make it a red, white and booming success."
+            case .halloween: "Happy Halloween. Should we hold a costume contest?"
+            case .thanksgiving: "Happy Thanksgiving. This year's results? Stuffed with success."
+            case .decemberFirst: "Welcome to December, team. Be sure to book your days off."
+            case .christmasEve: "Happy Christmas Eve. Out-of-office replies: activated."
+            case .christmas: "Merry Christmas, team. Time for the gift exchange. Let's wrap this year up."
+            case .fridayThe13th: "Friday the 13th. I had legal look into it. We're fine."
+            }
+        case .sassy:
+            switch day {
+            case .newYearsDay: "Happy New Year. My resolution? Change nothing. I'm already perfect."
+            case .newYearsEve: "New Year's Eve. The ball drops tonight. My standards never do."
+            case .valentinesDay: "Happy Valentine's Day. I'm everyone's valentine. You're welcome."
+            case .leapDay: "An extra day this year? The world needed more of me."
+            case .stPatricksDay: "Happy St. Patrick's Day. Pinch me and see what happens."
+            case .aprilFools: "I've decided to be humble from now on. \u{2026}April Fools."
+            case .easter: "Happy Easter. The best thing you'll find today is me."
+            case .fourthOfJuly: "Happy Fourth of July. The fireworks are trying to upstage me. Rude."
+            case .halloween: "Happy Halloween. Boo. Did I scare you? Of course I did."
+            case .thanksgiving: "Happy Thanksgiving. Go on, say you're thankful for me."
+            case .decemberFirst: "Finally, December. My gift list is very long. You'd better start shopping now."
+            case .christmasEve: "Christmas Eve. I've been very good this year. Obviously."
+            case .christmas: "Merry Christmas. Did you get everything on my list?"
+            case .fridayThe13th: "Friday the 13th. Bad luck wouldn't dare come near me."
+            }
+        // The one place he gets properly spooky is Halloween.
+        case .dark:
+            switch day {
+            case .newYearsDay: "Happy New Year. I resolve to read more. I always do."
+            case .newYearsEve: "New Year's Eve. I'll be asleep by midnight. Tell me how it ends."
+            case .valentinesDay: "Happy Valentine's Day. Roses are red. Coffee is warm. You're my favorite. Don't tell the others."
+            case .leapDay: "Leap Day. An extra day. Nobody knows where it comes from."
+            case .stPatricksDay: "Happy St. Patrick's Day. I've looked for the pot of gold. Still looking."
+            case .aprilFools: "Your chair is haunted. April Fools'. (Probably.)"
+            case .easter: "Happy Easter. I hid an egg somewhere. I forgot where. That's part of the fun."
+            case .fourthOfJuly: "Happy Fourth of July. They'll be setting off fireworks. I'll be under a blanket with a book."
+            case .halloween: "Happy Halloween. Something is coming for you tonight. It says hi."
+            case .thanksgiving: "Happy Thanksgiving. I'm thankful for coffee, quiet and you. Not in that order."
+            case .decemberFirst: "December. The advent calendar is out. I opened door 24 first. No regrets."
+            case .christmasEve: "Christmas Eve. Something's coming down the chimney tonight. They say it's normal."
+            case .christmas: "Merry Christmas. I'll be by the fire with a good book. Join me."
+            case .fridayThe13th: "Friday the 13th. Watch your step today. They're watching theirs."
+            }
         }
-        let dayName = date.formatted(.dateTime.weekday(.wide))
-        // One sentence run together, so it reads as one thought (Natalie tried each half on its own line).
-        return "\(greeting) \(saying)"
-            .replacingOccurrences(of: "{dayName}", with: dayName)
-            .replacingOccurrences(of: "{DAYNAME}", with: dayName.uppercased())
-            .replacingOccurrences(of: "{timeOfDay}", with: timeOfDay)
-            .replacingOccurrences(of: "{TimeOfDay}", with: timeOfDay.capitalized)
-            .replacingOccurrences(of: "{TIMEOFDAY}", with: timeOfDay.uppercased())
     }
 
     /// When a greeting saying fits. `day` is a `Calendar` weekday (1 = Sunday).
@@ -605,5 +703,57 @@ private struct SideBubbleShape: Shape {
         }
         tail.closeSubpath()
         return Path(roundedRect: body, cornerRadius: min(radius, body.height / 2)).union(tail)
+    }
+}
+
+/// A day that gets its own greeting line: a short list of widely celebrated (and US) holidays Natalie picked,
+/// plus December 1 for the start of the advent countdown and Friday the 13th. Solemn days are left out on purpose.
+enum SpecialDay {
+    case newYearsDay, newYearsEve, valentinesDay, leapDay, stPatricksDay, aprilFools, easter, fourthOfJuly
+    case halloween, thanksgiving, decemberFirst, christmasEve, christmas, fridayThe13th
+
+    init?(_ date: Date, calendar: Calendar = .current) {
+        let parts = calendar.dateComponents([.year, .month, .day, .weekday], from: date)
+        guard let year = parts.year, let month = parts.month, let day = parts.day, let weekday = parts.weekday else { return nil }
+        switch (month, day) {
+        case (1, 1): self = .newYearsDay
+        case (12, 31): self = .newYearsEve
+        case (2, 14): self = .valentinesDay
+        case (2, 29): self = .leapDay
+        case (3, 17): self = .stPatricksDay
+        case (4, 1): self = .aprilFools
+        case (7, 4): self = .fourthOfJuly
+        case (10, 31): self = .halloween
+        case (12, 1): self = .decemberFirst
+        case (12, 24): self = .christmasEve
+        case (12, 25): self = .christmas
+        // The fourth Thursday of November (US).
+        case (11, 22...28) where weekday == 5: self = .thanksgiving
+        case (_, 13) where weekday == 6: self = .fridayThe13th
+        default:
+            let easter = Self.easter(in: year)
+            guard month == easter.month, day == easter.day else { return nil }
+            self = .easter
+        }
+    }
+
+    /// Western Easter Sunday, by the anonymous Gregorian algorithm.
+    static func easter(in year: Int) -> (month: Int, day: Int) {
+        let a = year % 19, b = year / 100, c = year % 100
+        let d = b / 4, e = b % 4, f = (b + 8) / 25, g = (b - f + 1) / 3
+        let h = (19 * a + b - d - g + 15) % 30
+        let i = c / 4, k = c % 4
+        let l = (32 + 2 * e + 2 * i - h - k) % 7
+        let m = (a + 11 * h + 22 * l) / 451
+        let month = (h + l - 7 * m + 114) / 31
+        let day = (h + l - 7 * m + 114) % 31 + 1
+        return (month, day)
+    }
+
+    /// Whole days until Christmas, from December 1 to 23, for the greeting's countdown; nil otherwise.
+    static func daysUntilChristmas(from date: Date, calendar: Calendar = .current) -> Int? {
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        guard parts.month == 12, let day = parts.day, day <= 23 else { return nil }
+        return 25 - day
     }
 }
