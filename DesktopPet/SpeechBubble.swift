@@ -630,10 +630,10 @@ struct BubbleView: View {
             BubbleNumberPage(game: numberGame, onClose: { menu.page = nil })
                 .frame(width: 210)
         case .coin:
-            BubblePickPage(game: coin, button: "Flip", systemImage: "dollarsign.circle")
+            BubblePickPage(game: coin, button: "Flip")
                 .frame(width: 150)
         case .rockPaperScissors:
-            BubblePickPage(game: rockPaperScissors, button: "Play", systemImage: "scissors")
+            BubblePickPage(game: rockPaperScissors, button: "Play")
                 .frame(width: 190)
         }
     }

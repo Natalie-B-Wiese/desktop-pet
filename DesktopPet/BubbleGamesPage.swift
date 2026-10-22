@@ -228,12 +228,11 @@ struct BubbleNumberPage: View {
 struct BubblePickPage: View {
     let game: RandomPick
     let button: String
-    let systemImage: String
 
     var body: some View {
         VStack(spacing: 8) {
             GameAnswer(text: game.shown)
-            BubbleButton(button, systemImage: systemImage, centered: true) { game.pick() }
+            BubbleButton(button, centered: true) { game.pick() }
         }
         .allowsHitTesting(!game.isPicking)
     }
