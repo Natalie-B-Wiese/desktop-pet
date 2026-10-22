@@ -97,20 +97,31 @@ final class AskGame {
     private(set) var answer: String?
     private(set) var answerStart = Date.distantPast
     private(set) var isThinking = false
+    /// Counts questions, so an answer still coming after `reset` is dropped.
+    @ObservationIgnored private var question = 0
 
     func ask() {
         guard !isThinking else { return }
         let last = answer
         answer = nil
         isThinking = true
+        question += 1
+        let asked = question
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(0.7))
-            guard let self else { return }
+            guard let self, question == asked else { return }
             // Never the same answer twice in a row, so asking again always looks like a new answer.
             let choices = Chatter.answers(AppPreferences.chatter).filter { $0 != last }
             answer = choices.randomElement()
             answerStart = Date()
             isThinking = false
         }
+    }
+
+    /// Back to "Think of a yes-or-no question", for the next visit to the page.
+    func reset() {
+        question += 1
+        answer = nil
+        isThinking = false
     }
 }

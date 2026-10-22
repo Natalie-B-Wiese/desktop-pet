@@ -277,5 +277,6 @@ struct BubbleAskPage: View {
             .frame(maxWidth: .infinity, minHeight: 44) // room for a two-line answer, so the bubble doesn't jump
             BubbleButton("Ask", centered: true) { game.ask() }
         }
+        .onDisappear(perform: game.reset) // leaving the page (‹, ✕ or clicking her) starts the next visit fresh
     }
 }
