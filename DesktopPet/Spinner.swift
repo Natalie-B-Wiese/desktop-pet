@@ -14,8 +14,6 @@ final class SpinnerStore {
     /// The option the highlight is on: moving while spinning, then the pick once it stops.
     private(set) var highlightedID: SpinnerOption.ID?
     private(set) var isSpinning = false
-    /// The last pick, shown big under Spin. Cleared when a spin starts.
-    private(set) var result: String?
 
     /// Called with the pick once the highlight stops.
     @ObservationIgnored var onPicked: ((String) -> Void)?
@@ -76,7 +74,6 @@ final class SpinnerStore {
         while steps < 16 { steps += count }
 
         isSpinning = true
-        result = nil
         Task { @MainActor [weak self] in
             for step in 1...steps {
                 let progress = Double(step) / Double(steps)
@@ -88,7 +85,6 @@ final class SpinnerStore {
             guard let self else { return }
             isSpinning = false
             if let id = highlightedID, let pick = options.first(where: { $0.id == id }) {
-                result = pick.text
                 onPicked?(pick.text)
             }
         }

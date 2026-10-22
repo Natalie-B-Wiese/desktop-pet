@@ -13,7 +13,7 @@ struct BubbleGamesPage: View {
 }
 
 /// The Spinner game: options typed on directly (a blank "Add option" row sits at the bottom), and Spin runs a
-/// highlight down the list that slows to a stop on one, shown big underneath.
+/// highlight down the list that slows to a stop on one, which stays highlighted.
 struct BubbleSpinnerPage: View {
     let store: SpinnerStore
     var onClose: () -> Void
@@ -53,14 +53,6 @@ struct BubbleSpinnerPage: View {
             }
             .disabled(!store.canSpin)
             .opacity(store.canSpin || store.isSpinning ? 1 : 0.4)
-
-            if let result = store.result {
-                Text(result)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity)
-            }
         }
         .onChange(of: focusedID) { old, _ in
             if let old { store.tidy(old) }
