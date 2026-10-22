@@ -89,3 +89,28 @@ enum Flicker {
         show(final)
     }
 }
+
+/// Ask Topsy: a Magic 8-Ball. She thinks for a moment, then answers in her personality's voice.
+@Observable
+final class AskGame {
+    /// Her answer, typed out from `answerStart`. Nil before the first question and while she thinks.
+    private(set) var answer: String?
+    private(set) var answerStart = Date.distantPast
+    private(set) var isThinking = false
+
+    func ask() {
+        guard !isThinking else { return }
+        let last = answer
+        answer = nil
+        isThinking = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(0.7))
+            guard let self else { return }
+            // Never the same answer twice in a row, so asking again always looks like a new answer.
+            let choices = Chatter.answers(AppPreferences.chatter).filter { $0 != last }
+            answer = choices.randomElement()
+            answerStart = Date()
+            isThinking = false
+        }
+    }
+}

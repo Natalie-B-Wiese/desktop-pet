@@ -20,6 +20,7 @@ final class AppController {
     let numberGame = NumberGame()
     let coin = RandomPick(["Heads", "Tails"])
     let rockPaperScissors = RandomPick(["Rock", "Paper", "Scissors"])
+    let ask = AskGame()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -51,7 +52,7 @@ final class AppController {
         let bubble = SpeechBubbleController(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
             spinner: spinner, numberGame: numberGame, coin: coin,
-            rockPaperScissors: rockPaperScissors, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
+            rockPaperScissors: rockPaperScissors, ask: ask, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -525,8 +526,8 @@ final class AppController {
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first);
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
-    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings|games|spinner|number|coin|rps]` opens the cat's click menu (on that page);
-    /// `--spin` spins the Spinner after 1s; `--roll` rolls the Number game after 1s; `--flip` flips the coin and `--play` plays rock, paper, scissors after 1s;
+    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings|games|spinner|number|coin|rps|ask]` opens the cat's click menu (on that page);
+    /// `--spin` spins the Spinner after 1s; `--roll` rolls the Number game after 1s; `--flip` flips the coin and `--play` plays rock, paper, scissors and `--ask` asks Topsy after 1s;
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--say <text>` says that text in the small bubble beside her;
     /// `--click-line` clicks the small bubble beside her after 2s;
@@ -604,6 +605,7 @@ final class AppController {
             case "number": .number
             case "coin": .coin
             case "rps": .rockPaperScissors
+            case "ask": .ask
             default: .main
             }
         }
@@ -614,6 +616,9 @@ final class AppController {
         }
         if args.contains("--flip") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.coin.pick() }
+        }
+        if args.contains("--ask") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.ask.ask() }
         }
         if args.contains("--play") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.rockPaperScissors.pick() }

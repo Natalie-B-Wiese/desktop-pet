@@ -501,6 +501,47 @@ enum Chatter {
     }
 }
 
+// MARK: Ask Topsy
+
+extension Chatter {
+    /// Her Magic 8-Ball answers on the Ask page (Games), in her personality's voice: yes, then maybe, then no.
+    /// With Chatter on None she still answers (you asked her), with the classic 8-Ball answers.
+    static func answers(_ personality: Personality?) -> [String] {
+        switch personality {
+        case nil: [
+            "It is certain.", "Without a doubt.", "Yes.", "Most likely.", "Signs point to yes.",
+            "Reply hazy, try again.", "Ask again later.", "Cannot predict now.",
+            "Don't count on it.", "My reply is no.", "Very doubtful.",
+        ]
+        case .bubbly: [
+            "YES! A thousand times yes!", "Totally! Go for it!", "Signs point to YES!",
+            "Ooh, ask me again after a snack!", "Hmm! My brain is buffering!",
+            "Nope! But I still love you!", "That's a no from me!", "Not this time! Next question!",
+        ]
+        case .sassy: [
+            "Obviously yes.", "Yes. Was that ever in doubt?", "I'll allow it.",
+            "I'm busy being fabulous. Ask again later.", "Unclear. Even I need a moment.",
+            "Absolutely not.", "No. And I'm never wrong.", "Not a chance.",
+        ]
+        case .boss: [
+            "Approved!", "Greenlit. Let's make it happen.", "The board says yes.",
+            "Let's circle back on that.", "Let's take that offline.",
+            "That's a no from leadership.", "Not in this quarter's budget.", "Let's put a pin in that. Forever.",
+        ]
+        case .dark: [
+            "Yes. They already knew.", "The book says yes.", "Yes. Quietly, yes.",
+            "Ask again after coffee.", "The pages are blank on that one.",
+            "No. Don't ask why.", "No. They agree.", "Unlikely. Very unlikely.",
+        ]
+        case .butler: [
+            "Most certainly.", "I should think so.", "Without question.",
+            "Perhaps after tea.", "That remains to be seen.",
+            "I should think not.", "I'm afraid not.", "Most unwise, if I may.",
+        ]
+        }
+    }
+}
+
 /// What the pet is saying right now: a line in the bubble while the menu is closed, or a small
 /// second bubble beside her (to-dos, Settings, heads-ups). Both type themselves out, and each stays until
 /// the mouse comes near her (`noticeMouse`), then goes away on its own, so a line said while you're

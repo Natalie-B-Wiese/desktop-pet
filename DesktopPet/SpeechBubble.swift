@@ -21,7 +21,7 @@ final class BubbleLayout {
 final class BubbleMenu {
     enum Page: Equatable {
         case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
-        case games, spinner, number, coin, rockPaperScissors
+        case games, spinner, number, coin, rockPaperScissors, ask
         case editReminder(Reminder.ID)
     }
 
@@ -65,6 +65,7 @@ final class SpeechBubbleController {
     private let numberGame: NumberGame
     private let coin: RandomPick
     private let rockPaperScissors: RandomPick
+    private let ask: AskGame
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     /// The small chatter bubble above an open page. Its own window, so the main bubble never moves for it.
@@ -83,7 +84,7 @@ final class SpeechBubbleController {
     init(
         timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
         notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, coin: RandomPick, rockPaperScissors: RandomPick,
-        clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
+        ask: AskGame, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
         actions: BubbleActions
     ) {
         self.timer = timer
@@ -95,6 +96,7 @@ final class SpeechBubbleController {
         self.numberGame = numberGame
         self.coin = coin
         self.rockPaperScissors = rockPaperScissors
+        self.ask = ask
         self.clipboard = clipboard
         self.reminders = reminders
         self.todos = todos
@@ -116,7 +118,7 @@ final class SpeechBubbleController {
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
             notes: notes, spinner: spinner, numberGame: numberGame, coin: coin,
-            rockPaperScissors: rockPaperScissors, clipboard: clipboard, settings: settings,
+            rockPaperScissors: rockPaperScissors, ask: ask, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -396,6 +398,7 @@ struct BubbleView: View {
     let numberGame: NumberGame
     let coin: RandomPick
     let rockPaperScissors: RandomPick
+    let ask: AskGame
     let clipboard: ClipboardHistory
     let settings: PetSettings
     let layout: BubbleLayout
@@ -487,7 +490,7 @@ struct BubbleView: View {
         case .main, .games: 3 * MenuTile.width + 2 * tileSpacing
         case .spinner, .number: 210
         case .coin: 150
-        case .rockPaperScissors: 190 // room for "Rock, paper, scissors" and a big "Scissors"
+        case .rockPaperScissors, .ask: 190 // room for "Rock, paper, scissors" and a big "Scissors"
         case .startTimer: 228
         case .timerControls, .reminders, .addReminder, .editReminder: 190
         case .settings: 206 // room for "Reminders ‹ 60 min early ›"
@@ -525,6 +528,7 @@ struct BubbleView: View {
         case .number: "Random number"
         case .coin: "Coin flip"
         case .rockPaperScissors: "Rock, paper, scissors"
+        case .ask: settings.displayName.map { "Ask \($0)" } ?? "Ask me"
         }
     }
 
@@ -533,7 +537,7 @@ struct BubbleView: View {
         switch page {
         case .main: nil
         case .addReminder, .editReminder: .reminders
-        case .spinner, .number, .coin, .rockPaperScissors: .games
+        case .spinner, .number, .coin, .rockPaperScissors, .ask: .games
         default: .main
         }
     }
@@ -634,6 +638,9 @@ struct BubbleView: View {
                 .frame(width: 150)
         case .rockPaperScissors:
             BubblePickPage(game: rockPaperScissors, button: "Play")
+                .frame(width: 190)
+        case .ask:
+            BubbleAskPage(game: ask)
                 .frame(width: 190)
         }
     }

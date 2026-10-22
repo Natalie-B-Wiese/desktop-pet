@@ -10,6 +10,7 @@ struct BubbleGamesPage: View {
         ("Number", "42.square", .number),
         ("Coin", "dollarsign.circle", .coin),
         ("RPS", "scissors", .rockPaperScissors),
+        ("Ask", "questionmark.bubble", .ask),
     ]
 
     var body: some View {
@@ -249,5 +250,32 @@ private struct GameAnswer: View {
             .minimumScaleFactor(0.5)
             .opacity(text == nil ? 0.2 : 1)
             .frame(maxWidth: .infinity)
+    }
+}
+
+/// Ask Topsy, a Magic 8-Ball: her answer on top, typed out like her chatter, and Ask under it.
+struct BubbleAskPage: View {
+    let game: AskGame
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Group {
+                if game.isThinking {
+                    Text("Hmm\u{2026}")
+                        .opacity(0.4)
+                } else if let answer = game.answer {
+                    TypewriterText(text: answer, start: game.answerStart)
+                } else {
+                    Text("Think of a yes-or-no question")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .opacity(0.45)
+                }
+            }
+            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 44) // room for a two-line answer, so the bubble doesn't jump
+            BubbleButton("Ask", centered: true) { game.ask() }
+        }
     }
 }
