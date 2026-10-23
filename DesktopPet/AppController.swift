@@ -63,11 +63,21 @@ final class AppController {
             pickColor: { [weak self] in self?.pickColor() }
         ))
         panel.onClick = { [weak self, weak bubble] in
-            if self?.hideSeek.isPlaying != true { bubble?.toggleMenu() } // peeking out of an app, she's about to go home
+            guard let self else { return }
+            if hideSeek.isPeeking {
+                hideSeek.click() // found her!
+            } else if !hideSeek.isPlaying { // just found, she's about to go home
+                bubble?.toggleMenu()
+            }
         }
         self.bubble = bubble
         hideSeek.onHide = { [weak self] in self?.leaveToHide() }
-        hideSeek.onFound = { [weak self] window in self?.peekOut(of: window) }
+        hideSeek.onPeek = { [weak self] window, along in self?.peek(from: window, along: along) }
+        hideSeek.onDuck = { [weak self] in self?.petPanel?.orderOut(nil) }
+        hideSeek.onFound = { [weak self] in
+            guard let panel = self?.petPanel else { return }
+            panel.rise { panel.hop() }
+        }
         hideSeek.onEnd = { [weak self] ending in self?.comeHome(ending) }
 
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
@@ -449,8 +459,8 @@ final class AppController {
         bubble?.update()
     }
 
-    /// Found: she rises up inside the bottom-right corner of the app's window and hops.
-    private func peekOut(of window: NSRect) {
+    /// Just her ears and eyes, peeking up from the bottom edge of the app's window, `along` (0–1) the way across.
+    private func peek(from window: NSRect, along: CGFloat) {
         guard let panel = petPanel else { return }
         let size = panel.frame.size
         func overlap(_ screen: NSScreen) -> CGFloat {
@@ -459,12 +469,17 @@ final class AppController {
         }
         let screen = NSScreen.screens.max { overlap($0) < overlap($1) }
         let visible = screen?.visibleFrame ?? window
-        let x = min(max(window.maxX - size.width - 24, visible.minX), visible.maxX - size.width)
+        let x = min(max(window.minX + (window.width - size.width) * along, visible.minX), visible.maxX - size.width)
         let y = min(max(window.minY, visible.minY), visible.maxY - size.height)
         panel.visit(NSPoint(x: x.rounded(), y: y.rounded()))
+        panel.sinkOutOfSight()
         panel.orderFrontRegardless()
-        panel.rise { panel.hop() }
+        panel.rise(to: Self.peekSunk)
     }
+
+    /// How much of her stays out of sight while she peeks: her bottom half, so her ears and eyes show
+    /// (cats' and dogs' eyes end on row 11).
+    private static let peekSunk: CGFloat = 0.5
 
     /// Back to her spot, then her line (none when something else called her home).
     private func comeHome(_ ending: HideAndSeek.Ending) {
@@ -679,6 +694,10 @@ final class AppController {
             if let seconds = value(after: "--give-up").flatMap(TimeInterval.init) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1 + seconds) { [weak self] in self?.hideSeek.giveUp() }
             }
+        }
+        if let seconds = value(after: "--click-pet").flatMap(TimeInterval.init) {
+            // Clicks her after that many seconds, as a real click would (posted clicks are blocked).
+            DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.petPanel?.onClick?() }
         }
         if args.contains("--ask") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.ask.ask() }

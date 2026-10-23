@@ -109,6 +109,7 @@ final class PetPanel: NSPanel {
     func returnHome() {
         stopHop()
         stopRise()
+        petView.sunk = 0
         guard let home = homeOrigin else { return }
         homeOrigin = nil
         setFrameOrigin(home)
@@ -117,16 +118,17 @@ final class PetPanel: NSPanel {
 
     private var riseTimer: Timer?
 
-    /// Rises up from her window's bottom edge, as if peeking up from behind something, then calls `then`.
-    func rise(then: @escaping () -> Void = {}) {
+    /// Rises up from her window's bottom edge, as if from behind something, until `sunk` of her is still
+    /// out of sight (0 = all of her shows), then calls `then`. Starts from where she is (`sinkOutOfSight` for none of her).
+    func rise(to sunk: CGFloat = 0, then: @escaping () -> Void = {}) {
         stopRise()
+        let from = petView.sunk
         let duration = 0.35
         let start = CACurrentMediaTime()
-        petView.sunk = 1
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
             guard let self else { return }
             let progress = min(1, (CACurrentMediaTime() - start) / duration)
-            petView.sunk = 1 - progress * (2 - progress) // eases out
+            petView.sunk = from + (sunk - from) * progress * (2 - progress) // eases out
             if progress >= 1 {
                 stopRise()
                 then()
@@ -136,10 +138,15 @@ final class PetPanel: NSPanel {
         riseTimer = timer
     }
 
+    /// Starts the next `rise` from fully out of sight.
+    func sinkOutOfSight() {
+        stopRise()
+        petView.sunk = 1
+    }
+
     private func stopRise() {
         riseTimer?.invalidate()
         riseTimer = nil
-        petView.sunk = 0
     }
 
     func setImage(_ image: NSImage) {

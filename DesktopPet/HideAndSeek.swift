@@ -1,9 +1,9 @@
 import AppKit
 import Observation
 
-/// Hide and Seek: Topsy hides in one of your open apps, and switching to that app finds her. She pops up
-/// at the corner of its window, then goes home. Only app names and window positions are used (no permission
-/// needed), and only while a round is on; nothing is saved.
+/// Hide and Seek: Topsy hides in one of your open apps. Switching to that app shows her peeking up from the
+/// bottom of its window (she ducks again if you switch away), and clicking her finds her; then she goes home.
+/// Only app names and window positions are used (no permission needed), and only while a round is on; nothing is saved.
 @Observable
 final class HideAndSeek {
     enum Ending {
@@ -14,29 +14,37 @@ final class HideAndSeek {
         case interrupted
     }
 
-    /// Hiding, or popping out in the app she hid in. She's away from her spot either way.
+    /// Hiding, peeking, or just found. She's away from her spot the whole time.
     private(set) var isPlaying = false
+    /// Peeking out of the app she hid in, waiting to be clicked.
+    @ObservationIgnored private(set) var isPeeking = false
     /// Why she couldn't hide, shown on the page.
     private(set) var problem: String?
 
     /// She leaves her spot.
     @ObservationIgnored var onHide: () -> Void = {}
-    /// She pops out at that window (in screen coordinates).
-    @ObservationIgnored var onFound: (NSRect) -> Void = { _ in }
+    /// She peeks up from the bottom of that window (in screen coordinates), `along` (0–1) the way across it.
+    @ObservationIgnored var onPeek: (_ window: NSRect, _ along: CGFloat) -> Void = { _, _ in }
+    /// You switched away from her app, so she ducks out of sight again.
+    @ObservationIgnored var onDuck: () -> Void = {}
+    /// You clicked her: she comes all the way out.
+    @ObservationIgnored var onFound: () -> Void = {}
     /// She's back home.
     @ObservationIgnored var onEnd: (Ending) -> Void = { _ in }
 
     /// She gives up on you after this long.
     static let timeLimit: TimeInterval = 120
-    /// How long she stays peeking out of the app before going home.
-    private static let peekTime: TimeInterval = 2
+    /// How long she stays out after being found, before going home.
+    private static let foundTime: TimeInterval = 1.5
 
     @ObservationIgnored private var hidingIn: pid_t?
+    /// Where along the window's bottom she peeks, the same all round.
+    @ObservationIgnored private var along: CGFloat = 0.5
     @ObservationIgnored private var startedAt = Date()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var giveUpTimer: Timer?
-    /// Counts rounds, so a step still coming from a finished round is dropped.
-    @ObservationIgnored private var round = 0
+    /// Counts rounds and peeks, so a step still coming from an earlier one is dropped.
+    @ObservationIgnored private var step = 0
 
     /// Hides in an open app other than the one you're in. Says why on the page if there's none.
     /// `app` picks one by name, for testing.
@@ -49,19 +57,22 @@ final class HideAndSeek {
         }
         problem = nil
         isPlaying = true
-        round += 1
+        step += 1
         startedAt = Date()
         hidingIn = app
+        along = .random(in: 0.1...0.9)
         let center = NSWorkspace.shared.notificationCenter
         observers = [
             center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
                 let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-                if let self, let app, app.processIdentifier == hidingIn { found() }
+                guard let self, let app else { return }
+                if app.processIdentifier == hidingIn { peek() } else { duck() }
             },
             // Her hiding spot closed: she moves to another app, or gives up if there's none.
             center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
                 let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
                 guard let self, let app, app.processIdentifier == hidingIn else { return }
+                duck()
                 if let next = Self.hidingSpots().randomElement() { hidingIn = next } else { end(.gaveUp(app: nil)) }
             },
         ]
@@ -86,29 +97,46 @@ final class HideAndSeek {
         problem = nil
     }
 
-    /// Waits for the app's window to come to the front (and its Space to slide in), pops her out at its corner,
-    /// then sends her home.
-    private func found() {
+    /// You clicked her while she peeked: found! She comes out, then goes home.
+    func click() {
+        guard isPeeking else { return }
         let seconds = max(1, Int(Date().timeIntervalSince(startedAt).rounded()))
-        let pid = hidingIn
         stopWatching()
-        let current = round
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(0.4))
-            guard let self, round == current else { return }
-            if let pid, let window = Self.frontWindow(of: pid) {
-                onFound(window)
-                try? await Task.sleep(for: .seconds(Self.peekTime))
-                guard round == current else { return }
-            }
+        isPeeking = false
+        step += 1
+        let current = step
+        onFound()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.foundTime) { [weak self] in
+            guard let self, step == current else { return }
             end(.found(seconds: seconds))
         }
     }
 
+    /// Waits for the app's window to come to the front (and its Space to slide in), then peeks up from it.
+    private func peek() {
+        step += 1
+        let current = step
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self, step == current, let pid = hidingIn,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                  let window = Self.frontWindow(of: pid) else { return }
+            isPeeking = true
+            onPeek(window, along)
+        }
+    }
+
+    private func duck() {
+        step += 1 // a peek still on its way is dropped
+        guard isPeeking else { return }
+        isPeeking = false
+        onDuck()
+    }
+
     private func end(_ ending: Ending) {
         stopWatching()
-        round += 1
+        step += 1
         isPlaying = false
+        isPeeking = false
         onEnd(ending)
     }
 

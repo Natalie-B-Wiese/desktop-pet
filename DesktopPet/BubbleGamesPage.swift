@@ -306,13 +306,13 @@ struct BubbleAskPage: View {
     }
 }
 
-/// Hide and Seek: Hide sends her off to hide in one of your open apps (the bubble goes with her).
+/// Hide and Seek: Hide sends her off to hide in one of your open apps (the bubble goes with her), where you click her to find her.
 struct BubbleHideSeekPage: View {
     let game: HideAndSeek
 
     var body: some View {
         VStack(spacing: 8) {
-            Text("I'll hide in one of your open apps. Switch to it to find me!")
+            Text("I'll hide in one of your open apps. Find me and click me!")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
