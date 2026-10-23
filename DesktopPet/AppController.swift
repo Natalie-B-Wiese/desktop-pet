@@ -20,6 +20,7 @@ final class AppController {
     let numberGame = NumberGame()
     let ask = AskGame()
     let hideSeek = HideAndSeek()
+    let wordGame = WordGame()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -50,7 +51,7 @@ final class AppController {
         petPanel = panel
         let bubble = SpeechBubbleController(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
-            spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
+            spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, wordGame: wordGame, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -679,6 +680,7 @@ final class AppController {
             case "number": .number
             case "ask": .ask
             case "hide-seek": .hideSeek
+            case "word": .word
             default: .main
             }
         }
@@ -698,6 +700,9 @@ final class AppController {
         if let seconds = value(after: "--click-pet").flatMap(TimeInterval.init) {
             // Clicks her after that many seconds, as a real click would (posted clicks are blocked).
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.petPanel?.onClick?() }
+        }
+        if let word = value(after: "--word") {
+            wordGame.play(word) // pair it with `--menu word` (and `--type` to guess letters)
         }
         if args.contains("--ask") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.ask.ask() }

@@ -854,3 +854,31 @@ extension Chatter {
         return rest == 0 ? "\(seconds / 60) min" : "\(seconds / 60) min \(rest) sec"
     }
 }
+
+/// Guess the Word's lines for the end of a word, said on the page (drafted by the agent for Natalie to review).
+extension Chatter {
+    static func wordWon(_ personality: Personality?, misses: Int) -> String {
+        let lines: [String] = switch personality {
+        case nil: misses == 0 ? ["You got it, without a single miss!"] : ["You got it!"]
+        case .bubbly: ["YOU GOT IT! Big brain energy!", "Yes yes YES! You're amazing!"]
+        case .sassy: ["Fine. You got it. Don't let it go to your head.", "Lucky guess. Clearly."]
+        case .boss: ["Nailed it! That's a promotion-worthy guess.", "Solved! Outstanding work."]
+        case .dark: ["You got it. They'll be impressed.", "Solved. I knew you would."]
+        case .butler: ["Splendidly done.", "Correct, and with style."]
+        }
+        return lines.randomElement()!
+    }
+
+    /// `{word}` is the word they missed, like "Pancake".
+    static func wordLost(_ personality: Personality?, word: String) -> String {
+        let lines: [String] = switch personality {
+        case nil: ["Out of paws! It was {word}."]
+        case .bubbly: ["Aww, so close! It was {word}!", "Out of paws! It was {word}! Next one's yours!"]
+        case .sassy: ["It was {word}. I win. As usual.", "{Word}. Obviously."]
+        case .boss: ["It was {word}. A learning opportunity!", "The word was {word}. We'll get the next one."]
+        case .dark: ["It was {word}. It always was.", "{Word}. The book never lies."]
+        case .butler: ["It was {word}, I'm afraid.", "The word was {word}. Better luck next time."]
+        }
+        return fill(lines.randomElement()!, "word", with: word.capitalized)
+    }
+}

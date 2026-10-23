@@ -10,6 +10,7 @@ struct BubbleGamesPage: View {
         ("Number", "42.square", .number),
         ("Ask", "questionmark.bubble", .ask),
         ("Hide & Seek", "eyes", .hideSeek),
+        ("Words", "textformat.abc", .word),
     ]
 
     var body: some View {
@@ -329,5 +330,107 @@ struct BubbleHideSeekPage: View {
                 .opacity(0.55)
         }
         .onDisappear(perform: game.clearProblem)
+    }
+}
+
+/// Guess the Word: the category, the word as blanks, six paw prints (one goes faint per wrong letter), her
+/// reaction, and the letters to click. Letters can be typed too, and Return deals the next word once it's over.
+struct BubbleWordPage: View {
+    let game: WordGame
+    var onClose: () -> Void
+
+    @FocusState private var focused: Bool
+
+    private static let letterRows = ["ABCDEFG", "HIJKLMN", "OPQRSTU", "VWXYZ"]
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(game.category)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .opacity(0.55)
+
+            HStack(spacing: 4) {
+                ForEach(Array(game.word.enumerated()), id: \.offset) { _, letter in
+                    let shown = game.guessed.contains(letter) || game.isLost
+                    Text(shown ? String(letter) : " ")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        // Letters she had to reveal are faint.
+                        .opacity(game.guessed.contains(letter) ? 1 : 0.35)
+                        .frame(width: 18, height: 22)
+                        .overlay(alignment: .bottom) { Rectangle().frame(height: 2) }
+                }
+            }
+
+            HStack(spacing: 6) {
+                ForEach(0..<WordGame.lives, id: \.self) { index in
+                    let lost = index >= WordGame.lives - game.misses
+                    Image(systemName: lost ? "pawprint" : "pawprint.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .opacity(lost ? 0.3 : 1)
+                }
+            }
+            .help("Wrong letters left")
+
+            Group {
+                if let reaction = game.reaction {
+                    TypewriterText(text: reaction, start: game.reactionStart)
+                } else {
+                    Text("Guess a letter!").opacity(0.45)
+                }
+            }
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 32) // room for two lines, so the letters don't jump
+
+            if game.isOver {
+                BubbleButton("Next word", centered: true) { game.newWord() }
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(Self.letterRows, id: \.self) { row in
+                        HStack(spacing: 4) {
+                            ForEach(Array(row), id: \.self) { letterButton($0) }
+                        }
+                    }
+                }
+            }
+        }
+        // Typing works too. The page takes the keyboard as it opens.
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .onAppear {
+            game.dealIfNeeded()
+            focused = true
+        }
+        .onKeyPress(phases: .down) { press in
+            if press.key == .return, game.isOver {
+                game.newWord()
+                return .handled
+            }
+            guard let letter = press.characters.first, letter.isLetter else { return .ignored }
+            game.guess(letter)
+            return .handled
+        }
+        .onExitCommand(perform: onClose) // Esc closes the menu
+    }
+
+    /// Black once guessed right, faint and crossed out once guessed wrong.
+    private func letterButton(_ letter: Character) -> some View {
+        let guessed = game.guessed.contains(letter)
+        let right = guessed && game.word.contains(letter)
+        return Button { game.guess(letter) } label: {
+            Text(String(letter))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(right ? .white : .black)
+                .strikethrough(guessed && !right)
+                .frame(width: 26, height: 24)
+                .background(RoundedRectangle(cornerRadius: 6).fill(right ? Color.black : .white))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.black.opacity(guessed ? 0.25 : 1), lineWidth: 1.5))
+                .opacity(guessed && !right ? 0.35 : 1)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .allowsHitTesting(!guessed) // not `.disabled`, which greys out the black right letters
     }
 }
