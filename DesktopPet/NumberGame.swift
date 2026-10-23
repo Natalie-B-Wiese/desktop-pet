@@ -53,31 +53,7 @@ final class NumberGame {
     }
 }
 
-/// A game that picks one of a few answers, like the Coin (Heads, Tails) or rock, paper, scissors,
-/// flickering through them for about half a second first.
-@Observable
-final class RandomPick {
-    let answers: [String]
-    /// Nil before the first pick.
-    private(set) var shown: String?
-    private(set) var isPicking = false
-
-    init(_ answers: [String]) {
-        self.answers = answers
-    }
-
-    func pick() {
-        guard !isPicking else { return }
-        let answers = answers
-        isPicking = true
-        Task { @MainActor [weak self] in
-            await Flicker.run(to: answers.randomElement()!, frame: { answers[$0 % answers.count] }) { self?.shown = $0 }
-            self?.isPicking = false
-        }
-    }
-}
-
-/// The games' half-second flicker before an answer settles.
+/// The Number game's half-second flicker before an answer settles.
 enum Flicker {
     /// Shows `frame(n)` ten times, 0.05s apart, then `final`.
     @MainActor

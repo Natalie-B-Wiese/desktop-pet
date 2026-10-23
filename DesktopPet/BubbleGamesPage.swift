@@ -8,8 +8,6 @@ struct BubbleGamesPage: View {
     private static let games: [(title: String, systemImage: String, page: BubbleMenu.Page)] = [
         ("Spinner", "arrow.trianglehead.2.clockwise", .spinner),
         ("Number", "42.square", .number),
-        ("Coin", "dollarsign.circle", .coin),
-        ("RPS", "scissors", .rockPaperScissors),
         ("Ask", "questionmark.bubble", .ask),
     ]
 
@@ -27,8 +25,9 @@ struct BubbleGamesPage: View {
     }
 }
 
-/// The Spinner game: options typed on directly (a blank "Add option" row sits at the bottom), and Spin runs a
-/// highlight down the list that slows to a stop on one, which stays highlighted.
+/// The Spinner game: a "List ‹ Custom ›" row on top, then the list's options, and Spin runs a highlight down
+/// the list that slows to a stop on one, which stays highlighted. Custom is typed on directly (a blank
+/// "Add option" row sits at the bottom); Coin and RPS are locked.
 struct BubbleSpinnerPage: View {
     let store: SpinnerStore
     var onClose: () -> Void
@@ -39,11 +38,14 @@ struct BubbleSpinnerPage: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            listPicker
+
             VStack(spacing: 4) {
                 ForEach(rows) { option in
                     SpinnerOptionRow(
                         option: option,
                         isBlank: option.id == blankID,
+                        isLocked: store.list != .custom,
                         isHighlighted: option.id == store.highlightedID,
                         isSpinning: store.isSpinning,
                         focusedID: $focusedID,
@@ -56,7 +58,7 @@ struct BubbleSpinnerPage: View {
             }
             .padding(1) // keeps the outlines from being clipped at the edges
 
-            if store.options.count < 2 {
+            if store.list == .custom && store.options.count < 2 {
                 Text("Add at least 2 options to spin")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .opacity(0.55)
@@ -77,9 +79,35 @@ struct BubbleSpinnerPage: View {
         }
     }
 
-    /// The options, then the blank row unless the list is full.
+    /// "List  ‹ Custom ›", like the ‹ › rows in Settings.
+    private var listPicker: some View {
+        HStack(spacing: 0) {
+            Text("List")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+            Spacer(minLength: 0)
+            HStack(spacing: 0) {
+                HeaderIconButton(systemImage: "chevron.left", help: "Previous list", width: 18) { stepList(-1) }
+                Text(store.list.title)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .frame(width: 56)
+                HeaderIconButton(systemImage: "chevron.right", help: "Next list", width: 18) { stepList(1) }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+        .allowsHitTesting(!store.isSpinning)
+    }
+
+    private func stepList(_ offset: Int) {
+        focusedID = nil // tidies the option being typed on
+        store.stepList(by: offset)
+    }
+
+    /// The options, then (on Custom) the blank row unless the list is full.
     private var rows: [SpinnerOption] {
-        store.options + (store.options.count < SpinnerStore.maxOptions ? [SpinnerOption(id: blankID, text: "")] : [])
+        let showsBlank = store.list == .custom && store.options.count < SpinnerStore.maxOptions
+        return store.options + (showsBlank ? [SpinnerOption(id: blankID, text: "")] : [])
     }
 
     private func type(_ text: String, on id: SpinnerOption.ID) {
@@ -93,10 +121,12 @@ struct BubbleSpinnerPage: View {
     }
 }
 
-/// One option, typed on in place. Black with white text while the highlight is on it.
+/// One option, typed on in place (unless it's a locked preset). Black with white text while the highlight is on it.
 private struct SpinnerOptionRow: View {
     let option: SpinnerOption
     let isBlank: Bool
+    /// A preset's option: no typing and no ✕.
+    let isLocked: Bool
     let isHighlighted: Bool
     let isSpinning: Bool
     var focusedID: FocusState<SpinnerOption.ID?>.Binding
@@ -110,11 +140,12 @@ private struct SpinnerOptionRow: View {
 
     private static let font = Font.system(size: 12, weight: .semibold, design: .rounded)
 
-    init(option: SpinnerOption, isBlank: Bool, isHighlighted: Bool, isSpinning: Bool,
+    init(option: SpinnerOption, isBlank: Bool, isLocked: Bool, isHighlighted: Bool, isSpinning: Bool,
          focusedID: FocusState<SpinnerOption.ID?>.Binding, onType: @escaping (String) -> Void,
          onSubmit: @escaping () -> Void, onDelete: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.option = option
         self.isBlank = isBlank
+        self.isLocked = isLocked
         self.isHighlighted = isHighlighted
         self.isSpinning = isSpinning
         self.focusedID = focusedID
@@ -128,16 +159,24 @@ private struct SpinnerOptionRow: View {
     var body: some View {
         let isFocused = focusedID.wrappedValue == option.id
         HStack(spacing: 4) {
-            TextField("", text: $text, prompt: Text("Add option").foregroundStyle(.black.opacity(0.35)))
-                .textFieldStyle(.plain)
-                .font(Self.font)
-                .foregroundStyle(isHighlighted ? .white : .black)
-                .focused(focusedID, equals: option.id)
-                .onSubmit(onSubmit)
-                .onExitCommand(perform: onClose) // Esc closes the menu
+            if isLocked {
+                // Plain text, so a preset never takes the keyboard (a text field would, even locked).
+                Text(option.text)
+                    .font(Self.font)
+                    .foregroundStyle(isHighlighted ? .white : .black)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                TextField("", text: $text, prompt: Text("Add option").foregroundStyle(.black.opacity(0.35)))
+                    .textFieldStyle(.plain)
+                    .font(Self.font)
+                    .foregroundStyle(isHighlighted ? .white : .black)
+                    .focused(focusedID, equals: option.id)
+                    .onSubmit(onSubmit)
+                    .onExitCommand(perform: onClose) // Esc closes the menu
+            }
 
-            if isBlank {
-                Color.clear.frame(width: 18, height: 18) // lines up with the ✕ on real options
+            if isBlank || isLocked {
+                Color.clear.frame(width: 18, height: 18) // as tall as a row with ✕, and lines up with it
             } else {
                 Button(action: onDelete) {
                     Image(systemName: "xmark")
@@ -151,14 +190,14 @@ private struct SpinnerOptionRow: View {
                 .help("Delete option")
             }
         }
-        .allowsHitTesting(!isSpinning) // no editing mid-spin; the list stays put and keeps its look
+        .allowsHitTesting(!isSpinning && !isLocked) // no editing mid-spin (the list stays put and keeps its look) or on presets
         .padding(.leading, 8)
         .padding(.trailing, 3)
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 7)
                 .fill(isHighlighted ? Color.black : .white)
-                .onTapGesture { focusedID.wrappedValue = option.id }
+                .onTapGesture { if !isLocked { focusedID.wrappedValue = option.id } }
         )
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(
             isFocused || isHighlighted ? Color.black : Color.black.opacity(0.25),
@@ -224,22 +263,7 @@ struct BubbleNumberPage: View {
     }
 }
 
-/// A game that picks one of a few answers (Coin, rock, paper, scissors): the answer big and bold on top,
-/// and its button under it.
-struct BubblePickPage: View {
-    let game: RandomPick
-    let button: String
-
-    var body: some View {
-        VStack(spacing: 8) {
-            GameAnswer(text: game.shown)
-            BubbleButton(button, centered: true) { game.pick() }
-        }
-        .allowsHitTesting(!game.isPicking)
-    }
-}
-
-/// A game's answer, big and bold; a faint "?" before the first one.
+/// The Number game's answer, big and bold; a faint "?" before the first one.
 private struct GameAnswer: View {
     let text: String?
 

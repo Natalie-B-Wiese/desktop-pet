@@ -21,7 +21,7 @@ final class BubbleLayout {
 final class BubbleMenu {
     enum Page: Equatable {
         case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
-        case games, spinner, number, coin, rockPaperScissors, ask
+        case games, spinner, number, ask
         case editReminder(Reminder.ID)
     }
 
@@ -63,8 +63,6 @@ final class SpeechBubbleController {
     private let notes: NoteStore
     private let spinner: SpinnerStore
     private let numberGame: NumberGame
-    private let coin: RandomPick
-    private let rockPaperScissors: RandomPick
     private let ask: AskGame
     private let layout = BubbleLayout()
     private let panel: BubblePanel
@@ -83,8 +81,7 @@ final class SpeechBubbleController {
 
     init(
         timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
-        notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, coin: RandomPick, rockPaperScissors: RandomPick,
-        ask: AskGame, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
+        notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, ask: AskGame, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
         actions: BubbleActions
     ) {
         self.timer = timer
@@ -94,8 +91,6 @@ final class SpeechBubbleController {
         self.notes = notes
         self.spinner = spinner
         self.numberGame = numberGame
-        self.coin = coin
-        self.rockPaperScissors = rockPaperScissors
         self.ask = ask
         self.clipboard = clipboard
         self.reminders = reminders
@@ -117,8 +112,7 @@ final class SpeechBubbleController {
         hostingView = FirstClickHostingView(rootView: BubbleView(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
-            notes: notes, spinner: spinner, numberGame: numberGame, coin: coin,
-            rockPaperScissors: rockPaperScissors, ask: ask, clipboard: clipboard, settings: settings,
+            notes: notes, spinner: spinner, numberGame: numberGame, ask: ask, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -396,8 +390,6 @@ struct BubbleView: View {
     let notes: NoteStore
     let spinner: SpinnerStore
     let numberGame: NumberGame
-    let coin: RandomPick
-    let rockPaperScissors: RandomPick
     let ask: AskGame
     let clipboard: ClipboardHistory
     let settings: PetSettings
@@ -489,8 +481,7 @@ struct BubbleView: View {
         switch page {
         case .main, .games: 3 * MenuTile.width + 2 * tileSpacing
         case .spinner, .number: 210
-        case .coin: 150
-        case .rockPaperScissors, .ask: 190 // room for "Rock, paper, scissors" and a big "Scissors"
+        case .ask: 190
         case .startTimer: 228
         case .timerControls, .reminders, .addReminder, .editReminder: 190
         case .settings: 206 // room for "Reminders ‹ 60 min early ›"
@@ -526,8 +517,6 @@ struct BubbleView: View {
         case .games: "Games"
         case .spinner: "Spinner"
         case .number: "Random number"
-        case .coin: "Coin flip"
-        case .rockPaperScissors: "Rock, paper, scissors"
         case .ask: settings.displayName.map { "Ask \($0)" } ?? "Ask me"
         }
     }
@@ -537,7 +526,7 @@ struct BubbleView: View {
         switch page {
         case .main: nil
         case .addReminder, .editReminder: .reminders
-        case .spinner, .number, .coin, .rockPaperScissors, .ask: .games
+        case .spinner, .number, .ask: .games
         default: .main
         }
     }
@@ -633,12 +622,6 @@ struct BubbleView: View {
         case .number:
             BubbleNumberPage(game: numberGame, onClose: { menu.page = nil })
                 .frame(width: 210)
-        case .coin:
-            BubblePickPage(game: coin, button: "Flip")
-                .frame(width: 150)
-        case .rockPaperScissors:
-            BubblePickPage(game: rockPaperScissors, button: "Play")
-                .frame(width: 190)
         case .ask:
             BubbleAskPage(game: ask)
                 .frame(width: 190)
