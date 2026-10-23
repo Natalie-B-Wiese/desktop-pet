@@ -33,7 +33,7 @@ final class HideAndSeek {
     @ObservationIgnored var onEnd: (Ending) -> Void = { _ in }
 
     /// She gives up on you after this long.
-    static let timeLimit: TimeInterval = 120
+    static let timeLimit: TimeInterval = 5 * 60
     /// How long she stays out after being found, before going home.
     private static let foundTime: TimeInterval = 1.5
 
