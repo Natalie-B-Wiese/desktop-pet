@@ -41,14 +41,23 @@ final class PetPanel: NSPanel {
         hidesOnDeactivate = false
         contentView = petView
 
-        if setFrameUsingName("PetWindow") {
-            // The saved frame may be from a different size; keep its position, apply the current size.
-            setScale(scale)
+        setFrameAutosaveName("PetWindow")
+        // Her saved spot, as is. AppKit's own restore (`setFrameUsingName`) moves a window to the main screen when
+        // the screen it was saved on reports a different size (the LG's menu bar coming and going did it).
+        if let origin = Self.savedOrigin() {
+            setFrameOrigin(origin)
         } else {
             placeInDefaultPosition()
         }
-        setFrameAutosaveName("PetWindow")
         keepOnScreen()
+    }
+
+    /// The bottom-left corner saved as "PetWindow" (the first two of AppKit's "x y width height …" numbers).
+    private static func savedOrigin() -> NSPoint? {
+        let numbers = UserDefaults.standard.string(forKey: "NSWindow Frame PetWindow")?
+            .split(separator: " ").compactMap { Double($0) } ?? []
+        guard numbers.count >= 2 else { return nil }
+        return NSPoint(x: numbers[0], y: numbers[1])
     }
 
     override var canBecomeKey: Bool { false }

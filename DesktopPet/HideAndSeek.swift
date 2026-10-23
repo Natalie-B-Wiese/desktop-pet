@@ -38,6 +38,8 @@ final class HideAndSeek {
     private static let foundTime: TimeInterval = 1.5
 
     @ObservationIgnored private var hidingIn: pid_t?
+    /// While she peeks, checks that her window is still open.
+    @ObservationIgnored private var windowCheck: Timer?
     /// Where along the window's bottom she peeks, the same all round.
     @ObservationIgnored private var along: CGFloat = 0.5
     @ObservationIgnored private var startedAt = Date()
@@ -68,12 +70,10 @@ final class HideAndSeek {
                 guard let self, let app else { return }
                 if app.processIdentifier == hidingIn { peek() } else { duck() }
             },
-            // Her hiding spot closed: she moves to another app, or gives up if there's none.
             center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
                 let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
                 guard let self, let app, app.processIdentifier == hidingIn else { return }
-                duck()
-                if let next = Self.hidingSpots().randomElement() { hidingIn = next } else { end(.gaveUp(app: nil)) }
+                moveOrComeOut()
             },
         ]
         giveUpTimer = Timer.scheduledTimer(withTimeInterval: Self.timeLimit, repeats: false) { [weak self] _ in
@@ -113,23 +113,45 @@ final class HideAndSeek {
     }
 
     /// Waits for the app's window to come to the front (and its Space to slide in), then peeks up from it.
-    private func peek() {
+    /// With no window showing (all closed or minimized), she moves to another app, after a second look in case
+    /// a slow Space switch hid it.
+    private func peek(lookingAgain: Bool = false) {
         step += 1
         let current = step
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + (lookingAgain ? 0.6 : 0.4)) { [weak self] in
             guard let self, step == current, let pid = hidingIn,
-                  NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-                  let window = Self.frontWindow(of: pid) else { return }
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return }
+            guard let window = Self.frontWindow(of: pid) else {
+                if lookingAgain { moveOrComeOut() } else { peek(lookingAgain: true) }
+                return
+            }
             isPeeking = true
             onPeek(window, along)
+            // Closing the window while she peeks moves her too.
+            windowCheck = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                guard let self, let pid = hidingIn else { return }
+                if Self.frontWindow(of: pid) == nil { moveOrComeOut() }
+            }
         }
     }
 
     private func duck() {
         step += 1 // a peek still on its way is dropped
+        windowCheck?.invalidate()
+        windowCheck = nil
         guard isPeeking else { return }
         isPeeking = false
         onDuck()
+    }
+
+    /// Her app quit or has no window left: she quietly moves to another app, or comes home if there's none.
+    private func moveOrComeOut() {
+        duck()
+        if let next = Self.hidingSpots().filter({ $0 != hidingIn }).randomElement() {
+            hidingIn = next
+        } else {
+            end(.gaveUp(app: nil))
+        }
     }
 
     private func end(_ ending: Ending) {
@@ -141,6 +163,8 @@ final class HideAndSeek {
     }
 
     private func stopWatching() {
+        windowCheck?.invalidate()
+        windowCheck = nil
         observers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         observers = []
         giveUpTimer?.invalidate()
