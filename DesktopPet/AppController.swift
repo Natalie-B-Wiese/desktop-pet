@@ -19,6 +19,7 @@ final class AppController {
     let spinner = SpinnerStore()
     let numberGame = NumberGame()
     let ask = AskGame()
+    let hideSeek = HideAndSeek()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -49,7 +50,7 @@ final class AppController {
         petPanel = panel
         let bubble = SpeechBubbleController(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
-            spinner: spinner, numberGame: numberGame, ask: ask, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
+            spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -61,8 +62,13 @@ final class AppController {
             takeScreenshot: { [weak self] in self?.takeScreenshot() },
             pickColor: { [weak self] in self?.pickColor() }
         ))
-        panel.onClick = { [weak bubble] in bubble?.toggleMenu() }
+        panel.onClick = { [weak self, weak bubble] in
+            if self?.hideSeek.isPlaying != true { bubble?.toggleMenu() } // peeking out of an app, she's about to go home
+        }
         self.bubble = bubble
+        hideSeek.onHide = { [weak self] in self?.leaveToHide() }
+        hideSeek.onFound = { [weak self] window in self?.peekOut(of: window) }
+        hideSeek.onEnd = { [weak self] ending in self?.comeHome(ending) }
 
         let wasVisible = UserDefaults.standard.object(forKey: Self.visibleKey) as? Bool ?? true
         setPetVisible(wasVisible)
@@ -80,6 +86,11 @@ final class AppController {
     }
 
     func setPetVisible(_ visible: Bool) {
+        // During hide and seek: Show Pet gives up, Hide Pet calls off the game first.
+        if hideSeek.isPlaying {
+            if visible { hideSeek.giveUp(); return }
+            hideSeek.interrupt()
+        }
         isPetVisible = visible
         UserDefaults.standard.set(visible, forKey: Self.visibleKey)
         if visible {
@@ -139,6 +150,7 @@ final class AppController {
     }
 
     private func timerStateChanged() {
+        if timer.isActive { hideSeek.interrupt() } // the timer (and time's up) shows in her bubble, so she comes home
         if timer.isActive { chatter.line = nil } // the timer gets the bubble
         // The bubble needs the cat, so bring it back when a timer starts or finishes.
         if timer.isActive && !isPetVisible {
@@ -177,6 +189,7 @@ final class AppController {
     /// Esc cancels). The clipping goes on the clipboard, so clipboard history saves it as a slot.
     func takeScreenshot() {
         guard !isTakingScreenshot else { return }
+        hideSeek.interrupt()
 
         // The crosshair only sees other apps' windows with Screen Recording permission.
         guard CGPreflightScreenCaptureAccess() else {
@@ -268,6 +281,7 @@ final class AppController {
 
     /// Shows the cat (if hidden) with its bubble open on `page`.
     func showPage(_ page: BubbleMenu.Page) {
+        hideSeek.interrupt()
         if !isPetVisible { setPetVisible(true) }
         bubble?.open(page)
     }
@@ -300,6 +314,10 @@ final class AppController {
     }
 
     private func remindersChanged() {
+        // A reminder coming due or a heads-up arriving calls off hide and seek, so she's home to show it.
+        if reminders.due.count > lastDueCount || reminders.headsUp.contains(where: { !lastHeadsUpKeys.contains($0.occurrenceKey) }) {
+            hideSeek.interrupt()
+        }
         // A due reminder or a heads-up needs the cat to be seen, so bring it back.
         if (!reminders.due.isEmpty || !reminders.headsUp.isEmpty) && !isPetVisible {
             setPetVisible(true)
@@ -402,6 +420,7 @@ final class AppController {
     }
 
     private func greetingChanged() {
+        if greetings.current != nil { hideSeek.interrupt() }
         // Like a reminder, the greeting brings the cat back, and she hops to say hi.
         if greetings.current != nil && !isPetVisible {
             setPetVisible(true)
@@ -417,6 +436,49 @@ final class AppController {
                       reminders.due.isEmpty, reminders.headsUp.isEmpty else { return }
                 chatter.sayAbovePage(Chatter.greetingLine(personality, at: greeting.date))
             }
+        }
+    }
+
+    // MARK: - Hide and seek
+
+    /// She vanishes (with her bubbles) while she hides in an app.
+    private func leaveToHide() {
+        bubble?.menu.page = nil
+        chatter.clearPageLine()
+        petPanel?.orderOut(nil)
+        bubble?.update()
+    }
+
+    /// Found: she rises up inside the bottom-right corner of the app's window and hops.
+    private func peekOut(of window: NSRect) {
+        guard let panel = petPanel else { return }
+        let size = panel.frame.size
+        func overlap(_ screen: NSScreen) -> CGFloat {
+            let shared = screen.frame.intersection(window)
+            return shared.isNull ? 0 : shared.width * shared.height
+        }
+        let screen = NSScreen.screens.max { overlap($0) < overlap($1) }
+        let visible = screen?.visibleFrame ?? window
+        let x = min(max(window.maxX - size.width - 24, visible.minX), visible.maxX - size.width)
+        let y = min(max(window.minY, visible.minY), visible.maxY - size.height)
+        panel.visit(NSPoint(x: x.rounded(), y: y.rounded()))
+        panel.orderFrontRegardless()
+        panel.rise { panel.hop() }
+    }
+
+    /// Back to her spot, then her line (none when something else called her home).
+    private func comeHome(_ ending: HideAndSeek.Ending) {
+        petPanel?.returnHome()
+        if isPetVisible { petPanel?.orderFrontRegardless() }
+        bubble?.update()
+        switch ending {
+        case .found(let seconds):
+            chatter.sayAbovePage(Chatter.found(AppPreferences.chatter, seconds: seconds))
+        case .gaveUp(let app):
+            petPanel?.hop() // ta-da
+            chatter.sayAbovePage(Chatter.gaveUp(AppPreferences.chatter, app: app))
+        case .interrupted:
+            break
         }
     }
 
@@ -601,6 +663,7 @@ final class AppController {
             case "spinner": .spinner
             case "number": .number
             case "ask": .ask
+            case "hide-seek": .hideSeek
             default: .main
             }
         }
@@ -608,6 +671,14 @@ final class AppController {
         if args.contains("--spin") {
             // Spins the Spinner after a second, as clicking Spin would (pair it with `--menu spinner`).
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.spinner.spin() }
+        }
+        if args.contains("--hide-seek") {
+            // Clicks Hide after a second (pair it with `--menu hide-seek`); `--hide-in <app name>` picks where she hides,
+            // `--give-up <sec>` gives up after that long.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.hideSeek.start(in: value(after: "--hide-in")) }
+            if let seconds = value(after: "--give-up").flatMap(TimeInterval.init) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1 + seconds) { [weak self] in self?.hideSeek.giveUp() }
+            }
         }
         if args.contains("--ask") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.ask.ask() }

@@ -9,6 +9,7 @@ struct BubbleGamesPage: View {
         ("Spinner", "arrow.trianglehead.2.clockwise", .spinner),
         ("Number", "42.square", .number),
         ("Ask", "questionmark.bubble", .ask),
+        ("Hide & Seek", "eyes", .hideSeek),
     ]
 
     var body: some View {
@@ -302,5 +303,31 @@ struct BubbleAskPage: View {
             BubbleButton("Ask", centered: true) { game.ask() }
         }
         .onDisappear(perform: game.reset) // leaving the page (‹, ✕ or clicking her) starts the next visit fresh
+    }
+}
+
+/// Hide and Seek: Hide sends her off to hide in one of your open apps (the bubble goes with her).
+struct BubbleHideSeekPage: View {
+    let game: HideAndSeek
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("I'll hide in one of your open apps. Switch to it to find me!")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            if let problem = game.problem {
+                Text(problem)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .opacity(0.55)
+            }
+            BubbleButton("Hide", centered: true) { game.start() }
+            Text("Stuck? Give up from the menu bar.")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .opacity(0.55)
+        }
+        .onDisappear(perform: game.clearProblem)
     }
 }

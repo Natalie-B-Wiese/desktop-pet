@@ -21,6 +21,13 @@ struct MenuContent: View {
     let controller: AppController
 
     var body: some View {
+        if controller.hideSeek.isPlaying {
+            Button("Give Up Hide and Seek") {
+                controller.hideSeek.giveUp()
+            }
+            Divider()
+        }
+
         Button(controller.isPetVisible ? "Hide Pet" : "Show Pet") {
             controller.togglePet()
         }

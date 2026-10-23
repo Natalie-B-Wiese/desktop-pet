@@ -90,6 +90,58 @@ final class PetPanel: NSPanel {
         hopBaseOrigin = nil
     }
 
+    // MARK: - Away from her spot (hide and seek)
+
+    /// Her spot while she's somewhere else, or nil when she's home.
+    private var homeOrigin: NSPoint?
+
+    /// Moves her to `origin` for a while without saving it as her spot.
+    func visit(_ origin: NSPoint) {
+        stopHop()
+        if homeOrigin == nil {
+            homeOrigin = frame.origin
+            setFrameAutosaveName("") // stops saving moves, so quitting now still keeps her spot
+        }
+        setFrameOrigin(origin)
+    }
+
+    /// Back to her spot after `visit`.
+    func returnHome() {
+        stopHop()
+        stopRise()
+        guard let home = homeOrigin else { return }
+        homeOrigin = nil
+        setFrameOrigin(home)
+        setFrameAutosaveName("PetWindow")
+    }
+
+    private var riseTimer: Timer?
+
+    /// Rises up from her window's bottom edge, as if peeking up from behind something, then calls `then`.
+    func rise(then: @escaping () -> Void = {}) {
+        stopRise()
+        let duration = 0.35
+        let start = CACurrentMediaTime()
+        petView.sunk = 1
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let progress = min(1, (CACurrentMediaTime() - start) / duration)
+            petView.sunk = 1 - progress * (2 - progress) // eases out
+            if progress >= 1 {
+                stopRise()
+                then()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        riseTimer = timer
+    }
+
+    private func stopRise() {
+        riseTimer?.invalidate()
+        riseTimer = nil
+        petView.sunk = 0
+    }
+
     func setImage(_ image: NSImage) {
         petView.image = image
     }
@@ -149,10 +201,17 @@ final class PetView: NSView {
         didSet { needsDisplay = true }
     }
 
+    /// How far she's sunk below the window's bottom edge, out of sight (0 = all of her, 1 = none).
+    var sunk: CGFloat = 0 {
+        didSet { needsDisplay = true }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let image else { return }
         NSGraphicsContext.current?.imageInterpolation = .none
-        image.draw(in: bounds)
+        // Whole image pixels, so she stays crisp while rising.
+        let rows = (sunk * PetRenderer.pixelSize.height).rounded()
+        image.draw(in: bounds.offsetBy(dx: 0, dy: -rows * bounds.height / PetRenderer.pixelSize.height))
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

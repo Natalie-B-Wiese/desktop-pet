@@ -803,3 +803,54 @@ enum SpecialDay {
         return 25 - day
     }
 }
+
+/// Hide and Seek's lines, said beside her once she's home (drafted by the agent for Natalie to review).
+extension Chatter {
+    /// Found within this many seconds counts as quick.
+    private static let quickFind = 15
+
+    /// `{time}` is how long it took ("8 seconds").
+    static func found(_ personality: Personality?, seconds: Int) -> String {
+        let quick = seconds <= quickFind
+        let lines: [String] = switch personality {
+        case nil: ["Found me in {time}!"]
+        case .bubbly: quick
+            ? ["You found me in {time}! You're SO good at this!", "{Time}?! Okay, you're a pro!"]
+            : ["{Time}! I was SO sneaky! Again?", "Found me! {time} of pure suspense!"]
+        case .sassy: quick
+            ? ["{Time}. Beginner's luck.", "Found in {time}. I let you win."]
+            : ["{Time}. I'm simply that good at hiding.", "It took you {time}. Iconic of me."]
+        case .boss: quick
+            ? ["Located in {time}. Outstanding performance!", "{Time}! That's top-tier seeking."]
+            : ["Found in {time}. Love the diligence.", "{Time}! Great persistence."]
+        case .dark: quick
+            ? ["{Time}. They told you, didn't they.", "Found in {time}. Suspicious."]
+            : ["{Time}. I was reading in there.", "Found me in {time}. It was cozy in there."]
+        case .butler: quick
+            ? ["Discovered in {time}. Most impressive.", "{Time}. My hiding wants practice."]
+            : ["Found in {time}. A thorough search.", "{Time}. I'd begun to think about tea."]
+        }
+        return fill(lines.randomElement()!, "time", with: duration(seconds))
+    }
+
+    /// `{app}` is where she hid. Nil when her hiding spot closed and there was nowhere else to go.
+    static func gaveUp(_ personality: Personality?, app: String?) -> String {
+        guard let app else { return "Ready or not, here I am!" }
+        let line = switch personality {
+        case nil: "I was in {app}!"
+        case .bubbly: "I was in {app} the whole time! Hehe!"
+        case .sassy: "I was in {app}. Obviously."
+        case .boss: "I was in {app} all along. A learning opportunity!"
+        case .dark: "I was in {app}. They saw me. You didn't."
+        case .butler: "I was in {app} all along. Shall we try again?"
+        }
+        return fill(line, "app", with: app)
+    }
+
+    /// "1 second", "8 seconds", "1 min 5 sec".
+    private static func duration(_ seconds: Int) -> String {
+        if seconds < 60 { return seconds == 1 ? "1 second" : "\(seconds) seconds" }
+        let rest = seconds % 60
+        return rest == 0 ? "\(seconds / 60) min" : "\(seconds / 60) min \(rest) sec"
+    }
+}

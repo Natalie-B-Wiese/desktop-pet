@@ -21,7 +21,7 @@ final class BubbleLayout {
 final class BubbleMenu {
     enum Page: Equatable {
         case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
-        case games, spinner, number, ask
+        case games, spinner, number, ask, hideSeek
         case editReminder(Reminder.ID)
     }
 
@@ -64,6 +64,7 @@ final class SpeechBubbleController {
     private let spinner: SpinnerStore
     private let numberGame: NumberGame
     private let ask: AskGame
+    private let hideSeek: HideAndSeek
     private let layout = BubbleLayout()
     private let panel: BubblePanel
     /// The small chatter bubble above an open page. Its own window, so the main bubble never moves for it.
@@ -81,7 +82,7 @@ final class SpeechBubbleController {
 
     init(
         timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
-        notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, ask: AskGame, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
+        notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, ask: AskGame, hideSeek: HideAndSeek, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
         actions: BubbleActions
     ) {
         self.timer = timer
@@ -92,6 +93,7 @@ final class SpeechBubbleController {
         self.spinner = spinner
         self.numberGame = numberGame
         self.ask = ask
+        self.hideSeek = hideSeek
         self.clipboard = clipboard
         self.reminders = reminders
         self.todos = todos
@@ -112,7 +114,7 @@ final class SpeechBubbleController {
         hostingView = FirstClickHostingView(rootView: BubbleView(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
-            notes: notes, spinner: spinner, numberGame: numberGame, ask: ask, clipboard: clipboard, settings: settings,
+            notes: notes, spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, clipboard: clipboard, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -391,6 +393,7 @@ struct BubbleView: View {
     let spinner: SpinnerStore
     let numberGame: NumberGame
     let ask: AskGame
+    let hideSeek: HideAndSeek
     let clipboard: ClipboardHistory
     let settings: PetSettings
     let layout: BubbleLayout
@@ -481,7 +484,7 @@ struct BubbleView: View {
         switch page {
         case .main, .games: 3 * MenuTile.width + 2 * tileSpacing
         case .spinner, .number: 210
-        case .ask: 190
+        case .ask, .hideSeek: 190
         case .startTimer: 228
         case .timerControls, .reminders, .addReminder, .editReminder: 190
         case .settings: 206 // room for "Reminders ‹ 60 min early ›"
@@ -518,6 +521,7 @@ struct BubbleView: View {
         case .spinner: "Spinner"
         case .number: "Random number"
         case .ask: settings.displayName.map { "Ask \($0)" } ?? "Ask me"
+        case .hideSeek: "Hide and seek"
         }
     }
 
@@ -526,7 +530,7 @@ struct BubbleView: View {
         switch page {
         case .main: nil
         case .addReminder, .editReminder: .reminders
-        case .spinner, .number, .ask: .games
+        case .spinner, .number, .ask, .hideSeek: .games
         default: .main
         }
     }
@@ -624,6 +628,9 @@ struct BubbleView: View {
                 .frame(width: 210)
         case .ask:
             BubbleAskPage(game: ask)
+                .frame(width: 190)
+        case .hideSeek:
+            BubbleHideSeekPage(game: hideSeek)
                 .frame(width: 190)
         }
     }
