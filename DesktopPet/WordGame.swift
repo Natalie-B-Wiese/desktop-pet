@@ -82,7 +82,7 @@ final class WordGame {
         ("Animal", ["RABBIT", "PENGUIN", "TURTLE", "GIRAFFE", "MONKEY", "DOLPHIN", "KOALA", "ZEBRA", "HAMSTER", "PARROT", "OTTER", "PANDA"]),
         ("Food", ["PANCAKE", "COOKIE", "PIZZA", "BANANA", "CHEESE", "TACO", "MUFFIN", "NOODLES", "WAFFLE", "POPCORN", "PICKLE", "BAGEL"]),
         ("Around the house", ["PILLOW", "BLANKET", "TEAPOT", "CANDLE", "MIRROR", "LADDER", "BUCKET", "SOFA", "LAMP", "TOASTER", "KETTLE", "CURTAIN"]),
-        ("Nature", ["RAINBOW", "THUNDER", "PUDDLE", "CACTUS", "VOLCANO", "ISLAND", "MEADOW", "ACORN", "BLOSSOM", "MAPLE", "PEBBLE", "BREEZE"]),
+        ("Nature", ["RAINBOW", "THUNDER", "PUDDLE", "CACTUS", "VOLCANO", "ISLAND", "MEADOW", "ACORN", "BLOSSOM", "RIVER", "PEBBLE", "BREEZE"]),
         ("Things that go", ["BICYCLE", "ROCKET", "TRAIN", "SCOOTER", "TRACTOR", "TRUCK", "WAGON", "SUBWAY", "KAYAK", "BALLOON", "CANOE", "TAXI"]),
     ]
 }
