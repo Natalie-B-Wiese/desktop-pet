@@ -22,13 +22,19 @@ enum SpinnerList: String, CaseIterable {
         }
     }
 
-    /// A preset's options (made once, so their IDs never change), or nil for Custom and To-dos.
+    /// A preset's options, or nil for Custom and To-dos. Their IDs are fixed, so a saved pick still matches after a relaunch.
     var preset: [SpinnerOption]? { Self.presets[self] }
 
     private static let presets: [SpinnerList: [SpinnerOption]] = [
-        .coin: ["Heads", "Tails"].map { SpinnerOption(text: $0) },
-        .rps: ["Rock", "Paper", "Scissors"].map { SpinnerOption(text: $0) },
+        .coin: fixed(["Heads", "Tails"], list: 1),
+        .rps: fixed(["Rock", "Paper", "Scissors"], list: 2),
     ]
+
+    private static func fixed(_ texts: [String], list: Int) -> [SpinnerOption] {
+        texts.enumerated().map { index, text in
+            SpinnerOption(id: UUID(uuidString: String(format: "5917E000-0000-0000-%04d-%012d", list, index))!, text: text)
+        }
+    }
 }
 
 /// The Spinner game: a list of options and a highlight that runs down it, slows down and stops on a random one.
@@ -39,8 +45,11 @@ final class SpinnerStore {
     private(set) var list: SpinnerList
     /// Your own options, the Custom list.
     private(set) var custom: [SpinnerOption] = []
-    /// The option the highlight is on: moving while spinning, then the pick once it stops.
-    private(set) var highlightedID: SpinnerOption.ID?
+    /// Each list's highlight: moving while spinning, then the pick once it stops. Kept per list and saved,
+    /// so switching lists or relaunching never loses a pick.
+    private var picks: [SpinnerList: SpinnerOption.ID] = [:]
+    /// The option the highlight is on in the list showing.
+    var highlightedID: SpinnerOption.ID? { picks[list] }
     private(set) var isSpinning = false
     /// Mixing up Custom's order, or just mixed up: its rows show their order (1, 2, 3…) until the next spin or
     /// an option is added or deleted.
@@ -55,12 +64,17 @@ final class SpinnerStore {
     static let maxLength = 40
     private static let storageKey = "games.spinner.options"
     private static let listKey = "games.spinner.list"
+    private static let picksKey = "games.spinner.picks"
 
     init() {
         list = UserDefaults.standard.string(forKey: Self.listKey).flatMap(SpinnerList.init) ?? .custom
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
            let saved = try? JSONDecoder().decode([SpinnerOption].self, from: data) {
             custom = saved
+        }
+        let saved = UserDefaults.standard.dictionary(forKey: Self.picksKey) as? [String: String] ?? [:]
+        for (list, id) in saved {
+            if let list = SpinnerList(rawValue: list), let id = UUID(uuidString: id) { picks[list] = id }
         }
     }
 
@@ -82,7 +96,6 @@ final class SpinnerStore {
         let all = SpinnerList.allCases
         let index = all.firstIndex(of: list)!
         list = all[((index + offset) % all.count + all.count) % all.count]
-        highlightedID = nil
         isShuffled = false
         UserDefaults.standard.set(list.rawValue, forKey: Self.listKey)
     }
@@ -116,7 +129,7 @@ final class SpinnerStore {
 
     func delete(_ id: SpinnerOption.ID) {
         custom.removeAll { $0.id == id }
-        if highlightedID == id { highlightedID = nil }
+        if picks[.custom] == id { setPick(nil, in: .custom) }
         isShuffled = false
         save()
     }
@@ -134,6 +147,7 @@ final class SpinnerStore {
         while steps < 16 { steps += count }
         let pace = min(1, 24 / Double(steps)) // each step averages about 0.12s, so 24 steps is about 3s
 
+        let list = list
         isSpinning = true
         isShuffled = false
         Task { @MainActor [weak self] in
@@ -141,8 +155,9 @@ final class SpinnerStore {
                 let progress = Double(step) / Double(steps)
                 try? await Task.sleep(for: .seconds(pace * (0.04 + 0.32 * pow(progress, 3))))
                 guard let self else { return }
-                highlightedID = options[(start + step) % count].id
+                picks[list] = options[(start + step) % count].id
             }
+            self?.setPick(options[winner].id, in: list) // saves it
             self?.isSpinning = false
         }
     }
@@ -154,7 +169,6 @@ final class SpinnerStore {
         let before = custom.map(\.id)
         var final = custom
         while final.map(\.id) == before { final.shuffle() }
-        highlightedID = nil
         isShuffling = true
         Task { @MainActor [weak self] in
             for _ in 0..<3 {
@@ -168,6 +182,12 @@ final class SpinnerStore {
             isShuffled = true
             save()
         }
+    }
+
+    private func setPick(_ id: SpinnerOption.ID?, in list: SpinnerList) {
+        picks[list] = id
+        let saved = Dictionary(uniqueKeysWithValues: picks.map { ($0.key.rawValue, $0.value.uuidString) })
+        UserDefaults.standard.set(saved, forKey: Self.picksKey)
     }
 
     private func save() {
