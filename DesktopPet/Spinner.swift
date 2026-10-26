@@ -51,7 +51,7 @@ final class SpinnerStore {
     /// this keeps the page in step as you check things off).
     @ObservationIgnored var todoOptions: () -> [SpinnerOption] = { [] }
 
-    static let maxOptions = 10
+    static let maxOptions = 50
     static let maxLength = 40
     private static let storageKey = "games.spinner.options"
     private static let listKey = "games.spinner.list"
@@ -122,7 +122,8 @@ final class SpinnerStore {
     }
 
     /// Picks the winner first, then runs the highlight down the list (a lap or more) to land on it,
-    /// fast at first and slowing to a stop, about 2–3 seconds in all.
+    /// fast at first and slowing to a stop, about 2–3 seconds in all. A long list (many steps) runs faster,
+    /// so it never takes longer than about 3 seconds.
     func spin() {
         guard canSpin else { return }
         let options = options
@@ -131,13 +132,14 @@ final class SpinnerStore {
         let winner = Int.random(in: 0..<count)
         var steps = ((winner - start) % count + count) % count
         while steps < 16 { steps += count }
+        let pace = min(1, 24 / Double(steps)) // each step averages about 0.12s, so 24 steps is about 3s
 
         isSpinning = true
         isShuffled = false
         Task { @MainActor [weak self] in
             for step in 1...steps {
                 let progress = Double(step) / Double(steps)
-                try? await Task.sleep(for: .seconds(0.04 + 0.32 * pow(progress, 3)))
+                try? await Task.sleep(for: .seconds(pace * (0.04 + 0.32 * pow(progress, 3))))
                 guard let self else { return }
                 highlightedID = options[(start + step) % count].id
             }

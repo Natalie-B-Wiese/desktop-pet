@@ -2,41 +2,43 @@ import Foundation
 import Observation
 
 /// The Groups game: a list of items (names, tasks, anything; typed in like the Spinner's Custom list, saved
-/// separately) dealt out at random into 2–6 even groups. The items flicker between groups for a moment before they settle.
+/// separately) dealt out at random into even groups, from 2 up to one per item. The items flicker between groups for a moment before they settle.
 /// The list can be long (up to 50); the page scrolls.
 @Observable
 final class GroupsStore {
     private(set) var items: [SpinnerOption] = []
-    /// How many groups to make, saved.
-    private(set) var groupCount: Int
+    /// How many groups you last picked, saved. `groupCount` is what's used: this, or fewer if there aren't
+    /// enough items, so adding items back brings your pick back.
+    private var pickedCount: Int
     /// The groups made, or nil while editing the items.
     private(set) var groups: [[SpinnerOption]]?
     private(set) var isMaking = false
 
     static let maxItems = 50
-    static let groupCounts = 2...6
     private static let itemsKey = "games.groups.items"
     private static let countKey = "games.groups.count"
 
     init() {
-        let saved = UserDefaults.standard.integer(forKey: Self.countKey)
-        groupCount = Self.groupCounts.contains(saved) ? saved : 2
+        pickedCount = max(2, UserDefaults.standard.integer(forKey: Self.countKey))
         if let data = UserDefaults.standard.data(forKey: Self.itemsKey),
            let decoded = try? JSONDecoder().decode([SpinnerOption].self, from: data) {
             items = decoded
         }
     }
 
+    /// From 2 up to one group per item.
+    var maxGroups: Int { max(2, items.count) }
+    var groupCount: Int { min(pickedCount, maxGroups) }
+
     /// Every group gets at least one item.
     var canMake: Bool { !isMaking && items.count >= groupCount }
 
-    /// The next (+1) or previous (-1) number of groups, wrapping around.
+    /// The next (+1) or previous (-1) number of groups, wrapping around between 2 and `maxGroups`.
     func stepGroupCount(by offset: Int) {
         guard !isMaking else { return }
-        let counts = Array(Self.groupCounts)
-        let index = counts.firstIndex(of: groupCount) ?? 0
-        groupCount = counts[((index + offset) % counts.count + counts.count) % counts.count]
-        UserDefaults.standard.set(groupCount, forKey: Self.countKey)
+        let choices = maxGroups - 1 // 2…maxGroups
+        pickedCount = 2 + ((groupCount - 2 + offset) % choices + choices) % choices
+        UserDefaults.standard.set(pickedCount, forKey: Self.countKey)
         if groups != nil { make() } // already showing groups: remake them with the new count
     }
 

@@ -541,8 +541,8 @@ struct BubbleGroupsPage: View {
                         }
                     }
                 }
-                if store.items.count < store.groupCount {
-                    Text("Add at least \(store.groupCount) items for \(store.groupCount) groups")
+                if store.items.count < 2 {
+                    Text("Add at least 2 items to make groups")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .opacity(0.55)
                 }
@@ -574,7 +574,8 @@ struct BubbleGroupsPage: View {
         .padding(.horizontal, -1)
     }
 
-    /// "Number of groups  ‹ 2 ›", like the Spinner's List row. Changing it while groups show remakes them.
+    /// "Number of groups  ‹ 2 ›", like the Spinner's List row: 2 up to one per item, wrapping around.
+    /// Changing it while groups show remakes them.
     private var countPicker: some View {
         HStack(spacing: 0) {
             Text("Number of groups")
