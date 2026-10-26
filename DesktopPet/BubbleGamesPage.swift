@@ -46,10 +46,11 @@ struct BubbleSpinnerPage: View {
                 ForEach(rows) { option in
                     SpinnerOptionRow(
                         option: option,
+                        number: store.isShuffled ? store.options.firstIndex(of: option).map { $0 + 1 } : nil,
                         isBlank: option.id == blankID,
                         isLocked: store.list != .custom,
                         isHighlighted: option.id == store.highlightedID,
-                        isSpinning: store.isSpinning,
+                        isSpinning: store.isSpinning || store.isShuffling,
                         focusedID: $focusedID,
                         onType: { type($0, on: option.id) },
                         onSubmit: { focusedID = blankID },
@@ -59,6 +60,7 @@ struct BubbleSpinnerPage: View {
                 }
             }
             .padding(1) // keeps the outlines from being clipped at the edges
+            .animation(.easeInOut(duration: 0.2), value: store.options.map(\.id)) // rows slide while shuffling
 
             if store.list == .custom && store.options.count < 2 {
                 Text("Add at least 2 options to spin")
@@ -66,12 +68,24 @@ struct BubbleSpinnerPage: View {
                     .opacity(0.55)
             }
 
-            BubbleButton("Spin", systemImage: "arrow.trianglehead.2.clockwise", centered: true) {
-                focusedID = nil
-                store.spin()
+            HStack(spacing: 6) {
+                BubbleButton("Spin", systemImage: "arrow.trianglehead.2.clockwise", centered: true) {
+                    focusedID = nil
+                    store.spin()
+                }
+                .disabled(!store.canSpin)
+                .opacity(store.canSpin || store.isSpinning ? 1 : 0.4)
+                // Custom only: mixing up Heads/Tails or Rock/Paper/Scissors means nothing.
+                if store.list == .custom {
+                    BubbleButton("Shuffle", systemImage: "shuffle", centered: true) {
+                        focusedID = nil
+                        store.shuffle()
+                    }
+                    .disabled(!store.canShuffle)
+                    .opacity(store.canShuffle || store.isShuffling ? 1 : 0.4)
+                    .help("Mix up the order")
+                }
             }
-            .disabled(!store.canSpin)
-            .opacity(store.canSpin || store.isSpinning ? 1 : 0.4)
         }
         .onChange(of: focusedID) { old, _ in
             if let old { store.tidy(old) }
@@ -126,6 +140,8 @@ struct BubbleSpinnerPage: View {
 /// One option, typed on in place (unless it's a locked preset). Black with white text while the highlight is on it.
 private struct SpinnerOptionRow: View {
     let option: SpinnerOption
+    /// Its place in a shuffled order (1, 2, 3…), shown before it.
+    let number: Int?
     let isBlank: Bool
     /// A preset's option: no typing and no ✕.
     let isLocked: Bool
@@ -142,10 +158,11 @@ private struct SpinnerOptionRow: View {
 
     private static let font = Font.system(size: 12, weight: .semibold, design: .rounded)
 
-    init(option: SpinnerOption, isBlank: Bool, isLocked: Bool, isHighlighted: Bool, isSpinning: Bool,
+    init(option: SpinnerOption, number: Int?, isBlank: Bool, isLocked: Bool, isHighlighted: Bool, isSpinning: Bool,
          focusedID: FocusState<SpinnerOption.ID?>.Binding, onType: @escaping (String) -> Void,
          onSubmit: @escaping () -> Void, onDelete: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.option = option
+        self.number = number
         self.isBlank = isBlank
         self.isLocked = isLocked
         self.isHighlighted = isHighlighted
@@ -161,6 +178,12 @@ private struct SpinnerOptionRow: View {
     var body: some View {
         let isFocused = focusedID.wrappedValue == option.id
         HStack(spacing: 4) {
+            if let number {
+                Text("\(number).")
+                    .font(Self.font.monospacedDigit())
+                    .foregroundStyle(isHighlighted ? .white : .black)
+                    .opacity(0.5)
+            }
             if isLocked {
                 // Plain text, so a preset never takes the keyboard (a text field would, even locked).
                 Text(option.text)

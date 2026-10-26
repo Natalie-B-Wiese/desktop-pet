@@ -38,6 +38,10 @@ final class SpinnerStore {
     /// The option the highlight is on: moving while spinning, then the pick once it stops.
     private(set) var highlightedID: SpinnerOption.ID?
     private(set) var isSpinning = false
+    /// Mixing up Custom's order, or just mixed up: its rows show their order (1, 2, 3…) until the next spin or
+    /// an option is added or deleted.
+    private(set) var isShuffling = false
+    private(set) var isShuffled = false
 
     static let maxOptions = 10
     static let maxLength = 40
@@ -55,7 +59,8 @@ final class SpinnerStore {
     /// The options of the list showing.
     var options: [SpinnerOption] { list.preset ?? custom }
 
-    var canSpin: Bool { !isSpinning && options.count >= 2 }
+    var canSpin: Bool { !isSpinning && !isShuffling && options.count >= 2 }
+    var canShuffle: Bool { list == .custom && canSpin }
 
     /// The next (+1) or previous (-1) list, wrapping around.
     func stepList(by offset: Int) {
@@ -64,6 +69,7 @@ final class SpinnerStore {
         let index = all.firstIndex(of: list)!
         list = all[((index + offset) % all.count + all.count) % all.count]
         highlightedID = nil
+        isShuffled = false
         UserDefaults.standard.set(list.rawValue, forKey: Self.listKey)
     }
 
@@ -72,6 +78,7 @@ final class SpinnerStore {
     func add(id: SpinnerOption.ID, text: String) {
         guard custom.count < Self.maxOptions else { return }
         custom.append(SpinnerOption(id: id, text: String(text.prefix(Self.maxLength))))
+        isShuffled = false
         save()
     }
 
@@ -96,6 +103,7 @@ final class SpinnerStore {
     func delete(_ id: SpinnerOption.ID) {
         custom.removeAll { $0.id == id }
         if highlightedID == id { highlightedID = nil }
+        isShuffled = false
         save()
     }
 
@@ -111,6 +119,7 @@ final class SpinnerStore {
         while steps < 16 { steps += count }
 
         isSpinning = true
+        isShuffled = false
         Task { @MainActor [weak self] in
             for step in 1...steps {
                 let progress = Double(step) / Double(steps)
@@ -119,6 +128,29 @@ final class SpinnerStore {
                 highlightedID = options[(start + step) % count].id
             }
             self?.isSpinning = false
+        }
+    }
+
+    /// Mixes up Custom's order a few times quickly (the rows slide around), then settles on a new order,
+    /// which is saved. Always a different order from before.
+    func shuffle() {
+        guard canShuffle else { return }
+        let before = custom.map(\.id)
+        var final = custom
+        while final.map(\.id) == before { final.shuffle() }
+        highlightedID = nil
+        isShuffling = true
+        Task { @MainActor [weak self] in
+            for _ in 0..<3 {
+                guard let self else { return }
+                custom.shuffle()
+                try? await Task.sleep(for: .seconds(0.22))
+            }
+            guard let self else { return }
+            custom = final
+            isShuffling = false
+            isShuffled = true
+            save()
         }
     }
 

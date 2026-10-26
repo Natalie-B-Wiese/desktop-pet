@@ -704,6 +704,10 @@ final class AppController {
         if let word = value(after: "--word") {
             wordGame.play(word) // pair it with `--menu word` (and `--type` to guess letters)
         }
+        if args.contains("--shuffle") {
+            // Shuffles the Spinner's Custom list after a second, as clicking Shuffle would (pair it with `--menu spinner`).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.spinner.shuffle() }
+        }
         if args.contains("--ask") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.ask.ask() }
         }
