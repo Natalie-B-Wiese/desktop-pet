@@ -21,6 +21,7 @@ final class AppController {
     let ask = AskGame()
     let hideSeek = HideAndSeek()
     let wordGame = WordGame()
+    let groups = GroupsStore()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -54,7 +55,7 @@ final class AppController {
         petPanel = panel
         let bubble = SpeechBubbleController(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
-            spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, wordGame: wordGame, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
+            spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, wordGame: wordGame, groups: groups, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -684,6 +685,7 @@ final class AppController {
             case "ask": .ask
             case "hide-seek": .hideSeek
             case "word": .word
+            case "groups": .groups
             default: .main
             }
         }
@@ -706,6 +708,10 @@ final class AppController {
         }
         if let word = value(after: "--word") {
             wordGame.play(word) // pair it with `--menu word` (and `--type` to guess letters)
+        }
+        if args.contains("--make-groups") {
+            // Makes groups after a second, as clicking Make groups would (pair it with `--menu groups`).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.groups.make() }
         }
         if args.contains("--shuffle") {
             // Shuffles the Spinner's Custom list after a second, as clicking Shuffle would (pair it with `--menu spinner`).

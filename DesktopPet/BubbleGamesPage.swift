@@ -8,9 +8,10 @@ struct BubbleGamesPage: View {
     private static let games: [(title: String, systemImage: String, page: BubbleMenu.Page)] = [
         ("Spinner", "arrow.trianglehead.2.clockwise", .spinner),
         ("Number", "42.square", .number),
-        ("Ask", "questionmark.bubble", .ask),
+        ("Groups", "person.3", .groups),
         ("Hide & Seek", "eyes", .hideSeek),
         ("Words", "textformat.abc", .word),
+        ("Ask", "questionmark.bubble", .ask),
     ]
 
     var body: some View {
@@ -172,6 +173,8 @@ private struct SpinnerOptionRow: View {
     let isBlank: Bool
     /// A preset's option: no typing and no ✕.
     let isLocked: Bool
+    /// What the blank row says.
+    var placeholder = "Add option"
     let isHighlighted: Bool
     let isSpinning: Bool
     var focusedID: FocusState<SpinnerOption.ID?>.Binding
@@ -185,13 +188,15 @@ private struct SpinnerOptionRow: View {
 
     private static let font = Font.system(size: 12, weight: .semibold, design: .rounded)
 
-    init(option: SpinnerOption, number: Int?, isBlank: Bool, isLocked: Bool, isHighlighted: Bool, isSpinning: Bool,
+    init(option: SpinnerOption, number: Int? = nil, isBlank: Bool, isLocked: Bool, placeholder: String = "Add option",
+         isHighlighted: Bool = false, isSpinning: Bool,
          focusedID: FocusState<SpinnerOption.ID?>.Binding, onType: @escaping (String) -> Void,
          onSubmit: @escaping () -> Void, onDelete: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.option = option
         self.number = number
         self.isBlank = isBlank
         self.isLocked = isLocked
+        self.placeholder = placeholder
         self.isHighlighted = isHighlighted
         self.isSpinning = isSpinning
         self.focusedID = focusedID
@@ -218,7 +223,7 @@ private struct SpinnerOptionRow: View {
                     .foregroundStyle(isHighlighted ? .white : .black)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                TextField("", text: $text, prompt: Text("Add option").foregroundStyle(.black.opacity(0.35)))
+                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(.black.opacity(0.35)))
                     .textFieldStyle(.plain)
                     .font(Self.font)
                     .foregroundStyle(isHighlighted ? .white : .black)
@@ -482,5 +487,147 @@ struct BubbleWordPage: View {
         }
         .buttonStyle(.plain)
         .allowsHitTesting(!guessed) // not `.disabled`, which greys out the black right letters
+    }
+}
+
+/// The Groups game: "Number of groups ‹ 2 ›" on top, then either the items to split (typed on directly, like the
+/// Spinner's Custom list, with a blank "Add item" row at the bottom) and Make groups, or the groups made, with Again
+/// and Edit items. Both scroll once they're long.
+struct BubbleGroupsPage: View {
+    let store: GroupsStore
+    var onClose: () -> Void
+
+    /// The blank row's ID. It becomes the new item's ID once something is typed on it.
+    @State private var blankID = UUID()
+    @FocusState private var focusedID: SpinnerOption.ID?
+    @State private var listHeight: CGFloat = 0
+
+    /// Past this height (about 9 rows) the list, or the groups, scroll instead of making the bubble taller.
+    private static let maxListHeight: CGFloat = 300
+
+    var body: some View {
+        VStack(spacing: 8) {
+            countPicker
+
+            if let groups = store.groups {
+                capped {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 6, alignment: .top), GridItem(.flexible(), alignment: .top)], spacing: 6) {
+                        ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
+                            groupBox(index + 1, group)
+                        }
+                    }
+                }
+                HStack(spacing: 6) {
+                    BubbleButton("Again", systemImage: "shuffle", centered: true) { store.make() }
+                    BubbleButton("Edit items", systemImage: "pencil", centered: true) { store.editItems() }
+                }
+                .allowsHitTesting(!store.isMaking)
+            } else {
+                capped {
+                    VStack(spacing: 4) {
+                        ForEach(rows) { item in
+                            SpinnerOptionRow(
+                                option: item,
+                                isBlank: item.id == blankID,
+                                isLocked: false,
+                                placeholder: "Add item",
+                                isSpinning: false,
+                                focusedID: $focusedID,
+                                onType: { type($0, on: item.id) },
+                                onSubmit: { focusedID = blankID },
+                                onDelete: { store.delete(item.id) },
+                                onClose: onClose
+                            )
+                        }
+                    }
+                }
+                if store.items.count < store.groupCount {
+                    Text("Add at least \(store.groupCount) items for \(store.groupCount) groups")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.55)
+                }
+                BubbleButton("Make groups", systemImage: "person.3", centered: true) {
+                    focusedID = nil
+                    store.make()
+                }
+                .disabled(!store.canMake)
+                .opacity(store.canMake ? 1 : 0.4)
+            }
+        }
+        .onChange(of: focusedID) { old, _ in
+            if let old { store.tidy(old) }
+        }
+        .onDisappear {
+            if let id = focusedID { store.tidy(id) }
+        }
+    }
+
+    /// Always a ScrollView (like Notes), so the item being typed on is never rebuilt when it starts scrolling.
+    private func capped<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView {
+            content()
+                .padding(1) // keeps the outlines from being clipped at the edges
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+        }
+        .scrollIndicators(.never) // a scroll bar would squeeze the rows narrower
+        .frame(height: min(listHeight, Self.maxListHeight))
+        .padding(.horizontal, -1)
+    }
+
+    /// "Number of groups  ‹ 2 ›", like the Spinner's List row. Changing it while groups show remakes them.
+    private var countPicker: some View {
+        HStack(spacing: 0) {
+            Text("Number of groups")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+            Spacer(minLength: 0)
+            HStack(spacing: 0) {
+                HeaderIconButton(systemImage: "chevron.left", help: "Fewer groups", width: 18) { step(-1) }
+                Text("\(store.groupCount)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
+                    .frame(width: 24)
+                HeaderIconButton(systemImage: "chevron.right", help: "More groups", width: 18) { step(1) }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+        .allowsHitTesting(!store.isMaking)
+    }
+
+    private func groupBox(_ number: Int, _ items: [SpinnerOption]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Group \(number)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .padding(.bottom, 2)
+            ForEach(items) { item in
+                Text(item.text)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    private func step(_ offset: Int) {
+        focusedID = nil // tidies the item being typed on
+        store.stepGroupCount(by: offset)
+    }
+
+    /// The items, then the blank row unless the list is full.
+    private var rows: [SpinnerOption] {
+        store.items + (store.items.count < GroupsStore.maxItems ? [SpinnerOption(id: blankID, text: "")] : [])
+    }
+
+    private func type(_ text: String, on id: SpinnerOption.ID) {
+        if id == blankID {
+            guard !text.isEmpty else { return }
+            store.add(id: id, text: text)
+            blankID = UUID() // a fresh blank row appears below; typing carries on here
+        } else {
+            store.update(id, text: text)
+        }
     }
 }
