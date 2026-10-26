@@ -29,7 +29,7 @@ struct BubbleGamesPage: View {
 
 /// The Spinner game: a "List ‹ Custom ›" row on top, then the list's options, and Spin runs a highlight down
 /// the list that slows to a stop on one, which stays highlighted. Custom is typed on directly (a blank
-/// "Add option" row sits at the bottom); Coin and RPS are locked.
+/// "Add option" row sits at the bottom); To-dos, Coin and RPS are locked.
 struct BubbleSpinnerPage: View {
     let store: SpinnerStore
     var onClose: () -> Void
@@ -37,18 +37,25 @@ struct BubbleSpinnerPage: View {
     /// The blank row's ID. It becomes the new option's ID once something is typed on it.
     @State private var blankID = UUID()
     @FocusState private var focusedID: SpinnerOption.ID?
+    @State private var listHeight: CGFloat = 0
+
+    /// Past this height (about 9 rows, for a long to-do list) the list scrolls instead of making the bubble taller.
+    private static let maxListHeight: CGFloat = 300
 
     var body: some View {
         VStack(spacing: 8) {
             listPicker
 
+            // Always a ScrollView (like Notes), so the option being typed on is never rebuilt when it starts scrolling.
+            ScrollViewReader { scroller in
+            ScrollView {
             VStack(spacing: 4) {
                 ForEach(rows) { option in
                     SpinnerOptionRow(
                         option: option,
                         number: store.isShuffled ? store.options.firstIndex(of: option).map { $0 + 1 } : nil,
                         isBlank: option.id == blankID,
-                        isLocked: store.list != .custom,
+                        isLocked: store.list.isLocked,
                         isHighlighted: option.id == store.highlightedID,
                         isSpinning: store.isSpinning || store.isShuffling,
                         focusedID: $focusedID,
@@ -61,10 +68,20 @@ struct BubbleSpinnerPage: View {
             }
             .padding(1) // keeps the outlines from being clipped at the edges
             .animation(.easeInOut(duration: 0.2), value: store.options.map(\.id)) // rows slide while shuffling
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+            }
+            .scrollIndicators(.never) // a scroll bar would squeeze the rows narrower
+            .frame(height: min(listHeight, Self.maxListHeight))
+            .padding(.horizontal, -1)
+            .onChange(of: store.highlightedID) { _, id in
+                if let id, listHeight > Self.maxListHeight { scroller.scrollTo(id) } // follow the spin down a long list
+            }
+            }
 
-            if store.list == .custom && store.options.count < 2 {
-                Text("Add at least 2 options to spin")
+            if let hint {
+                Text(hint)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .multilineTextAlignment(.center)
                     .opacity(0.55)
             }
 
@@ -113,6 +130,16 @@ struct BubbleSpinnerPage: View {
         .padding(.vertical, 6)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
         .allowsHitTesting(!store.isSpinning)
+    }
+
+    /// Why there's nothing (much) to spin.
+    private var hint: String? {
+        switch (store.list, store.options.count) {
+        case (.custom, ..<2): "Add at least 2 options to spin"
+        case (.todos, 0): "No to-dos left. Nice!"
+        case (.todos, 1): "Just one to-do left. That's the one!"
+        default: nil
+        }
     }
 
     private func stepList(_ offset: Int) {

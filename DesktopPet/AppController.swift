@@ -43,6 +43,9 @@ final class AppController {
         greetings.onChange = { [weak self] in self?.greetingChanged() }
         chatter.onChange = { [weak self] in self?.bubble?.update() }
         todos.onCheckedOff = { [weak self] allDone in self?.cheerTodo(allDone: allDone) }
+        spinner.todoOptions = { [weak todos] in
+            todos?.todos.filter { !$0.isDone }.map { SpinnerOption(id: $0.id, text: $0.text) } ?? []
+        }
     }
 
     func start() {

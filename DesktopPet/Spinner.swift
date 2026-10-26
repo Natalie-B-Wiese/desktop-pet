@@ -6,19 +6,23 @@ struct SpinnerOption: Codable, Identifiable, Equatable {
     var text: String
 }
 
-/// The Spinner's lists, stepped through with ‹ › in this order. Custom is yours; the others are locked presets.
+/// The Spinner's lists, stepped through with ‹ › in this order. Custom is yours; To-dos is your unchecked to-dos,
+/// live; the others are presets. All but Custom are locked (to-dos are edited on the To-dos page).
 enum SpinnerList: String, CaseIterable {
-    case custom, coin, rps
+    case custom, todos, coin, rps
+
+    var isLocked: Bool { self != .custom }
 
     var title: String {
         switch self {
         case .custom: "Custom"
+        case .todos: "To-dos"
         case .coin: "Coin"
         case .rps: "RPS"
         }
     }
 
-    /// A preset's options (made once, so their IDs never change), or nil for Custom.
+    /// A preset's options (made once, so their IDs never change), or nil for Custom and To-dos.
     var preset: [SpinnerOption]? { Self.presets[self] }
 
     private static let presets: [SpinnerList: [SpinnerOption]] = [
@@ -43,6 +47,10 @@ final class SpinnerStore {
     private(set) var isShuffling = false
     private(set) var isShuffled = false
 
+    /// Your unchecked to-dos, oldest first, for the To-dos list (set by `AppController`; reading them through
+    /// this keeps the page in step as you check things off).
+    @ObservationIgnored var todoOptions: () -> [SpinnerOption] = { [] }
+
     static let maxOptions = 10
     static let maxLength = 40
     private static let storageKey = "games.spinner.options"
@@ -57,7 +65,13 @@ final class SpinnerStore {
     }
 
     /// The options of the list showing.
-    var options: [SpinnerOption] { list.preset ?? custom }
+    var options: [SpinnerOption] {
+        switch list {
+        case .custom: custom
+        case .todos: todoOptions()
+        default: list.preset ?? []
+        }
+    }
 
     var canSpin: Bool { !isSpinning && !isShuffling && options.count >= 2 }
     var canShuffle: Bool { list == .custom && canSpin }
