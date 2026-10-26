@@ -94,7 +94,7 @@ struct BubbleSpinnerPage: View {
                 .disabled(!store.canSpin)
                 .opacity(store.canSpin || store.isSpinning ? 1 : 0.4)
                 // Custom only: mixing up Heads/Tails or Rock/Paper/Scissors means nothing.
-                if store.list == .custom {
+                if store.list.isCustom {
                     BubbleButton("Shuffle", systemImage: "shuffle", centered: true) {
                         focusedID = nil
                         store.shuffle()
@@ -123,20 +123,20 @@ struct BubbleSpinnerPage: View {
                 HeaderIconButton(systemImage: "chevron.left", help: "Previous list", width: 18) { stepList(-1) }
                 Text(store.list.title)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .frame(width: 56)
+                    .frame(width: 64)
                 HeaderIconButton(systemImage: "chevron.right", help: "Next list", width: 18) { stepList(1) }
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
-        .allowsHitTesting(!store.isSpinning)
+        .allowsHitTesting(!store.isSpinning && !store.isShuffling)
     }
 
     /// Why there's nothing (much) to spin.
     private var hint: String? {
         switch (store.list, store.options.count) {
-        case (.custom, ..<2): "Add at least 2 options to spin"
+        case (.custom, ..<2), (.custom2, ..<2), (.custom3, ..<2): "Add at least 2 options to spin"
         case (.todos, 0): "No to-dos left. Nice!"
         case (.todos, 1): "Just one to-do left. That's the one!"
         default: nil
@@ -150,7 +150,7 @@ struct BubbleSpinnerPage: View {
 
     /// The options, then (on Custom) the blank row unless the list is full.
     private var rows: [SpinnerOption] {
-        let showsBlank = store.list == .custom && store.options.count < SpinnerStore.maxOptions
+        let showsBlank = store.list.isCustom && store.options.count < SpinnerStore.maxOptions
         return store.options + (showsBlank ? [SpinnerOption(id: blankID, text: "")] : [])
     }
 

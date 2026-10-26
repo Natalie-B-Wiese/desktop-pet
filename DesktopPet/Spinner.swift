@@ -6,19 +6,33 @@ struct SpinnerOption: Codable, Identifiable, Equatable {
     var text: String
 }
 
-/// The Spinner's lists, stepped through with ‹ › in this order. Custom is yours; To-dos is your unchecked to-dos,
-/// live; the others are presets. All but Custom are locked (to-dos are edited on the To-dos page).
+/// The Spinner's lists, stepped through with ‹ › in this order. To-dos is your unchecked to-dos, live; Coin and RPS
+/// are presets; the three Custom lists, last, are yours. All but Custom are locked (to-dos are edited on the To-dos page).
+/// The first Custom list keeps the old raw value `custom`, so a list saved before there were three still loads.
 enum SpinnerList: String, CaseIterable {
-    case custom, todos, coin, rps
+    case todos, coin, rps, custom, custom2, custom3
 
-    var isLocked: Bool { self != .custom }
+    var isCustom: Bool { [.custom, .custom2, .custom3].contains(self) }
+    var isLocked: Bool { !isCustom }
 
     var title: String {
         switch self {
-        case .custom: "Custom"
         case .todos: "To-dos"
         case .coin: "Coin"
         case .rps: "RPS"
+        case .custom: "Custom 1"
+        case .custom2: "Custom 2"
+        case .custom3: "Custom 3"
+        }
+    }
+
+    /// Where a Custom list's options are saved (the first keeps the key from before there were three).
+    var storageKey: String? {
+        switch self {
+        case .custom: "games.spinner.options"
+        case .custom2: "games.spinner.options.2"
+        case .custom3: "games.spinner.options.3"
+        default: nil
         }
     }
 
@@ -38,13 +52,18 @@ enum SpinnerList: String, CaseIterable {
 }
 
 /// The Spinner game: a list of options and a highlight that runs down it, slows down and stops on a random one.
-/// The Custom list is typed in and saved across launches; Coin and RPS can't be edited.
+/// The Custom lists are typed in and saved across launches; the others can't be edited.
 @Observable
 final class SpinnerStore {
     /// The list showing, saved so the page opens on it again.
     private(set) var list: SpinnerList
-    /// Your own options, the Custom list.
-    private(set) var custom: [SpinnerOption] = []
+    /// Your own options, per Custom list.
+    private var customs: [SpinnerList: [SpinnerOption]] = [:]
+    /// The Custom list showing (empty on the others, which can't be edited).
+    private var custom: [SpinnerOption] {
+        get { customs[list] ?? [] }
+        set { if list.isCustom { customs[list] = newValue } }
+    }
     /// Each list's highlight: moving while spinning, then the pick once it stops. Kept per list and saved,
     /// so switching lists or relaunching never loses a pick.
     private var picks: [SpinnerList: SpinnerOption.ID] = [:]
@@ -62,15 +81,16 @@ final class SpinnerStore {
 
     static let maxOptions = 50
     static let maxLength = 40
-    private static let storageKey = "games.spinner.options"
     private static let listKey = "games.spinner.list"
     private static let picksKey = "games.spinner.picks"
 
     init() {
         list = UserDefaults.standard.string(forKey: Self.listKey).flatMap(SpinnerList.init) ?? .custom
-        if let data = UserDefaults.standard.data(forKey: Self.storageKey),
-           let saved = try? JSONDecoder().decode([SpinnerOption].self, from: data) {
-            custom = saved
+        for list in SpinnerList.allCases {
+            if let key = list.storageKey, let data = UserDefaults.standard.data(forKey: key),
+               let saved = try? JSONDecoder().decode([SpinnerOption].self, from: data) {
+                customs[list] = saved
+            }
         }
         let saved = UserDefaults.standard.dictionary(forKey: Self.picksKey) as? [String: String] ?? [:]
         for (list, id) in saved {
@@ -81,18 +101,18 @@ final class SpinnerStore {
     /// The options of the list showing.
     var options: [SpinnerOption] {
         switch list {
-        case .custom: custom
         case .todos: todoOptions()
-        default: list.preset ?? []
+        case .coin, .rps: list.preset ?? []
+        case .custom, .custom2, .custom3: custom
         }
     }
 
     var canSpin: Bool { !isSpinning && !isShuffling && options.count >= 2 }
-    var canShuffle: Bool { list == .custom && canSpin }
+    var canShuffle: Bool { list.isCustom && canSpin }
 
     /// The next (+1) or previous (-1) list, wrapping around.
     func stepList(by offset: Int) {
-        guard !isSpinning else { return }
+        guard !isSpinning, !isShuffling else { return }
         let all = SpinnerList.allCases
         let index = all.firstIndex(of: list)!
         list = all[((index + offset) % all.count + all.count) % all.count]
@@ -100,10 +120,10 @@ final class SpinnerStore {
         UserDefaults.standard.set(list.rawValue, forKey: Self.listKey)
     }
 
-    /// Adds an option at the bottom of Custom as soon as something is typed on the blank row. Keeps the
+    /// Adds an option at the bottom of the Custom list showing as soon as something is typed on the blank row. Keeps the
     /// blank row's ID so the row being typed on stays the same view.
     func add(id: SpinnerOption.ID, text: String) {
-        guard custom.count < Self.maxOptions else { return }
+        guard list.isCustom, custom.count < Self.maxOptions else { return }
         custom.append(SpinnerOption(id: id, text: String(text.prefix(Self.maxLength))))
         isShuffled = false
         save()
@@ -129,7 +149,7 @@ final class SpinnerStore {
 
     func delete(_ id: SpinnerOption.ID) {
         custom.removeAll { $0.id == id }
-        if picks[.custom] == id { setPick(nil, in: .custom) }
+        if picks[list] == id { setPick(nil, in: list) }
         isShuffled = false
         save()
     }
@@ -162,7 +182,7 @@ final class SpinnerStore {
         }
     }
 
-    /// Mixes up Custom's order a few times quickly (the rows slide around), then settles on a new order,
+    /// Mixes up the Custom list's order a few times quickly (the rows slide around), then settles on a new order,
     /// which is saved. Always a different order from before.
     func shuffle() {
         guard canShuffle else { return }
@@ -191,8 +211,8 @@ final class SpinnerStore {
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(custom) {
-            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        if let key = list.storageKey, let data = try? JSONEncoder().encode(custom) {
+            UserDefaults.standard.set(data, forKey: key)
         }
     }
 }
