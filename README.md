@@ -1,6 +1,6 @@
 # Desktop Pet
 
-A macOS menu bar app that puts a small pixel-art pet on your desktop. She floats above your windows, and you can drag her anywhere. Click her to open a speech bubble of little tools: a timer and Pomodoro, reminders, to-dos, notes, a clipboard history, a calculator and unit converter, and a page for customizing how she looks.
+A macOS menu bar app that puts a small pixel-art pet on your desktop. She floats above your windows, and you can drag her anywhere. Click her to open a speech bubble of little tools: a timer and Pomodoro, reminders, to-dos, notes, a clipboard history, a calculator and unit converter, a few games, and a page for customizing how she looks.
 
 ![Desktop Pet's tools above a lineup of cats and dogs in different colors](screenshots/overview-with-pets.png)
 
@@ -19,7 +19,7 @@ Desktop Pet needs macOS 15 or later and runs on both Apple Silicon and Intel Mac
 
 - **Click the pet** to open the menu of tools. Click her again, or click ✕, to close it.
 - **Drag the pet** to move her anywhere. She remembers where you left her.
-- **Right-click the pet** for shortcuts: start a timer, Pomodoro or stopwatch; pause, adjust or stop the current one; or jump to To-dos, Notes, Reminders or a screenshot.
+- **Right-click the pet** to hide her. Bring her back from the menu bar icon.
 - **The menu bar icon** can show or hide the pet, start timers, turn on **Launch at Login**, or quit.
 
 The main menu closes when you click somewhere else, but tool pages (Notes, Math, Clipboard and so on) stay open. That way you can look something up in another app without losing what you typed. Use ‹ to go back to the menu, or ✕ to close it.
@@ -78,6 +78,21 @@ Keeps the last 5 things you copied anywhere on your Mac: text, images and files.
 
 Clipboard and screenshots need macOS permissions. See [Permissions](#permissions).
 
+## Games
+
+Click the pet and choose **Games**. Most of them help you make a choice; two you play with her.
+
+- **Spinner:** a highlight runs down a list and stops on a random pick. Use ‹ › to switch lists:
+  - **To-dos** picks your next to-do from the ones you haven't checked off.
+  - **Coin** (heads or tails) and **RPS** (rock, paper, scissors).
+  - **Custom 1, 2 and 3** are your own lists, up to 50 options each. Type on the blank row to add one. **Shuffle** mixes the list into a numbered order, like who goes first.
+  - Each list remembers its last pick.
+- **Number:** a random whole number between the two you type (1–100 to start).
+- **Groups:** type a list of people or things, pick how many groups, and click **Make groups** to split them randomly into even groups. **Again** reshuffles.
+- **Hide & Seek:** she hides in one of your open apps. Switch between your apps to find her peeking up from a window, then click her. If you don't find her in 5 minutes, she comes back on her own. Reminders and timers call her home right away. No permissions needed.
+- **Words:** guess her word one letter at a time, with a category as a hint. Six wrong letters and she wins. Click the letters or type them.
+- **Ask:** think of a yes-or-no question and click **Ask** for her answer, like a Magic 8-Ball.
+
 ## Chatter
 
 Your pet can talk now and then, in a personality you pick in **Settings → Chatter**. She starts out quiet (**None**). Her speech bubble fades once you've seen it, or click it to close it right away.
@@ -87,6 +102,8 @@ Your pet can talk now and then, in a personality you pick in **Settings → Chat
 - **Boss:** a CEO who thinks you're the star employee.
 - **Sassy:** dramatic and a little full of herself.
 - **Deadpan:** says odd things with a straight face.
+
+On holidays and a few other special days she has something special to say, and from December 1 the morning greeting counts down the days until Christmas.
 
 ## Math
 
