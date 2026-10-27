@@ -75,7 +75,7 @@ final class SpinnerStore {
     private(set) var isShuffling = false
     private(set) var isShuffled = false
 
-    /// Your unchecked to-dos, oldest first, for the To-dos list (set by `AppController`; reading them through
+    /// Your unchecked to-dos, in your order, for the To-dos list (set by `AppController`; reading them through
     /// this keeps the page in step as you check things off).
     @ObservationIgnored var todoOptions: () -> [SpinnerOption] = { [] }
 

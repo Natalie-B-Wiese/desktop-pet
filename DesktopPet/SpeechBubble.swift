@@ -508,7 +508,7 @@ struct BubbleView: View {
         case .startTimer: 228
         case .timerControls, .reminders, .addReminder, .editReminder: 190
         case .settings: 206 // room for "Reminders ‹ 60 min early ›"
-        case .todos: 210
+        case .todos: 225 // 210, plus the reorder arrows
         case .math: 260 // room for the Range boxes and long date answers
         case .notes: 220
         case .clipboard: 250

@@ -58,7 +58,7 @@ Each reminder is a time today plus an optional message and meeting link. With a 
 
 ### To-dos
 
-Type a to-do and press Return. Check things off as you finish them. **Checked items disappear at the end of the day**, so you don't have to clean up. Unchecked ones stay.
+Type a to-do and press Return. Use the ↑ ↓ arrows on the left to put them in order. Check things off as you finish them; checked ones move to the bottom. **Checked items disappear at the end of the day**, so you don't have to clean up. Unchecked ones stay.
 
 ### Notes
 

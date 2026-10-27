@@ -24,6 +24,7 @@ struct BubbleTodoPage: View {
                 set: { newText = String($0.prefix(TodoStore.maxLength)) }
             ))
             .bubbleFieldStyle()
+            .padding(.leading, 15) // lines up with the rows, past their reorder arrows
             .focused($addFocused)
             .onSubmit {
                 store.add(newText)
@@ -58,22 +59,38 @@ struct BubbleTodoPage: View {
     private var rows: some View {
         VStack(spacing: Self.rowSpacing) {
             ForEach(store.todos) { todo in
-                TodoRow(
-                    todo: todo,
-                    isEditing: editingID == todo.id,
-                    onEditingChanged: { editing in
-                        if editing {
-                            editingID = todo.id
-                        } else if editingID == todo.id {
-                            editingID = nil
-                            store.tidy(todo.id) // trims it, or deletes it if emptied
-                        }
-                    },
-                    onToggle: { store.toggle(todo.id) },
-                    onType: { store.update(todo.id, text: $0) },
-                    onDelete: { store.delete(todo.id) },
-                    onClose: onClose
-                )
+                HStack(spacing: 3) {
+                    // Reorder arrows sit outside the row on the far left, like Notes'. Checked items stay at the bottom.
+                    if todo.isDone {
+                        Color.clear.frame(width: 12)
+                    } else {
+                        CaretStepper(
+                            canIncrement: store.canMove(todo.id, by: -1),
+                            canDecrement: store.canMove(todo.id, by: 1),
+                            increment: { store.move(todo.id, by: -1) },
+                            decrement: { store.move(todo.id, by: 1) },
+                            repeatsWhenHeld: false, // one spot per click
+                            outlined: false
+                        )
+                        .help("Move up or down")
+                    }
+                    TodoRow(
+                        todo: todo,
+                        isEditing: editingID == todo.id,
+                        onEditingChanged: { editing in
+                            if editing {
+                                editingID = todo.id
+                            } else if editingID == todo.id {
+                                editingID = nil
+                                store.tidy(todo.id) // trims it, or deletes it if emptied
+                            }
+                        },
+                        onToggle: { store.toggle(todo.id) },
+                        onType: { store.update(todo.id, text: $0) },
+                        onDelete: { store.delete(todo.id) },
+                        onClose: onClose
+                    )
+                }
             }
         }
     }
