@@ -69,8 +69,7 @@ enum MeetingLink {
     }
 }
 
-/// "Join Zoom" under a meeting's heads-up or due reminder. It reports where it is so the bubble,
-/// which otherwise catches every click as "close", lets clicks on it through.
+/// "Join Zoom" under a meeting's heads-up or due reminder.
 struct JoinMeetingButton: View {
     let url: URL
     let layout: BubbleLayout
@@ -81,7 +80,14 @@ struct JoinMeetingButton: View {
         }
         .fixedSize()
         .padding(.vertical, 3)
-        .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { layout.joinButtonFrame = $0 }
-        .onDisappear { layout.joinButtonFrame = nil }
+        .passesBubbleClicks(layout, as: "join")
+    }
+}
+
+extension View {
+    /// Reports where this button is, so the bubble (which otherwise catches every click as "close") lets clicks on it through.
+    func passesBubbleClicks(_ layout: BubbleLayout, as name: String) -> some View {
+        onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { layout.buttonFrames[name] = $0 }
+            .onDisappear { layout.buttonFrames[name] = nil }
     }
 }

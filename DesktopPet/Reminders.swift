@@ -19,8 +19,16 @@ struct Reminder: Codable, Identifiable, Equatable {
     /// or typed in for her own reminders.
     var meetingLink: URL?
 
+    /// When a snoozed reminder comes back. Kept apart from `date`, so snoozing never changes its own time
+    /// (a daily 2:00 PM reminder snoozed once stays a 2:00 PM one, and a meeting's stays at its start).
+    /// Cleared when it's closed or its time changes.
+    var snoozedUntil: Date?
+
     /// The time to show for it: the meeting's start for a meeting, otherwise when it goes off.
     var shownDate: Date { meetingStart ?? date }
+
+    /// When it comes due: the snooze time if it's snoozed, otherwise its time.
+    var dueDate: Date { snoozedUntil ?? date }
 
     /// Tells one occurrence of a repeating reminder from the next, so each gets its own heads-up.
     var occurrenceKey: String { "\(id)|\(Int(date.timeIntervalSince1970))" }
@@ -32,7 +40,7 @@ struct Reminder: Codable, Identifiable, Equatable {
 /// so ones that came due while the app was closed or the Mac was asleep still show up.
 @Observable
 final class ReminderStore {
-    /// Every reminder, soonest first.
+    /// Every reminder, soonest due first.
     private(set) var reminders: [Reminder] = []
 
     /// Reminders whose time has come, oldest first. The bubble shows the first one.
@@ -86,7 +94,7 @@ final class ReminderStore {
         let reminder = Reminder(date: Self.nextOccurrence(of: time, on: days), message: message, repeatDays: days, meetingLink: link)
         reminders.append(reminder)
         skipHeadsUpIfSoon(reminder)
-        reminders.sort { $0.date < $1.date }
+        reminders.sort { $0.dueDate < $1.dueDate }
         save()
         refresh()
         onChange?()
@@ -97,7 +105,7 @@ final class ReminderStore {
         let reminder = Reminder(date: date, message: message, repeatDays: nil)
         reminders.append(reminder)
         headsUpDone.insert(reminder.occurrenceKey)
-        reminders.sort { $0.date < $1.date }
+        reminders.sort { $0.dueDate < $1.dueDate }
         save()
         refresh()
         onChange?()
@@ -111,8 +119,9 @@ final class ReminderStore {
         reminders[index].repeatDays = days
         reminders[index].message = message
         reminders[index].meetingLink = link
+        reminders[index].snoozedUntil = nil
         skipHeadsUpIfSoon(reminders[index])
-        reminders.sort { $0.date < $1.date }
+        reminders.sort { $0.dueDate < $1.dueDate }
         save()
         refresh()
         onChange?()
@@ -128,6 +137,8 @@ final class ReminderStore {
             if let index = reminders.firstIndex(where: { $0.meetingID == meeting.id }) {
                 guard reminders[index].meetingStart != meeting.start || reminders[index].message != message
                         || reminders[index].meetingLink != meeting.link else { continue }
+                // A meeting that moved makes its snooze meaningless; a rename keeps it.
+                if reminders[index].meetingStart != meeting.start { reminders[index].snoozedUntil = nil }
                 reminders[index].date = meeting.start
                 reminders[index].meetingStart = meeting.start
                 reminders[index].message = message
@@ -151,7 +162,7 @@ final class ReminderStore {
         }
         changed += before - reminders.count
 
-        reminders.sort { $0.date < $1.date }
+        reminders.sort { $0.dueDate < $1.dueDate }
         save()
         UserDefaults.standard.set(Date(), forKey: Self.lastMeetingPullKey)
         refresh()
@@ -194,7 +205,19 @@ final class ReminderStore {
             return
         }
         reminders[index].date = Self.nextOccurrence(of: first.date, on: first.repeatDays)
-        reminders.sort { $0.date < $1.date }
+        reminders[index].snoozedUntil = nil
+        reminders.sort { $0.dueDate < $1.dueDate }
+        save()
+        refresh()
+        onChange?()
+    }
+
+    /// Puts the reminder the bubble is showing off for `minutes`. A repeating one keeps its time for the next days.
+    /// It gets no heads-up before it comes back.
+    func snoozeFirstDue(minutes: Int) {
+        guard let first = due.first, let index = reminders.firstIndex(where: { $0.id == first.id }) else { return }
+        reminders[index].snoozedUntil = Date().addingTimeInterval(60 * Double(minutes))
+        reminders.sort { $0.dueDate < $1.dueDate }
         save()
         refresh()
         onChange?()
@@ -203,10 +226,11 @@ final class ReminderStore {
     /// Recomputes which reminders are due and schedules a wake-up for the next one.
     private func refresh() {
         let now = Date()
-        let newDue = reminders.filter { $0.date <= now }
+        let newDue = reminders.filter { $0.dueDate <= now }
         let lead = Self.headsUpLead
+        // A snoozed reminder skips the heads-up; it just comes back.
         let newHeadsUp = lead <= 0 ? [] : reminders.filter {
-            $0.date > now && $0.date.timeIntervalSince(now) <= lead && !headsUpDone.contains($0.occurrenceKey)
+            $0.snoozedUntil == nil && $0.date > now && $0.date.timeIntervalSince(now) <= lead && !headsUpDone.contains($0.occurrenceKey)
         }
         if newDue != due || newHeadsUp != headsUp {
             due = newDue
@@ -216,8 +240,10 @@ final class ReminderStore {
 
         timer?.invalidate()
         timer = nil
-        // The next moment something changes: a reminder comes due or its heads-up starts.
-        let next = reminders.flatMap { [$0.date, $0.date.addingTimeInterval(-lead)] }.filter { $0 > now }.min()
+        // The next moment something changes: a reminder comes due (or back from a snooze) or its heads-up starts.
+        let next = reminders.flatMap { reminder in
+            reminder.snoozedUntil.map { [$0] } ?? [reminder.date, reminder.date.addingTimeInterval(-lead)]
+        }.filter { $0 > now }.min()
         if let next {
             let timer = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
                 self?.refresh()
@@ -230,7 +256,7 @@ final class ReminderStore {
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
               let saved = try? JSONDecoder().decode([Reminder].self, from: data) else { return }
-        reminders = saved.sorted { $0.date < $1.date }
+        reminders = saved.sorted { $0.dueDate < $1.dueDate }
     }
 
     private func save() {

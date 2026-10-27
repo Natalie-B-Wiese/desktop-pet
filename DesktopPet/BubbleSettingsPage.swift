@@ -24,6 +24,15 @@ enum AppPreferences {
         UserDefaults.standard.object(forKey: headsUpKey) as? Int ?? defaultHeadsUpMinutes
     }
 
+    /// How long the Snooze button on a due reminder puts it off. Snoozing again puts it off again.
+    static let snoozeKey = "settings.snoozeMinutes"
+    static let snoozeChoices = [1, 2, 5, 10]
+    static let defaultSnoozeMinutes = 5
+
+    static var snoozeMinutes: Int {
+        UserDefaults.standard.object(forKey: snoozeKey) as? Int ?? defaultSnoozeMinutes
+    }
+
     /// The old "Meeting reminders" setting (meetings went off this early) becomes the heads-up for all reminders.
     static func moveMeetingLeadToHeadsUp() {
         let defaults = UserDefaults.standard
@@ -88,6 +97,7 @@ struct BubbleSettingsPage: View {
     let reminders: ReminderStore
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
     @AppStorage(AppPreferences.headsUpKey) private var headsUp = AppPreferences.defaultHeadsUpMinutes
+    @AppStorage(AppPreferences.snoozeKey) private var snooze = AppPreferences.defaultSnoozeMinutes
     @AppStorage(AppPreferences.morningGreetingKey) private var morningGreeting = true
     @AppStorage(AppPreferences.chatterKey) private var chatter = "none"
     /// Called after picking a Chatter personality, so she says a line in her new voice.
@@ -104,6 +114,9 @@ struct BubbleSettingsPage: View {
                 try? await Task.sleep(for: .milliseconds(600))
                 if !Task.isCancelled { reminders.applyHeadsUpChange() }
             }
+            // Right after Early reminders, since both are about time.
+            minutesPicker("Snooze", minutes: $snooze, choices: AppPreferences.snoozeChoices,
+                          help: "How long Snooze puts off a reminder that came due")
 
             Toggle(isOn: $militaryTime) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -196,36 +209,45 @@ extension BubbleSettingsPage {
 
     /// "Early reminders  ‹ 5 min ›" (the heads-up before each reminder), like the Notification row.
     private var headsUpPicker: some View {
+        minutesPicker("Early reminders", minutes: $headsUp, choices: AppPreferences.headsUpChoices,
+                      help: "How long before each reminder Topsy gives you a heads-up")
+    }
+
+    /// "Title  ‹ 5 min ›", stepping through `choices` and wrapping around.
+    private func minutesPicker(_ title: String, minutes: Binding<Int>, choices: [Int], help: String) -> some View {
         HStack(spacing: 0) {
-            Text("Early reminders")
+            Text(title)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .lineLimit(1)
                 .fixedSize()
             Spacer(minLength: 0)
             HStack(spacing: 0) {
-                HeaderIconButton(systemImage: "chevron.left", help: "Less time", width: 18) { stepHeadsUp(-1) }
-                Text(AppPreferences.headsUpText(headsUp))
+                HeaderIconButton(systemImage: "chevron.left", help: "Less time", width: 18) {
+                    minutes.wrappedValue = Self.step(minutes.wrappedValue, by: -1, through: choices)
+                }
+                Text(AppPreferences.headsUpText(minutes.wrappedValue))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .fixedSize()
                     .frame(width: 52)
-                HeaderIconButton(systemImage: "chevron.right", help: "More time", width: 18) { stepHeadsUp(1) }
+                HeaderIconButton(systemImage: "chevron.right", help: "More time", width: 18) {
+                    minutes.wrappedValue = Self.step(minutes.wrappedValue, by: 1, through: choices)
+                }
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
-        .help("How long before each reminder Topsy gives you a heads-up")
+        .help(help)
     }
 
     /// Steps to the next choice, wrapping around. A saved number that isn't a choice (from the old
     /// number box) steps to the nearest choice in that direction.
-    private func stepHeadsUp(_ step: Int) {
-        let choices = AppPreferences.headsUpChoices
+    private static func step(_ value: Int, by step: Int, through choices: [Int]) -> Int {
         if step > 0 {
-            headsUp = choices.first { $0 > headsUp } ?? choices[0]
+            choices.first { $0 > value } ?? choices[0]
         } else {
-            headsUp = choices.last { $0 < headsUp } ?? choices[choices.count - 1]
+            choices.last { $0 < value } ?? choices[choices.count - 1]
         }
     }
 

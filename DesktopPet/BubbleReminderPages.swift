@@ -100,6 +100,13 @@ struct BubbleRemindersPage: View {
                     .opacity(0.55)
                     .lineLimit(1)
             }
+            // The time above stays its own; this says when it comes back.
+            if let snoozed = reminder.snoozedUntil {
+                Label("Snoozed until \(ReminderStore.timeText(snoozed))", systemImage: "zzz")
+                    .labelStyle(RepeatLabelStyle())
+                    .opacity(0.55)
+                    .lineLimit(1)
+            }
             if let text = reminder.message {
                 Text(text)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
@@ -454,7 +461,7 @@ struct BubbleAddReminderPage: View {
     }
 }
 
-/// A small grey "↻ Weekdays" after a repeating reminder's time.
+/// A small grey "↻ Weekdays" (or "zzz Snoozed until 2:05 PM") under a reminder's time.
 private struct RepeatLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 2) {
@@ -469,7 +476,7 @@ struct BubbleReminderAlert<Join: View>: View {
     let reminder: Reminder
     /// How many more are waiting after this one: other due reminders, the greeting and a finished timer.
     let moreCount: Int
-    /// A meeting's Join button, under the message.
+    /// The Join (for a reminder with a link) and Snooze buttons, under the message.
     @ViewBuilder var join: Join
 
     var body: some View {

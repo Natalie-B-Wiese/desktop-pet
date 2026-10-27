@@ -12,8 +12,8 @@ final class BubbleLayout {
     /// so its window can be resized to fit.
     @ObservationIgnored var onContentSizeChange: (() -> Void)?
 
-    /// Where a meeting's Join button is (in the bubble's SwiftUI coordinates), so clicks on it aren't taken as "close".
-    @ObservationIgnored var joinButtonFrame: CGRect?
+    /// Where the Join and Snooze buttons are (in the bubble's SwiftUI coordinates), so clicks on them aren't taken as "close".
+    @ObservationIgnored var buttonFrames: [String: CGRect] = [:]
 }
 
 /// The "What would you like to do?" menu shown in the bubble when you click the cat.
@@ -172,8 +172,9 @@ final class SpeechBubbleController {
             }
         }
         container.passesClick = { [weak self] point in
-            guard let self, !menu.isOpen, let button = layout.joinButtonFrame else { return false }
-            return button.contains(hostingView.convert(point, from: container))
+            guard let self, !menu.isOpen else { return false }
+            let local = hostingView.convert(point, from: container)
+            return layout.buttonFrames.values.contains { $0.contains(local) }
         }
         menu.onChange = { [weak self] in self?.menuChanged() }
         layout.onContentSizeChange = { [weak self] in
@@ -447,7 +448,10 @@ struct BubbleView: View {
         } else if let reminder = reminders.due.first {
             // A due reminder takes priority; the timer shows again once it's closed.
             BubbleReminderAlert(reminder: reminder, moreCount: reminders.due.count - 1 + reminders.headsUp.count + waitingAfterHeadsUps) {
-                joinButton(for: reminder)
+                HStack(spacing: 6) {
+                    joinButton(for: reminder)
+                    snoozeButton
+                }
             }
         } else if let reminder = reminders.headsUp.first {
             BubbleHeadsUp(reminder: reminder, moreCount: reminders.headsUp.count - 1 + waitingAfterHeadsUps) {
@@ -469,6 +473,16 @@ struct BubbleView: View {
         if let link = reminder.meetingLink {
             JoinMeetingButton(url: link, layout: layout)
         }
+    }
+
+    /// "Snooze 5 min" (Settings → Snooze) on a due reminder. It comes back with a hop, and can be snoozed again.
+    private var snoozeButton: some View {
+        BubbleButton("Snooze \(AppPreferences.headsUpText(AppPreferences.snoozeMinutes))", systemImage: "zzz", centered: true) {
+            reminders.snoozeFirstDue(minutes: AppPreferences.snoozeMinutes)
+        }
+        .fixedSize()
+        .padding(.vertical, 3)
+        .passesBubbleClicks(layout, as: "snooze")
     }
 
     /// What's queued behind the greeting: "Time's up!" or a finished Pomodoro period, which waits for a click.

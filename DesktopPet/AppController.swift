@@ -323,7 +323,7 @@ final class AppController {
         keys.formUnion(reminders.due.map(\.occurrenceKey))
         defaults.set(now, forKey: Self.dueTodayKey)
         defaults.set(Array(keys), forKey: Self.dueTodayKeysKey)
-        let laterToday = reminders.reminders.contains { $0.date > now && calendar.isDateInToday($0.date) }
+        let laterToday = reminders.reminders.contains { $0.dueDate > now && calendar.isDateInToday($0.dueDate) }
         if !laterToday && keys.count >= 2 { return .lastDue }
         return newDue.repeats ? .repeatingDue : .reminderDue
     }
@@ -344,11 +344,12 @@ final class AppController {
         let newHeadsUp = reminders.headsUp.first { !lastHeadsUpKeys.contains($0.occurrenceKey) }
         if reminders.due.count > lastDueCount || newHeadsUp != nil { petPanel?.hop() }
         // Her personality's take goes beside her while the main bubble shows the reminder (nothing with Chatter on None).
+        // A reminder back from a snooze gets no line: she already said one when it first came due.
         // It waits until the hop is over and a beat more, so the two bubbles don't pop up at once.
         // A reminder coming due wins over a heads-up arriving at the same moment.
         let newDue = reminders.due.first { !lastDueKeys.contains($0.occurrenceKey) }
         let moment = newDue.map(dueMoment(for:))
-        if let newDue, let moment, AppPreferences.chatter != nil {
+        if let newDue, let moment, newDue.snoozedUntil == nil, AppPreferences.chatter != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.headsUpLineDelay) { [weak self] in
                 // Skipped if it was clicked away meanwhile.
                 guard let self, let personality = AppPreferences.chatter,
@@ -603,7 +604,7 @@ final class AppController {
     /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
-    /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first);
+    /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first; `--snooze <seconds>` snoozes it that long after launch);
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings|games|spinner|number|ask]` opens the cat's click menu (on that page);
     /// `--spin` spins the Spinner after 1s; `--roll` rolls the Number game after 1s; `--ask` asks Topsy after 1s;
@@ -633,6 +634,12 @@ final class AppController {
         if args.contains("--pause") { timer.pause() }
         if let seconds = value(after: "--remind-in").flatMap(TimeInterval.init) {
             reminders.addForTesting(at: Date().addingTimeInterval(seconds), message: value(after: "--label"))
+        }
+        if let seconds = value(after: "--snooze").flatMap(TimeInterval.init) {
+            // Snoozes the due reminder after that many seconds, as its Snooze button would (pair it with `--remind-in`).
+            DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+                self?.reminders.snoozeFirstDue(minutes: AppPreferences.snoozeMinutes)
+            }
         }
         if args.contains("--greeting") {
             Task { @MainActor [weak self] in
