@@ -463,12 +463,11 @@ struct BubbleView: View {
         }
     }
 
-    /// "Join Zoom" for a reminder with a link. Joining is going to the meeting, so this occurrence is done
-    /// (from the heads-up too, so it doesn't come due again at the start). A repeating one moves to its next day.
+    /// "Join Zoom" for a reminder with a link. It only opens the call; the reminder stays until it's clicked away.
     @ViewBuilder
     private func joinButton(for reminder: Reminder) -> some View {
         if let link = reminder.meetingLink {
-            JoinMeetingButton(url: link, layout: layout) { reminders.joined(reminder.id) }
+            JoinMeetingButton(url: link, layout: layout)
         }
     }
 

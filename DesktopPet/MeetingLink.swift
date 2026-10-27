@@ -74,12 +74,10 @@ enum MeetingLink {
 struct JoinMeetingButton: View {
     let url: URL
     let layout: BubbleLayout
-    var onJoin: () -> Void
 
     var body: some View {
         BubbleButton("Join \(MeetingLink.service(of: url) ?? "call")", systemImage: "video.fill", centered: true) {
             MeetingLink.open(url)
-            onJoin()
         }
         .fixedSize()
         .padding(.vertical, 3)

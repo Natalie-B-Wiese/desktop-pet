@@ -118,22 +118,6 @@ final class ReminderStore {
         onChange?()
     }
 
-    /// Joining the call from its heads-up or due reminder means this occurrence is done, so it doesn't come due
-    /// again at its time. A one-time reminder is deleted; a repeating one moves to its next day.
-    func joined(_ id: Reminder.ID) {
-        guard let index = reminders.firstIndex(where: { $0.id == id }) else { return }
-        let reminder = reminders[index]
-        guard reminder.repeats else {
-            delete(id)
-            return
-        }
-        reminders[index].date = Self.nextOccurrence(of: reminder.date, on: reminder.repeatDays, after: max(reminder.date, Date()))
-        reminders.sort { $0.date < $1.date }
-        save()
-        refresh()
-        onChange?()
-    }
-
     /// Adds a reminder for each meeting, updates ones whose meeting moved or was renamed, and removes ones
     /// for today's meetings that are gone (canceled, declined or moved to another day).
     @discardableResult
