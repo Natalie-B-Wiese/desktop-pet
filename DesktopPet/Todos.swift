@@ -11,7 +11,8 @@ struct Todo: Codable, Identifiable, Equatable {
     var isDone: Bool { completedAt != nil }
 }
 
-/// The to-do list, saved across launches. Checked-off items are cleared once their day is over.
+/// The to-do list, saved across launches. Checked-off items move to the archive once their day is over,
+/// and leave the archive after `archiveDays`.
 @Observable
 final class TodoStore {
     /// Every item in the order you put them in. Checking one off doesn't move it here,
@@ -23,6 +24,16 @@ final class TodoStore {
 
     var remainingCount: Int { items.filter { !$0.isDone }.count }
 
+    /// Checked-off items from earlier days, most recently finished first.
+    private(set) var archived: [Todo] = []
+
+    /// How many days an item stays in the archive, counted from the day it was finished.
+    var archiveDays: Int {
+        didSet { UserDefaults.standard.set(archiveDays, forKey: Self.archiveDaysKey) }
+    }
+    static let archiveDayChoices = [1, 3, 7, 14, 30]
+    static let defaultArchiveDays = 7
+
     /// Called whenever the list changes.
     @ObservationIgnored var onChange: (() -> Void)?
     /// Called when an item is checked off (not when it's unchecked), with whether that was the last one.
@@ -31,18 +42,21 @@ final class TodoStore {
 
     static let maxLength = 60
     private static let storageKey = "todos"
+    private static let archiveKey = "todos.archive"
+    private static let archiveDaysKey = "todos.archiveDays"
 
     init() {
+        archiveDays = UserDefaults.standard.object(forKey: Self.archiveDaysKey) as? Int ?? Self.defaultArchiveDays
         load()
-        clearFinishedFromEarlierDays()
+        archiveFinishedFromEarlierDays()
         // The day can end while the app runs (midnight) or while the Mac sleeps.
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append((workspace, workspace.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.clearFinishedFromEarlierDays() }))
+        ) { [weak self] _ in self?.archiveFinishedFromEarlierDays() }))
         observers.append((NotificationCenter.default, NotificationCenter.default.addObserver(
             forName: .NSCalendarDayChanged, object: nil, queue: .main
-        ) { [weak self] _ in self?.clearFinishedFromEarlierDays() }))
+        ) { [weak self] _ in self?.archiveFinishedFromEarlierDays() }))
     }
 
     deinit {
@@ -106,12 +120,44 @@ final class TodoStore {
         changed()
     }
 
-    /// Deletes items that were checked off before today.
-    func clearFinishedFromEarlierDays() {
+    /// Moves items checked off before today to the archive, and deletes archived ones past `archiveDays`.
+    func archiveFinishedFromEarlierDays() {
         let startOfToday = Calendar.current.startOfDay(for: Date())
-        let before = items.count
-        items.removeAll { ($0.completedAt ?? .distantFuture) < startOfToday }
-        if items.count != before { changed() }
+        let finished = items.filter { ($0.completedAt ?? .distantFuture) < startOfToday }
+        if !finished.isEmpty {
+            items.removeAll { ($0.completedAt ?? .distantFuture) < startOfToday }
+            archived = (archived + finished).sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+            changed()
+        }
+        pruneArchive()
+    }
+
+    /// Puts an archived item back on the list, unchecked, at the bottom of the unchecked ones.
+    func restore(_ id: Todo.ID) {
+        guard let index = archived.firstIndex(where: { $0.id == id }) else { return }
+        var todo = archived.remove(at: index)
+        todo.completedAt = nil
+        items.append(todo)
+        changed()
+    }
+
+    func deleteArchived(_ id: Todo.ID) {
+        archived.removeAll { $0.id == id }
+        changed()
+    }
+
+    /// Deletes archived items finished more than `archiveDays` days before today
+    /// (with 1 day, yesterday's stay today and are gone tomorrow). The page calls it once the days stop changing.
+    func pruneArchive() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let before = archived.count
+        archived.removeAll { todo in
+            guard let done = todo.completedAt else { return true }
+            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: done), to: today).day ?? 0
+            return days > archiveDays
+        }
+        if archived.count != before { changed() }
     }
 
     private func changed() {
@@ -120,7 +166,11 @@ final class TodoStore {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: Self.archiveKey), let saved = try? JSONDecoder().decode([Todo].self, from: data) {
+            archived = saved
+        }
+        guard let data = defaults.data(forKey: Self.storageKey),
               let saved = try? JSONDecoder().decode([Todo].self, from: data) else { return }
         items = saved
     }
@@ -128,6 +178,9 @@ final class TodoStore {
     private func save() {
         if let data = try? JSONEncoder().encode(items) {
             UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+        if let data = try? JSONEncoder().encode(archived) {
+            UserDefaults.standard.set(data, forKey: Self.archiveKey)
         }
     }
 }

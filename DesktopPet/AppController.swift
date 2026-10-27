@@ -635,6 +635,9 @@ final class AppController {
         if let seconds = value(after: "--remind-in").flatMap(TimeInterval.init) {
             reminders.addForTesting(at: Date().addingTimeInterval(seconds), message: value(after: "--label"))
         }
+        if args.contains("--archived") {
+            BubbleTodoPage.opensOnArchive = true // pair it with `--menu todos`
+        }
         if let seconds = value(after: "--snooze").flatMap(TimeInterval.init) {
             // Snoozes the due reminder after that many seconds, as its Snooze button would (pair it with `--remind-in`).
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in

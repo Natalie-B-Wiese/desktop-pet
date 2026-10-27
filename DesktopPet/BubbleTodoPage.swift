@@ -2,10 +2,16 @@ import AppKit
 import SwiftUI
 
 /// The bubble's to-do list: add at the top, click a box to check an item off, click the text to edit it.
+/// The Archived tab holds what was checked off on earlier days.
 struct BubbleTodoPage: View {
     let store: TodoStore
     var onClose: () -> Void
 
+    private enum Tab { case todos, archived }
+    /// Always opens on To-dos; the archive is for now and then.
+    @State private var tab = BubbleTodoPage.opensOnArchive ? Tab.archived : .todos
+    /// For testing (`--archived`): opens on the Archived tab.
+    static var opensOnArchive = false
     @State private var newText = ""
     @FocusState private var addFocused: Bool
     /// The to-do being edited in place, if any.
@@ -18,7 +24,20 @@ struct BubbleTodoPage: View {
 
     var body: some View {
         VStack(spacing: 6) {
+            BubbleTabs(selection: $tab, options: [(.todos, "To-dos"), (.archived, "Archived")])
+            if tab == .todos {
+                todoList
+            } else {
+                ArchivedTodos(store: store)
+            }
+        }
+        .onDisappear {
+            if let id = editingID { store.tidy(id) }
+        }
+    }
 
+    private var todoList: some View {
+        VStack(spacing: 6) {
             TextField("Add a to-do", text: Binding(
                 get: { newText },
                 set: { newText = String($0.prefix(TodoStore.maxLength)) }
@@ -49,10 +68,6 @@ struct BubbleTodoPage: View {
             } else {
                 rows
             }
-
-        }
-        .onDisappear {
-            if let id = editingID { store.tidy(id) }
         }
     }
 
@@ -93,6 +108,153 @@ struct BubbleTodoPage: View {
                 }
             }
         }
+    }
+}
+
+/// The Archived tab: to-dos checked off on earlier days under a heading for each day, newest first,
+/// each with Restore and ✕, and how many days they're kept.
+private struct ArchivedTodos: View {
+    let store: TodoStore
+    @State private var listHeight: CGFloat = 0
+
+    /// Past this the list scrolls instead of making the bubble taller.
+    private static let maxListHeight: CGFloat = 220
+
+    var body: some View {
+        VStack(spacing: 6) {
+            // On top, so it stays in sight however long the list gets.
+            keptForPicker
+            if store.archived.isEmpty {
+                Text("Nothing archived yet. Checked to-dos move here at the end of the day.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 4)
+            } else {
+                // Always a ScrollView, sized to its rows up to the cap, like Notes.
+                ScrollView {
+                    days
+                        .padding(1) // keeps the row outlines from being clipped at the edges
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+                }
+                .scrollIndicators(.never)
+                .frame(height: min(listHeight, Self.maxListHeight))
+                .padding(.horizontal, -1)
+            }
+        }
+        // Waits for the arrows to settle, so a choice clicked past on the way doesn't delete anything.
+        .task(id: store.archiveDays) {
+            try? await Task.sleep(for: .milliseconds(600))
+            if !Task.isCancelled { store.pruneArchive() }
+        }
+    }
+
+    /// The archive split by the day each was finished, keeping its newest-first order.
+    private var groups: [(day: Date, todos: [Todo])] {
+        let calendar = Calendar.current
+        var groups: [(day: Date, todos: [Todo])] = []
+        for todo in store.archived {
+            let day = calendar.startOfDay(for: todo.completedAt ?? Date())
+            if groups.last?.day == day {
+                groups[groups.count - 1].todos.append(todo)
+            } else {
+                groups.append((day, [todo]))
+            }
+        }
+        return groups
+    }
+
+    private var days: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(groups, id: \.day) { group in
+                Text(Self.dayText(group.day))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .opacity(0.55)
+                    .padding(.top, group.day == groups.first?.day ? 0 : 4)
+                ForEach(group.todos) { row($0) }
+            }
+        }
+    }
+
+    /// "Yesterday", or "Mon, Oct 26".
+    private static func dayText(_ day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        return day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+    }
+
+    private func row(_ todo: Todo) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.square.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .opacity(0.45)
+                .frame(width: 18, height: 18)
+            Text(todo.text)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .opacity(0.65)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 6)
+            Button {
+                store.restore(todo.id)
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 10, weight: .bold))
+                    .opacity(0.6)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Put back on the list")
+            Button {
+                store.deleteArchived(todo.id)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .heavy))
+                    .opacity(0.5)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Delete")
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 3)
+        .frame(minHeight: BubbleTodoPage.rowHeight)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    /// "Kept for  ‹ 7 days ›", like the ‹ › rows in Settings. It doesn't wrap around,
+    /// so one click from 1 day can't jump to 30, or from 30 to 1.
+    private var keptForPicker: some View {
+        let choices = TodoStore.archiveDayChoices
+        let days = store.archiveDays
+        return HStack(spacing: 0) {
+            Text("Kept for")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .fixedSize()
+            Spacer(minLength: 0)
+            HeaderIconButton(systemImage: "chevron.left", help: "Fewer days", width: 18) {
+                if let fewer = choices.last(where: { $0 < days }) { store.archiveDays = fewer }
+            }
+            .disabled(choices.first.map { days <= $0 } ?? true)
+            Text("\(days) day\(days == 1 ? "" : "s")")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .fixedSize()
+                .frame(width: 58)
+            HeaderIconButton(systemImage: "chevron.right", help: "More days", width: 18) {
+                if let more = choices.first(where: { $0 > days }) { store.archiveDays = more }
+            }
+            .disabled(choices.last.map { days >= $0 } ?? true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+        .help("How long checked to-dos stay here before they're deleted")
     }
 }
 
