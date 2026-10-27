@@ -44,6 +44,8 @@ final class TodoStore {
     private static let storageKey = "todos"
     private static let archiveKey = "todos.archive"
     private static let archiveDaysKey = "todos.archiveDays"
+    /// The day the archive was last pruned, so a relaunch the same day doesn't prune again.
+    private static let archivePrunedKey = "todos.archivePruned"
 
     init() {
         archiveDays = UserDefaults.standard.object(forKey: Self.archiveDaysKey) as? Int ?? Self.defaultArchiveDays
@@ -120,7 +122,7 @@ final class TodoStore {
         changed()
     }
 
-    /// Moves items checked off before today to the archive, and deletes archived ones past `archiveDays`.
+    /// Moves items checked off before today to the archive, and (once a day) deletes archived ones past `archiveDays`.
     func archiveFinishedFromEarlierDays() {
         let startOfToday = Calendar.current.startOfDay(for: Date())
         let finished = items.filter { ($0.completedAt ?? .distantFuture) < startOfToday }
@@ -146,10 +148,14 @@ final class TodoStore {
         changed()
     }
 
-    /// Deletes archived items finished more than `archiveDays` days before today
-    /// (with 1 day, yesterday's stay today and are gone tomorrow). The page calls it once the days stop changing.
-    func pruneArchive() {
+    /// Deletes archived items finished more than `archiveDays` days before today (with 1 day, yesterday's stay
+    /// today and are gone tomorrow). Only on the first check of each day (midnight, wake or launch), never right
+    /// after `archiveDays` changes, so stepping through a short choice on the way never deletes anything.
+    private func pruneArchive() {
         let calendar = Calendar.current
+        let defaults = UserDefaults.standard
+        if let last = defaults.object(forKey: Self.archivePrunedKey) as? Date, calendar.isDateInToday(last) { return }
+        defaults.set(Date(), forKey: Self.archivePrunedKey)
         let today = calendar.startOfDay(for: Date())
         let before = archived.count
         archived.removeAll { todo in

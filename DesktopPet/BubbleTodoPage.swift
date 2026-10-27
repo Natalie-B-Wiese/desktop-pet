@@ -143,11 +143,6 @@ private struct ArchivedTodos: View {
                 .padding(.horizontal, -1)
             }
         }
-        // Waits for the arrows to settle, so a choice clicked past on the way doesn't delete anything.
-        .task(id: store.archiveDays) {
-            try? await Task.sleep(for: .milliseconds(600))
-            if !Task.isCancelled { store.pruneArchive() }
-        }
     }
 
     /// The archive split by the day each was finished, keeping its newest-first order.
@@ -254,7 +249,7 @@ private struct ArchivedTodos: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
-        .help("How long checked to-dos stay here before they're deleted")
+        .help("How long checked to-dos stay here. Older ones are deleted at the end of the day.")
     }
 }
 
