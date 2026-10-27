@@ -490,9 +490,9 @@ struct BubbleWordPage: View {
     }
 }
 
-/// The Groups game: "Number of groups ‹ 2 ›" on top, then either the items to split (typed on directly, like the
+/// The Groups game: either "Number of groups ‹ 2 ›" over the items to split (typed on directly, like the
 /// Spinner's Custom list, with a blank "Add item" row at the bottom) and Make groups, or the groups made, with Again
-/// and Edit items. Both scroll once they're long.
+/// and Edit. Both scroll once they're long.
 struct BubbleGroupsPage: View {
     let store: GroupsStore
     var onClose: () -> Void
@@ -507,8 +507,6 @@ struct BubbleGroupsPage: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            countPicker
-
             if let groups = store.groups {
                 capped {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 6, alignment: .top), GridItem(.flexible(), alignment: .top)], spacing: 6) {
@@ -519,10 +517,11 @@ struct BubbleGroupsPage: View {
                 }
                 HStack(spacing: 6) {
                     BubbleButton("Again", systemImage: "shuffle", centered: true) { store.make() }
-                    BubbleButton("Edit items", systemImage: "pencil", centered: true) { store.editItems() }
+                    BubbleButton("Edit", systemImage: "pencil", centered: true) { store.editItems() }
                 }
                 .allowsHitTesting(!store.isMaking)
             } else {
+                countPicker
                 capped {
                     VStack(spacing: 4) {
                         ForEach(rows) { item in
