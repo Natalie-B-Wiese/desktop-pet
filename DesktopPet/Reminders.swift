@@ -15,7 +15,8 @@ struct Reminder: Codable, Identifiable, Equatable {
     var meetingID: String?
     /// When the meeting starts, which is also when its reminder comes due.
     var meetingStart: Date?
-    /// The meeting's Zoom (or Meet, Teams) link, shown as a Join button.
+    /// The meeting's Zoom (or Meet, Teams) link, shown as a Join button. Pulled from the calendar,
+    /// or typed in for her own reminders.
     var meetingLink: URL?
 
     /// The time to show for it: the meeting's start for a meeting, otherwise when it goes off.
@@ -80,9 +81,9 @@ final class ReminderStore {
     }
 
     /// Adds a reminder at the next time the clock shows `time`'s hour and minute (on one of `repeatDays`, if any).
-    func add(at time: Date, repeatDays: Set<Int>, message: String?) {
+    func add(at time: Date, repeatDays: Set<Int>, message: String?, link: URL? = nil) {
         let days = repeatDays.isEmpty ? nil : repeatDays
-        let reminder = Reminder(date: Self.nextOccurrence(of: time, on: days), message: message, repeatDays: days)
+        let reminder = Reminder(date: Self.nextOccurrence(of: time, on: days), message: message, repeatDays: days, meetingLink: link)
         reminders.append(reminder)
         skipHeadsUpIfSoon(reminder)
         reminders.sort { $0.date < $1.date }
@@ -102,14 +103,31 @@ final class ReminderStore {
         onChange?()
     }
 
-        /// Moves a reminder to the next time the clock shows `time`'s hour and minute, and changes its days and message.
-    func update(_ id: Reminder.ID, at time: Date, repeatDays: Set<Int>, message: String?) {
+    /// Moves a reminder to the next time the clock shows `time`'s hour and minute, and changes its days, message and link.
+    func update(_ id: Reminder.ID, at time: Date, repeatDays: Set<Int>, message: String?, link: URL?) {
         guard let index = reminders.firstIndex(where: { $0.id == id }) else { return }
         let days = repeatDays.isEmpty ? nil : repeatDays
         reminders[index].date = Self.nextOccurrence(of: time, on: days)
         reminders[index].repeatDays = days
         reminders[index].message = message
+        reminders[index].meetingLink = link
         skipHeadsUpIfSoon(reminders[index])
+        reminders.sort { $0.date < $1.date }
+        save()
+        refresh()
+        onChange?()
+    }
+
+    /// Joining the call from its heads-up or due reminder means this occurrence is done, so it doesn't come due
+    /// again at its time. A one-time reminder is deleted; a repeating one moves to its next day.
+    func joined(_ id: Reminder.ID) {
+        guard let index = reminders.firstIndex(where: { $0.id == id }) else { return }
+        let reminder = reminders[index]
+        guard reminder.repeats else {
+            delete(id)
+            return
+        }
+        reminders[index].date = Self.nextOccurrence(of: reminder.date, on: reminder.repeatDays, after: max(reminder.date, Date()))
         reminders.sort { $0.date < $1.date }
         save()
         refresh()

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The bubble's "Reminders" page: every upcoming reminder (click one to edit it), Add, and Pull meetings.
+/// The bubble's "Reminders" page: every upcoming reminder (click one to edit it, or see a meeting's), Add, and Pull meetings.
 struct BubbleRemindersPage: View {
     let store: ReminderStore
     var onAdd: () -> Void
@@ -122,19 +122,14 @@ struct BubbleRemindersPage: View {
 
     private func row(_ reminder: Reminder) -> some View {
         HStack(spacing: 6) {
-            if reminder.meetingID != nil {
-                // Synced from the calendar, so it can't be edited here; change the meeting instead.
+            // A meeting opens read-only, since the calendar decides its time and title.
+            Button {
+                onEdit(reminder.id)
+            } label: {
                 rowText(reminder)
-                    .help("From your calendar")
-            } else {
-                Button {
-                    onEdit(reminder.id)
-                } label: {
-                    rowText(reminder)
-                }
-                .buttonStyle(.plain)
-                .help("Edit reminder")
             }
+            .buttonStyle(.plain)
+            .help(reminder.meetingID != nil ? "See meeting" : "Edit reminder")
 
             if let link = reminder.meetingLink {
                 Button {
@@ -168,7 +163,8 @@ struct BubbleRemindersPage: View {
     }
 }
 
-/// The bubble's "Remind me at…" page, also used to edit an existing reminder.
+/// The bubble's "Remind me at…" page, also used to edit an existing reminder,
+/// and to see a meeting's reminder read-only (the calendar decides its time and title).
 struct BubbleAddReminderPage: View {
     let store: ReminderStore
     /// The reminder being changed, or nil when adding a new one.
@@ -183,6 +179,10 @@ struct BubbleAddReminderPage: View {
     /// The minutes as typed, so the box can be empty while editing; padded to "05" when it loses focus.
     @State private var minuteText: String
     @State private var message: String
+    /// The meeting link as typed; checked when saving.
+    @State private var linkText: String
+    /// Shown under the link box when saving finds it isn't a link.
+    @State private var linkError = false
     /// The weekdays it repeats on (1 = Sunday … 7 = Saturday); empty means once.
     @State private var repeatDays: Set<Int>
     private enum Field { case hour, minute }
@@ -194,15 +194,22 @@ struct BubbleAddReminderPage: View {
         self.editing = editing
         self.onAdded = onAdded
         self.onClose = onClose
-        let start = Calendar.current.dateComponents([.hour, .minute], from: editing?.date ?? ReminderStore.defaultTime())
+        let start = Calendar.current.dateComponents([.hour, .minute], from: editing?.shownDate ?? ReminderStore.defaultTime())
         _hour24 = State(initialValue: start.hour ?? 12)
         _hourText = State(initialValue: Self.hourText(for: start.hour ?? 12, military: AppPreferences.usesMilitaryTime))
         _minuteText = State(initialValue: String(format: "%02d", start.minute ?? 0))
         _message = State(initialValue: editing?.message ?? "")
+        _linkText = State(initialValue: editing?.meetingLink?.absoluteString ?? "")
         _repeatDays = State(initialValue: editing?.repeatDays ?? [])
     }
 
     private var minute: Int { Int(minuteText) ?? 0 }
+
+    /// A meeting pulled from the calendar: shown, not edited.
+    private var readOnly: Bool { editing?.meetingID != nil }
+
+    /// The link as typed, if it's one; a meeting's saved link.
+    private var link: URL? { readOnly ? editing?.meetingLink : MeetingLink.parse(linkText) }
 
     /// The picked time, today; the store moves it to tomorrow if it has already passed.
     private var time: Date {
@@ -212,7 +219,7 @@ struct BubbleAddReminderPage: View {
     var body: some View {
         VStack(spacing: 8) {
 
-            if militaryTime {
+            if militaryTime && !readOnly {
                 // Red and bold like the Clipboard's "full" warning, so a 12-hour habit doesn't slip through.
                 Text("Military time is on")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -250,6 +257,7 @@ struct BubbleAddReminderPage: View {
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true) // AM/PM matches the boxes' height
+                .disabled(readOnly)
 
                 // "Today · Noon": says roughly when it is, since 12 PM is easy to mistake for midnight.
                 Text("\(ReminderStore.dayWord(for: time, repeatDays: repeatDays)) · \(ReminderStore.partOfDay(hour24: hour24))")
@@ -257,30 +265,88 @@ struct BubbleAddReminderPage: View {
                     .opacity(0.55)
             }
 
-            dayCircles
-
-            TextField("Message (optional)", text: Binding(
-                get: { message },
-                set: { message = String($0.prefix(ReminderStore.maxMessageLength)) }
-            ))
-            .bubbleFieldStyle()
-            .onSubmit(save) // Return adds or saves it
-
-            if editing == nil {
-                BubbleButton("Add", systemImage: "bell.badge", action: save)
+            if readOnly {
+                meetingDetails
             } else {
-                BubbleButton("Save", systemImage: "checkmark", action: save)
+                dayCircles
+
+                TextField("Message (optional)", text: Binding(
+                    get: { message },
+                    set: { message = String($0.prefix(ReminderStore.maxMessageLength)) }
+                ))
+                .bubbleFieldStyle()
+                .onSubmit(save) // Return adds or saves it
+
+                VStack(spacing: 2) {
+                    TextField("Meeting link (optional)", text: $linkText)
+                        .bubbleFieldStyle()
+                        .onSubmit(save)
+                        .onChange(of: linkText) { linkError = false }
+                    if linkError {
+                        Text("That isn't a link")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                if editing == nil {
+                    BubbleButton("Add", systemImage: "bell.badge", action: save)
+                } else {
+                    BubbleButton("Save", systemImage: "checkmark", action: save)
+                    if let link { joinButton(link) }
+                }
             }
         }
         .onAppear {
             // Wait a moment for the bubble to become the key window before focusing.
-            DispatchQueue.main.async { focusedField = .hour }
+            if !readOnly { DispatchQueue.main.async { focusedField = .hour } }
         }
         .onChange(of: focusedField) { old, _ in
             if old == .minute { minuteText = String(format: "%02d", minute) }
             if old == .hour { hourText = Self.hourText(for: hour24, military: militaryTime) }
         }
         .onExitCommand(perform: onClose) // Esc closes the menu
+    }
+
+    /// A meeting's title and link, which can be selected and copied but not changed, and Join.
+    private var meetingDetails: some View {
+        VStack(spacing: 8) {
+            Label("From your calendar", systemImage: "calendar")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .opacity(0.55)
+                .padding(.top, -4)
+            readOnlyBox(editing?.message ?? "No title", faint: editing?.message == nil, wraps: true)
+            if let link {
+                readOnlyBox(link.absoluteString, faint: false, wraps: false)
+                joinButton(link)
+            } else {
+                readOnlyBox("No meeting link", faint: true, wraps: false)
+            }
+        }
+    }
+
+    /// Text in a box like the message field, with a faint outline since it can't be typed in.
+    private func readOnlyBox(_ text: String, faint: Bool, wraps: Bool) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium, design: .rounded))
+            .lineLimit(wraps ? 3 : 1)
+            .truncationMode(.middle) // a long link keeps its start and its meeting number
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+            .opacity(faint ? 0.45 : 1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    /// "Join Zoom" (or Meet, Teams, or "Join call" for any other link). Opens it and keeps the reminder,
+    /// like the video button in the Reminders list.
+    private func joinButton(_ link: URL) -> some View {
+        BubbleButton("Join \(MeetingLink.service(of: link) ?? "call")", systemImage: "video.fill") {
+            MeetingLink.open(link)
+        }
+        .help(link.absoluteString)
     }
 
     /// One circle per weekday, in the week order of this Mac. Picking none makes it a one-time reminder.
@@ -372,11 +438,17 @@ struct BubbleAddReminderPage: View {
     }
 
     private func save() {
+        guard !readOnly else { return }
+        let typedLink = linkText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard typedLink.isEmpty || link != nil else {
+            linkError = true
+            return
+        }
         let text = ReminderStore.cleanMessage(message)
         if let editing {
-            store.update(editing.id, at: time, repeatDays: repeatDays, message: text)
+            store.update(editing.id, at: time, repeatDays: repeatDays, message: text, link: link)
         } else {
-            store.add(at: time, repeatDays: repeatDays, message: text)
+            store.add(at: time, repeatDays: repeatDays, message: text, link: link)
         }
         onAdded()
     }

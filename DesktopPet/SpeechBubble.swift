@@ -463,12 +463,12 @@ struct BubbleView: View {
         }
     }
 
-    /// "Join Zoom" for a meeting with a link. Joining is going to the meeting, so its reminder is done
-    /// (from the heads-up too, so it doesn't come due again at the start).
+    /// "Join Zoom" for a reminder with a link. Joining is going to the meeting, so this occurrence is done
+    /// (from the heads-up too, so it doesn't come due again at the start). A repeating one moves to its next day.
     @ViewBuilder
     private func joinButton(for reminder: Reminder) -> some View {
         if let link = reminder.meetingLink {
-            JoinMeetingButton(url: link, layout: layout) { reminders.delete(reminder.id) }
+            JoinMeetingButton(url: link, layout: layout) { reminders.joined(reminder.id) }
         }
     }
 
@@ -517,7 +517,7 @@ struct BubbleView: View {
             }
         case .reminders: "Reminders"
         case .addReminder: "Remind me at…"
-        case .editReminder: "Edit reminder"
+        case .editReminder(let id): reminders.reminders.first { $0.id == id }?.meetingID != nil ? "Meeting" : "Edit reminder"
         case .todos: "To-dos"
         case .notes: "Notes"
         case .math: "Math"
@@ -587,8 +587,8 @@ struct BubbleView: View {
             )
             .frame(width: 190)
         case .editReminder(let id):
-            // If it came due or was deleted meanwhile, there's nothing left to edit. Meeting reminders never open here.
-            if let reminder = reminders.upcoming.first(where: { $0.id == id && $0.meetingID == nil }) {
+            // If it came due or was deleted meanwhile, there's nothing left to edit. Meeting reminders open read-only.
+            if let reminder = reminders.upcoming.first(where: { $0.id == id }) {
                 BubbleAddReminderPage(
                     store: reminders,
                     editing: reminder,

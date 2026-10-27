@@ -48,7 +48,7 @@ When a timer ends, the pet hops and plays the sound from **Settings → Notifica
 
 ### Reminders
 
-Each reminder is a time today plus an optional message. When it comes due, the pet hops and the bubble shows it until you click it.
+Each reminder is a time today plus an optional message and meeting link. With a link, the reminder gets a Join button that opens the call. When it comes due, the pet hops and the bubble shows it until you click it.
 
 - **Add reminder:** type the hour, press Space, `:` or Tab, then type the minutes, and choose AM or PM. Typing works like a digital clock: the last two digits you type win. To change the hour, select it and type over it.
 - With **Settings → Military time** on, there's no AM/PM and the hour goes 00–23.
@@ -225,7 +225,7 @@ Each meeting's reminder goes off when the meeting starts. A few minutes before, 
 
 Pull meetings skips all-day events, canceled meetings and ones you declined. Pulling again won't add duplicates. It updates reminders for meetings that moved or were renamed, and removes reminders for meetings that were canceled.
 
-Meeting reminders follow your calendar, so they can't be edited in the app. To change one, change the meeting in Google Calendar and pull again. You can still delete one with ✕, and the next pull brings it back.
+Meeting reminders follow your calendar, so they can't be edited in the app. Clicking one shows its details, with its meeting link and a Join button. To change one, change the meeting in Google Calendar and pull again. You can still delete one with ✕, and the next pull brings it back.
 
 ## For developers
 

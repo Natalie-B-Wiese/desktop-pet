@@ -20,6 +20,17 @@ enum MeetingLink {
         return secure.url ?? link
     }
 
+    /// A link typed into a reminder: any web link, with or without `https://` ("zoom.us/j/123" works).
+    /// Nil for anything that isn't one, like "tomorrow" or "zoom".
+    static func parse(_ text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains(where: \.isWhitespace) else { return nil }
+        let full = trimmed.contains("://") ? trimmed : "https://" + trimmed
+        guard let url = URL(string: full), ["http", "https"].contains(url.scheme?.lowercased()),
+              let host = url.host(), host.contains("."), !host.hasPrefix("."), !host.hasSuffix(".") else { return nil }
+        return url
+    }
+
     /// "Zoom", "Meet" or "Teams" for a call link, or nil for any other link.
     static func service(of url: URL) -> String? {
         guard let host = url.host()?.lowercased() else { return nil }
