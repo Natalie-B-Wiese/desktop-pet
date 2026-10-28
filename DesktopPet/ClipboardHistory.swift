@@ -81,6 +81,15 @@ final class ClipboardHistory {
         lastChangeCount = pasteboard.changeCount // our own write isn't a new copy
     }
 
+    /// Puts text on the clipboard without saving it as a new copy, like a color's rgb from its page:
+    /// it's the same color as the item, and a new entry could push out an older one.
+    func copyWithoutSaving(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        lastChangeCount = pasteboard.changeCount
+    }
+
     /// Entries only move within their own group, so pins stay above the rest.
     func canMove(_ id: ClipboardEntry.ID, by offset: Int) -> Bool {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return false }

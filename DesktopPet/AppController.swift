@@ -688,6 +688,9 @@ final class AppController {
             case "todos": .todos
             case "math": .math
             case "clipboard": .clipboard
+            // `--item <n>` picks which slot opens (1 is the top; default 1).
+            case "clipboard-item":
+                clipboard.entries.dropFirst((value(after: "--item").flatMap(Int.init) ?? 1) - 1).first.map { .clipboardItem($0.id) } ?? .clipboard
             case "notes": .notes
             case "settings": .settings
             case "games": .games

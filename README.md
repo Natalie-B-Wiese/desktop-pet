@@ -70,7 +70,8 @@ Sticky notes you type on directly. There's no Save button: everything saves as y
 ### Clipboard
 
 Keeps the last 5 things you copied anywhere on your Mac: text, images and files.
-- Click an item to copy it again, ready to paste. The arrows on the left reorder items.
+- The copy button on an item copies it again, ready to paste. The arrows on the left reorder items.
+- Click an item to see it up close: all of a long text (select part of it to copy just that), a bigger image, or a color as hex, rgb, hsl and hsv, each with its own copy button. Copying one of those formats doesn't add a new item.
 - New copies go on top. When the list is full, a red warning says the next copy will push out the bottom item.
 - Copies that password managers mark as private aren't saved.
 - A copied color like `#FF8800` shows a small swatch.

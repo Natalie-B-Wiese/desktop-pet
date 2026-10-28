@@ -1,11 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// The bubble's clipboard history: click a slot to copy it again, ready to paste.
+/// The bubble's clipboard history: the copy button copies a slot again, ready to paste,
+/// and clicking the slot itself opens it up close (text, images and colors).
 struct BubbleClipboardPage: View {
     let history: ClipboardHistory
     var onScreenshot: () -> Void
     var onPickColor: () -> Void
+    var onOpen: (ClipboardEntry.ID) -> Void
 
     /// The slot that was just copied, to show "Copied!" on it for a moment.
     @State private var justCopied: ClipboardEntry.ID?
@@ -115,8 +117,10 @@ struct BubbleClipboardPage: View {
             .buttonStyle(.plain)
             .help("Copy")
 
+            // The whole middle, from the copy button to the pin, opens the item (files just copy, having nothing more to show).
+            // Short text and colors fill it with empty space, so they're as easy to click as long ones.
             Button {
-                copy(entry) // clicking the item itself copies too
+                if Self.opens(entry) { onOpen(entry.id) } else { copy(entry) }
             } label: {
                 HStack(spacing: 8) {
                     preview(entry)
@@ -130,7 +134,8 @@ struct BubbleClipboardPage: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Copy again")
+            .pointerStyle(.link)
+            .help(Self.openHelp(entry))
 
             let canPin = entry.isPinned || history.canPinMore
             Button {
@@ -248,9 +253,30 @@ struct BubbleClipboardPage: View {
             .opacity(0.5)
     }
 
+    /// Text, images and colors open up close; files don't.
+    static func opens(_ entry: ClipboardEntry) -> Bool {
+        if case .files = entry.kind { return false }
+        return true
+    }
+
+    private static func openHelp(_ entry: ClipboardEntry) -> String {
+        switch entry.kind {
+        case .text(let text) where hexColor(in: text) != nil: "See it as hex, rgb, hsl and hsv"
+        case .text: "See all of it"
+        case .image: "See it bigger"
+        case .files: "Copy again"
+        }
+    }
+
+    /// The text without the spaces and line breaks around it; empty for images and files.
+    static func trimmedText(of entry: ClipboardEntry) -> String {
+        guard case .text(let text) = entry.kind else { return "" }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// The color when the text is just a "#RRGGBB" hex code. The "#" is required,
     /// so a plain six-digit number like 123456 isn't mistaken for a color.
-    private static func hexColor(in text: String) -> NSColor? {
+    static func hexColor(in text: String) -> NSColor? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count == 7, trimmed.hasPrefix("#") else { return nil }
         return NSColor(hex: trimmed)

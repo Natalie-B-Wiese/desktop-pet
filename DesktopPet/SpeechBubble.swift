@@ -23,6 +23,7 @@ final class BubbleMenu {
         case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
         case games, spinner, number, groups, ask, hideSeek, word
         case editReminder(Reminder.ID)
+        case clipboardItem(ClipboardEntry.ID)
     }
 
     /// `nil` when the menu is closed.
@@ -228,7 +229,10 @@ final class SpeechBubbleController {
         case .startTimer, .addReminder, .editReminder, .math, .word: true
         default: false
         }
-        let allowsKeyboard = grabsKeyboard || [.timerControls, .todos, .notes, .spinner, .number, .groups, .customize, .settings].contains(menu.page)
+        // A clipboard item's page takes it once its text is clicked, so ⌘C copies a selected part.
+        var opensItem = false
+        if case .clipboardItem = menu.page { opensItem = true }
+        let allowsKeyboard = grabsKeyboard || opensItem || [.timerControls, .todos, .notes, .spinner, .number, .groups, .customize, .settings].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)
@@ -511,7 +515,7 @@ struct BubbleView: View {
         case .todos: 225 // 210, plus the reorder arrows
         case .math: 260 // room for the Range boxes and long date answers
         case .notes: 220
-        case .clipboard: 250
+        case .clipboard, .clipboardItem: 250
         case .customize: 272
         }
     }
@@ -535,6 +539,12 @@ struct BubbleView: View {
         case .notes: "Notes"
         case .math: "Math"
         case .clipboard: "Clipboard"
+        case .clipboardItem(let id):
+            switch clipboard.entries.first(where: { $0.id == id })?.kind {
+            case .text(let text): BubbleClipboardPage.hexColor(in: text) != nil ? "Color" : "Text"
+            case .image: "Image"
+            default: "Clipboard"
+            }
         case .customize: "Customize"
         case .settings: "Settings"
         case .games: "Games"
@@ -552,6 +562,7 @@ struct BubbleView: View {
         switch page {
         case .main: nil
         case .addReminder, .editReminder: .reminders
+        case .clipboardItem: .clipboard
         case .spinner, .number, .groups, .ask, .hideSeek, .word: .games
         default: .main
         }
@@ -621,8 +632,24 @@ struct BubbleView: View {
             BubbleNotesPage(store: notes, onClose: { menu.page = nil })
                 .frame(width: 220)
         case .clipboard:
-            BubbleClipboardPage(history: clipboard, onScreenshot: actions.takeScreenshot, onPickColor: actions.pickColor)
+            BubbleClipboardPage(
+                history: clipboard, onScreenshot: actions.takeScreenshot, onPickColor: actions.pickColor,
+                onOpen: { menu.page = .clipboardItem($0) }
+            )
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
+        case .clipboardItem(let id):
+            // A new copy may have pushed it out (or it was deleted elsewhere) while the page was open.
+            if let entry = clipboard.entries.first(where: { $0.id == id }) {
+                BubbleClipboardItemPage(history: clipboard, entry: entry)
+                    .id(id)
+                    .frame(width: 250)
+            } else {
+                Text("That item is gone")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+                    .frame(width: 250)
+                    .padding(.vertical, 4)
+            }
         case .math:
             BubbleMathPage(history: mathHistory, timeHistory: timeHistory, onClose: { menu.page = nil })
                 .frame(width: 260)
