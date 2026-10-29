@@ -22,6 +22,7 @@ final class AppController {
     let hideSeek = HideAndSeek()
     let wordGame = WordGame()
     let groups = GroupsStore()
+    let recorder = ScreenRecorder()
     private(set) var isPetVisible = false
     private(set) var launchesAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -44,6 +45,13 @@ final class AppController {
         greetings.onChange = { [weak self] in self?.greetingChanged() }
         chatter.onChange = { [weak self] in self?.bubble?.update() }
         todos.onCheckedOff = { [weak self] allDone in self?.cheerTodo(allDone: allDone) }
+        recorder.onChange = { [weak self] in self?.recordingChanged() }
+        recorder.onFinished = { [weak self] url in self?.recordingFinished(url) }
+        recorder.onFailed = { [weak self] in
+            // The Record tab says why (no mic access, no screen).
+            self?.recorder.showsRecordTab = true
+            self?.showPage(.clipboard)
+        }
         spinner.todoOptions = { [weak todos] in
             todos?.todos.filter { !$0.isDone }.map { SpinnerOption(id: $0.id, text: $0.text) } ?? []
         }
@@ -55,7 +63,7 @@ final class AppController {
         petPanel = panel
         let bubble = SpeechBubbleController(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
-            spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, wordGame: wordGame, groups: groups, clipboard: clipboard, settings: settings, pet: panel, actions: BubbleActions(
+            spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, wordGame: wordGame, groups: groups, clipboard: clipboard, recorder: recorder, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
@@ -65,7 +73,8 @@ final class AppController {
             togglePause: { [weak self] in self?.timer.togglePause() },
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
             takeScreenshot: { [weak self] in self?.takeScreenshot() },
-            pickColor: { [weak self] in self?.pickColor() }
+            pickColor: { [weak self] in self?.pickColor() },
+            startRecording: { [weak self] in self?.startRecording() }
         ))
         panel.onClick = { [weak self, weak bubble] in
             guard let self else { return }
@@ -253,6 +262,58 @@ final class AppController {
             if !isPetVisible { setPetVisible(true) }
             bubble?.open(.clipboard)
             cheer(.screenshot)
+        }
+    }
+
+    // MARK: - Screen recording
+
+    @ObservationIgnored private let regionPicker = RegionPicker()
+
+    /// Dims the screen to drag out a region (or click for the whole screen), then records it. Topsy and her bubbles
+    /// stay out of the video, so she can show the time and stop it when you click her bubble.
+    func startRecording() {
+        guard !recorder.isRecording, !recorder.isStarting else { return }
+        hideSeek.interrupt()
+        // Recording sees other apps' windows only with Screen Recording permission, like the screenshot crosshair.
+        guard CGPreflightScreenCaptureAccess() else {
+            CGRequestScreenCaptureAccess()
+            recorder.needsScreenPermission = true
+            recorder.showsRecordTab = true
+            showPage(.clipboard)
+            return
+        }
+        recorder.needsScreenPermission = false
+        bubble?.menu.page = nil
+        // A moment for the bubble to close before the screen dims.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            self?.regionPicker.pick { picked in
+                guard let self, let picked else { return } // Esc
+                self.recorder.start(region: picked.region, on: picked.screen)
+            }
+        }
+    }
+
+    func stopRecording() {
+        recorder.stop()
+    }
+
+    private func recordingChanged() {
+        // Her bubble shows the time while recording, so she comes back if hidden.
+        if recorder.isRecording && !isPetVisible {
+            setPetVisible(true)
+        } else {
+            bubble?.update()
+        }
+    }
+
+    /// The video goes on the clipboard as a file, so clipboard history keeps it in the top slot, ready to paste.
+    private func recordingFinished(_ url: URL) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([url as NSURL])
+        // Give clipboard history a moment to save it, then show it in the top slot.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+            self?.recorder.showsRecordTab = false
+            self?.showPage(.clipboard)
         }
     }
 
@@ -600,9 +661,11 @@ final class AppController {
     /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
+    /// `--record <seconds>` records a corner of the screen that long (`--record-rect x,y,w,h`, `--record-to <folder>`);
+    /// `--pick-region` opens the region picker after 1s (Record screen);
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first; `--snooze <seconds>` snoozes it that long after launch);
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
-    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|notes|settings|games|spinner|number|ask]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|record|notes|settings|games|spinner|number|ask]` opens the cat's click menu (on that page);
     /// `--spin` spins the Spinner after 1s; `--roll` rolls the Number game after 1s; `--ask` asks Topsy after 1s;
     /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--say <text>` says that text in the small bubble beside her;
@@ -630,6 +693,22 @@ final class AppController {
         if args.contains("--pause") { timer.pause() }
         if let seconds = value(after: "--remind-in").flatMap(TimeInterval.init) {
             reminders.addForTesting(at: Date().addingTimeInterval(seconds), message: value(after: "--label"))
+        }
+        if let seconds = value(after: "--record").flatMap(TimeInterval.init), let screen = NSScreen.main {
+            // Records the screen's top-left 640×400 (or `--record-rect x,y,w,h` in screen coordinates) for that many
+            // seconds, skipping the drag. `--record-to <folder>` saves there instead of the chosen folder.
+            recorder.folderOverride = value(after: "--record-to").map { URL(fileURLWithPath: $0, isDirectory: true) }
+            let parts = value(after: "--record-rect")?.split(separator: ",").compactMap { Double($0) } ?? []
+            let rect = parts.count == 4 ? NSRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
+                : NSRect(x: screen.frame.minX, y: screen.frame.maxY - 400, width: 640, height: 400)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.recorder.start(region: rect, on: screen)
+                DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { self?.recorder.stop() }
+            }
+        }
+        if args.contains("--pick-region") {
+            // Dims the screen to pick a region after a second, as clicking Record screen would.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.startRecording() }
         }
         if args.contains("--archived") {
             BubbleTodoPage.opensOnArchive = true // pair it with `--menu todos`
@@ -684,6 +763,7 @@ final class AppController {
             case "todos": .todos
             case "math": .math
             case "clipboard": .clipboard
+            case "record": { recorder.showsRecordTab = true; return .clipboard }()
             // `--item <n>` picks which slot opens (1 is the top; default 1).
             case "clipboard-item":
                 clipboard.entries.dropFirst((value(after: "--item").flatMap(Int.init) ?? 1) - 1).first.map { .clipboardItem($0.id) } ?? .clipboard

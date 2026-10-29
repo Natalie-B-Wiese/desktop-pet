@@ -21,6 +21,13 @@ struct MenuContent: View {
     let controller: AppController
 
     var body: some View {
+        if controller.recorder.isRecording {
+            Button("Stop Recording") {
+                controller.stopRecording()
+            }
+            Divider()
+        }
+
         if controller.hideSeek.isPlaying {
             Button("Give Up Hide and Seek") {
                 controller.hideSeek.giveUp()
@@ -90,6 +97,13 @@ struct MenuContent: View {
 
         Button("Take Screenshot") {
             controller.takeScreenshot()
+        }
+
+        if !controller.recorder.isRecording { // Stop Recording is at the top meanwhile
+            Button("Record Screen") {
+                controller.startRecording()
+            }
+            .disabled(controller.recorder.isStarting)
         }
 
         Button("To-dos") {

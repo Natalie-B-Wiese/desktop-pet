@@ -2,17 +2,33 @@ import AppKit
 import SwiftUI
 
 /// The bubble's clipboard history: the copy button copies a slot again, ready to paste,
-/// and clicking the slot itself opens it up close (text, images and colors).
+/// and clicking the slot itself opens it up close (text, images and colors). A Record tab records the screen.
 struct BubbleClipboardPage: View {
     let history: ClipboardHistory
+    let recorder: ScreenRecorder
     var onScreenshot: () -> Void
     var onPickColor: () -> Void
+    var onRecord: () -> Void
     var onOpen: (ClipboardEntry.ID) -> Void
 
     /// The slot that was just copied, to show "Copied!" on it for a moment.
     @State private var justCopied: ClipboardEntry.ID?
 
     var body: some View {
+        VStack(spacing: 8) {
+            BubbleTabs(
+                selection: Binding(get: { recorder.showsRecordTab }, set: { recorder.showsRecordTab = $0 }),
+                options: [(false, "Clipboard"), (true, "Record")]
+            )
+            if recorder.showsRecordTab {
+                BubbleRecordTab(recorder: recorder, onRecord: onRecord)
+            } else {
+                clipboardTab
+            }
+        }
+    }
+
+    private var clipboardTab: some View {
         VStack(spacing: 6) {
 
             if history.isAccessDenied {

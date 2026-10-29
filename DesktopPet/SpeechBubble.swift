@@ -46,6 +46,7 @@ struct BubbleActions {
     var startNextPomodoroPeriod: () -> Void
     var takeScreenshot: () -> Void
     var pickColor: () -> Void
+    var startRecording: () -> Void
 }
 
 /// A small floating window above the pet's head that shows the timer or the click menu.
@@ -61,6 +62,7 @@ final class SpeechBubbleController {
     private let mathHistory = MathHistory()
     private let timeHistory = MathHistory(storageKey: "timeHistory")
     private let clipboard: ClipboardHistory
+    private let recorder: ScreenRecorder
     private let notes: NoteStore
     private let spinner: SpinnerStore
     private let numberGame: NumberGame
@@ -85,7 +87,7 @@ final class SpeechBubbleController {
 
     init(
         timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
-        notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, ask: AskGame, hideSeek: HideAndSeek, wordGame: WordGame, groups: GroupsStore, clipboard: ClipboardHistory, settings: PetSettings, pet: PetPanel,
+        notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, ask: AskGame, hideSeek: HideAndSeek, wordGame: WordGame, groups: GroupsStore, clipboard: ClipboardHistory, recorder: ScreenRecorder, settings: PetSettings, pet: PetPanel,
         actions: BubbleActions
     ) {
         self.timer = timer
@@ -100,6 +102,7 @@ final class SpeechBubbleController {
         self.groups = groups
         self.wordGame = wordGame
         self.clipboard = clipboard
+        self.recorder = recorder
         self.reminders = reminders
         self.todos = todos
         self.pet = pet
@@ -113,13 +116,14 @@ final class SpeechBubbleController {
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
             takeScreenshot: { menu.page = nil; actions.takeScreenshot() },
-            pickColor: { menu.page = nil; actions.pickColor() }
+            pickColor: { menu.page = nil; actions.pickColor() },
+            startRecording: { menu.page = nil; actions.startRecording() }
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
             timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
-            notes: notes, spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, groups: groups, wordGame: wordGame, clipboard: clipboard, settings: settings,
+            notes: notes, spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, groups: groups, wordGame: wordGame, clipboard: clipboard, recorder: recorder, settings: settings,
             layout: layout, menu: menu, actions: closingActions
         ))
         container = BubbleContainer()
@@ -155,13 +159,16 @@ final class SpeechBubbleController {
         lineClicks.onClick = { [weak chatter] in chatter?.clearPageLine() }
 
 
-        // Clicking the bubble closes a due reminder, the greeting, a chatter line or "Time's up!", or pauses/resumes a countdown.
-        container.onClick = { [weak timer, weak reminders, weak greetings, weak chatter] in
-            guard let timer, let reminders, let greetings, let chatter else { return }
+        // Clicking the bubble closes a due reminder, stops a recording, closes the greeting, a chatter line or "Time's up!",
+        // or pauses/resumes a countdown.
+        container.onClick = { [weak timer, weak reminders, weak greetings, weak chatter, weak recorder] in
+            guard let timer, let reminders, let greetings, let chatter, let recorder else { return }
             if !reminders.due.isEmpty {
                 reminders.dismissFirstDue()
             } else if !reminders.headsUp.isEmpty {
                 reminders.dismissFirstHeadsUp()
+            } else if recorder.isRecording {
+                recorder.stop()
             } else if greetings.current != nil {
                 greetings.dismiss()
             } else if chatter.line != nil {
@@ -213,7 +220,7 @@ final class SpeechBubbleController {
     /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
         guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty || !reminders.headsUp.isEmpty
-                || greetings.current != nil || chatter.line != nil else {
+                || recorder.isRecording || greetings.current != nil || chatter.line != nil else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
             updatePageLine()
@@ -406,6 +413,7 @@ struct BubbleView: View {
     let groups: GroupsStore
     let wordGame: WordGame
     let clipboard: ClipboardHistory
+    let recorder: ScreenRecorder
     let settings: PetSettings
     let layout: BubbleLayout
     let menu: BubbleMenu
@@ -461,6 +469,9 @@ struct BubbleView: View {
             BubbleHeadsUp(reminder: reminder, moreCount: reminders.headsUp.count - 1 + waitingAfterHeadsUps) {
                 joinButton(for: reminder)
             }
+        } else if let start = recorder.startDate {
+            // Recording, until her bubble is clicked. Ahead of the greeting and the timer, which show again once it stops.
+            BubbleRecordingTime(start: start)
         } else if let greeting = greetings.current {
             // Ahead of the timer too; the timer shows again once it's closed.
             BubbleGreeting(
@@ -638,8 +649,8 @@ struct BubbleView: View {
                 .frame(width: 220)
         case .clipboard:
             BubbleClipboardPage(
-                history: clipboard, onScreenshot: actions.takeScreenshot, onPickColor: actions.pickColor,
-                onOpen: { menu.page = .clipboardItem($0) }
+                history: clipboard, recorder: recorder, onScreenshot: actions.takeScreenshot, onPickColor: actions.pickColor,
+                onRecord: actions.startRecording, onOpen: { menu.page = .clipboardItem($0) }
             )
                 .frame(width: 250) // room for the copy button and reorder arrows around the preview
         case .clipboardItem(let id):
