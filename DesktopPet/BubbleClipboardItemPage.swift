@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// One clipboard item up close, opened by clicking it in the list: all of a text, an image bigger,
-/// or a color's hex, rgb, hsl and hsv. Files don't open one.
+/// a color's hex, rgb, hsl and hsv, or a video to play. Other files don't open one.
 struct BubbleClipboardItemPage: View {
     let history: ClipboardHistory
     let entry: ClipboardEntry
@@ -28,7 +28,8 @@ struct BubbleClipboardItemPage: View {
             case .image(let width, let height):
                 imageDetails(width: width, height: height)
             case .files:
-                EmptyView() // files open nothing; the list copies them
+                // Only videos open; the list copies other files.
+                if let url = ClipboardVideo.url(in: entry) { videoDetails(url) }
             }
         }
     }
@@ -85,6 +86,71 @@ struct BubbleClipboardItemPage: View {
 
             caption("\(width)×\(height)")
             copyItemButton
+        }
+    }
+
+    // MARK: - Video
+
+    @State private var video: ClipboardVideo?
+    @State private var isVideoMissing = false
+
+    /// The player (paused on the first frame), "1280×800 · 0:42 · 12.4 MB", and Copy, Show in Finder and Open.
+    private func videoDetails(_ url: URL) -> some View {
+        VStack(spacing: 6) {
+            if isVideoMissing {
+                VStack(spacing: 4) {
+                    Image(systemName: "questionmark.square.dashed")
+                        .font(.system(size: 26))
+                        .opacity(0.4)
+                    Text("This video was moved or deleted")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Text(url.lastPathComponent)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .opacity(0.5)
+                }
+                .padding(.vertical, 8)
+            } else if let video {
+                // As wide as the page, and a tall one no taller than the cap, like images.
+                let ratio = video.size.width > 0 && video.size.height > 0 ? video.size.width / video.size.height : 16 / 10
+                VideoPlayerBox(url: url)
+                    .aspectRatio(ratio, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: Self.maxImageHeight)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.black.opacity(0.2), lineWidth: 1))
+                HStack(spacing: 4) {
+                    caption(video.infoText)
+                    if video.hasSound {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .opacity(0.5)
+                            .help("Has sound")
+                    }
+                }
+                .help(url.lastPathComponent)
+                copyItemButton
+                HStack(spacing: 6) {
+                    BubbleButton("Show in Finder", systemImage: "folder", centered: true) {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    }
+                    .help("Opens its folder with the video selected")
+                    BubbleButton("Open", systemImage: "play.rectangle", centered: true) {
+                        NSWorkspace.shared.open(url)
+                    }
+                    .frame(width: 80)
+                    .help("Opens it in its usual app, like QuickTime Player")
+                }
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(height: 80)
+            }
+        }
+        .task(id: url) {
+            video = await ClipboardVideo.load(url)
+            isVideoMissing = video == nil
         }
     }
 

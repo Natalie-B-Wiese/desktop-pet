@@ -559,6 +559,7 @@ struct BubbleView: View {
             switch clipboard.entries.first(where: { $0.id == id })?.kind {
             case .text(let text): BubbleClipboardPage.hexColor(in: text) != nil ? "Color" : "Text"
             case .image: "Image"
+            case .files: "Video" // only videos open
             default: "Clipboard"
             }
         case .customize: "Customize"

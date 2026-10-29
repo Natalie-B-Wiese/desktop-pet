@@ -248,6 +248,8 @@ struct BubbleClipboardPage: View {
                 // Keep "Image" on one line when "Copied!" appears beside it.
                 .fixedSize()
             }
+        case .files where ClipboardVideo.url(in: entry) != nil:
+            VideoRowPreview(url: ClipboardVideo.url(in: entry)!)
         case .files(let urls):
             HStack(spacing: 6) {
                 Image(systemName: urls.count == 1 ? "doc" : "doc.on.doc")
@@ -269,9 +271,9 @@ struct BubbleClipboardPage: View {
             .opacity(0.5)
     }
 
-    /// Text, images and colors open up close; files don't.
+    /// Text, images, colors and videos open up close; other files don't.
     static func opens(_ entry: ClipboardEntry) -> Bool {
-        if case .files = entry.kind { return false }
+        if case .files = entry.kind { return ClipboardVideo.url(in: entry) != nil }
         return true
     }
 
@@ -280,6 +282,7 @@ struct BubbleClipboardPage: View {
         case .text(let text) where hexColor(in: text) != nil: "See it as hex, rgb, hsl and hsv"
         case .text: "See all of it"
         case .image: "See it bigger"
+        case .files where ClipboardVideo.url(in: entry) != nil: "Watch it"
         case .files: "Copy again"
         }
     }
@@ -301,5 +304,47 @@ struct BubbleClipboardPage: View {
     /// Squeezes line breaks and runs of spaces so the two preview lines show real content.
     private static func flatten(_ text: String) -> String {
         text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+}
+
+/// A video's slot: its first frame, "Video" and its length (the file name shows on hover).
+/// A video that was moved or deleted shows faint.
+private struct VideoRowPreview: View {
+    let url: URL
+    @State private var video: ClipboardVideo?
+    @State private var isMissing = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Group {
+                if let thumbnail = video?.thumbnail {
+                    Image(nsImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Image(systemName: isMissing ? "questionmark.square.dashed" : "film")
+                        .font(.system(size: 16))
+                        .opacity(0.5)
+                }
+            }
+            .frame(width: 40, height: 40)
+            .background(Color.black.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.2), lineWidth: 1))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Video")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                Text(isMissing ? "Moved or deleted" : video?.lengthText ?? " ")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .opacity(0.5)
+            }
+            .fixedSize()
+        }
+        .opacity(isMissing ? 0.45 : 1)
+        .help(url.lastPathComponent)
+        .task(id: url) {
+            video = await ClipboardVideo.load(url)
+            isMissing = video == nil && !ClipboardVideo.exists(url)
+        }
     }
 }

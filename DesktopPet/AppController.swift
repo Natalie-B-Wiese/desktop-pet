@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import ScreenCaptureKit
 import ServiceManagement
 import SwiftUI
 
@@ -662,6 +663,7 @@ final class AppController {
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
     /// `--record <seconds>` records a corner of the screen that long (`--record-rect x,y,w,h`, `--record-to <folder>`);
+    /// `--screen-snapshot <path.png>` takes a real screenshot of the app's windows (shows video), after `--snapshot-delay`;
     /// `--pick-region` opens the region picker after 1s (Record screen);
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first; `--snooze <seconds>` snoozes it that long after launch);
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
@@ -857,6 +859,34 @@ final class AppController {
                         ) else { continue }
                         NSApp.postEvent(event, atStart: false)
                     }
+                }
+            }
+        }
+        if let path = value(after: "--screen-snapshot") {
+            // A real screenshot of the app's windows (with the app's Screen Recording permission), for what `--snapshot`
+            // can't draw, like a playing video. Waits `--snapshot-delay` (default 1.5s).
+            let delay = value(after: "--snapshot-delay").flatMap(TimeInterval.init) ?? 1.5
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                Task { @MainActor in
+                    guard let screen = NSScreen.main ?? NSScreen.screens.first,
+                          let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
+                          let display = content.displays.first(where: {
+                              $0.displayID == screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+                          }) else { return }
+                    let own = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
+                    let union = NSApp.windows.filter { $0.isVisible && $0.level != .statusBar && screen.frame.intersects($0.frame) }
+                        .map(\.frame).reduce(NSRect.null) { $0.union($1) }
+                    guard !union.isNull else { return }
+                    let config = SCStreamConfiguration()
+                    config.sourceRect = CGRect(x: union.minX - screen.frame.minX, y: screen.frame.maxY - union.maxY,
+                                               width: union.width, height: union.height)
+                    config.width = Int(union.width * screen.backingScaleFactor)
+                    config.height = Int(union.height * screen.backingScaleFactor)
+                    config.showsCursor = false
+                    let filter = SCContentFilter(display: display, including: own, exceptingWindows: [])
+                    guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) else { return }
+                    try? NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?
+                        .write(to: URL(fileURLWithPath: path))
                 }
             }
         }
