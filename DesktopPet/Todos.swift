@@ -134,6 +134,13 @@ final class TodoStore {
         pruneArchive()
     }
 
+    /// How many were checked off on that day, on the list or in the archive (the greeting's "done yesterday").
+    /// Ones restored or deleted since don't count.
+    func finishedCount(on day: Date) -> Int {
+        let calendar = Calendar.current
+        return (items + archived).filter { $0.completedAt.map { calendar.isDate($0, inSameDayAs: day) } ?? false }.count
+    }
+
     /// Puts an archived item back on the list, unchecked, at the bottom of the unchecked ones.
     func restore(_ id: Todo.ID) {
         guard let index = archived.firstIndex(where: { $0.id == id }) else { return }

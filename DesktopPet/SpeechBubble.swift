@@ -463,7 +463,11 @@ struct BubbleView: View {
             }
         } else if let greeting = greetings.current {
             // Ahead of the timer too; the timer shows again once it's closed.
-            BubbleGreeting(greeting: greeting, todosLeft: todos.remainingCount, moreCount: waitingAfterGreeting)
+            BubbleGreeting(
+                greeting: greeting, todosLeft: todos.remainingCount,
+                doneYesterday: Calendar.current.date(byAdding: .day, value: -1, to: greeting.date).map(todos.finishedCount(on:)) ?? 0,
+                moreCount: waitingAfterGreeting
+            )
         } else if let line = chatter.line {
             BubbleChatterLine(text: line, start: chatter.lineStart)
         } else {

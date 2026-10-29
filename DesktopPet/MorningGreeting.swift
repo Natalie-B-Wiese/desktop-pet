@@ -58,6 +58,8 @@ struct BubbleGreeting: View {
     let greeting: MorningGreeting
     /// Live, so checking one off while the greeting is up changes the count.
     let todosLeft: Int
+    /// To-dos checked off the day before; the row is left out at 0, so a day off never reads like a scolding.
+    let doneYesterday: Int
     /// How many more are waiting behind it, like a finished timer.
     let moreCount: Int
 
@@ -70,6 +72,9 @@ struct BubbleGreeting: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 row("checklist", todosLeft == 0 ? "No to-dos left" : todosLeft == 1 ? "1 to-do left" : "\(todosLeft) to-dos left")
+                if doneYesterday > 0 {
+                    row("checkmark.circle", doneYesterday == 1 ? "1 done yesterday" : "\(doneYesterday) done yesterday")
+                }
                 if let meetings = greeting.meetings {
                     if let first = meetings.first {
                         let time = AppPreferences.clockText(first.start)
