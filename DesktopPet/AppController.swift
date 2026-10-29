@@ -426,13 +426,9 @@ final class AppController {
     }
 
     @MainActor
-    /// `date` is for testing another day (its meetings and events are still today's).
+    /// `date` is for testing another day (its reminders and events are still today's).
     private func makeGreeting(date: Date = Date()) async -> MorningGreeting {
-        // `hasAccess` first, so the greeting never asks for Calendar access.
-        let meetings = CalendarMeetings.hasAccess ? try? await CalendarMeetings.todaysUpcoming() : nil
-        return MorningGreeting(
-            date: date, meetings: meetings, allDayEvents: CalendarMeetings.todaysAllDayEvents()
-        )
+        MorningGreeting(date: date, allDayEvents: CalendarMeetings.todaysAllDayEvents())
     }
 
     private func greetingChanged() {

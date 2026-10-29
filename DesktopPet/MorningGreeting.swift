@@ -6,8 +6,6 @@ import SwiftUI
 struct MorningGreeting: Equatable {
     /// When it was made, for the date in the title.
     let date: Date
-    /// The rest of today's meetings, soonest first, or nil without Calendar access (then there's no meetings line).
-    let meetings: [Meeting]?
     /// Today's all-day events: birthdays, holidays, "Out of office".
     let allDayEvents: [String]
 
@@ -19,10 +17,6 @@ struct MorningGreeting: Equatable {
     var title: String {
         date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
     }
-}
-
-extension Meeting: Equatable {
-    static func == (a: Meeting, b: Meeting) -> Bool { a.id == b.id && a.start == b.start && a.title == b.title }
 }
 
 /// Holds the greeting while it's in the bubble, and remembers the day it was last shown so it comes once a day.
@@ -60,6 +54,8 @@ struct BubbleGreeting: View {
     let todosLeft: Int
     /// To-dos checked off the day before; the row is left out at 0, so a day off never reads like a scolding.
     let doneYesterday: Int
+    /// The rest of today's reminders, soonest first: her own and pulled meetings alike. Live, like the to-dos.
+    let remindersToday: [Reminder]
     /// How many more are waiting behind it, like a finished timer.
     let moreCount: Int
 
@@ -75,14 +71,12 @@ struct BubbleGreeting: View {
                 if doneYesterday > 0 {
                     row("checkmark.circle", doneYesterday == 1 ? "1 done yesterday" : "\(doneYesterday) done yesterday")
                 }
-                if let meetings = greeting.meetings {
-                    if let first = meetings.first {
-                        let time = AppPreferences.clockText(first.start)
-                        row("calendar", meetings.count == 1 ? "1 meeting at \(time)" : "\(meetings.count) meetings, first at \(time)",
-                            detail: first.title)
-                    } else {
-                        row("calendar", "No meetings today")
-                    }
+                if let first = remindersToday.first {
+                    let time = AppPreferences.clockText(first.dueDate)
+                    row("bell", remindersToday.count == 1 ? "1 reminder at \(time)" : "\(remindersToday.count) reminders, first at \(time)",
+                        detail: first.message)
+                } else {
+                    row("bell", "No reminders today")
                 }
                 // An advent countdown from December 1 to 24, on every Chatter setting.
                 if let days = SpecialDay.daysUntilChristmas(from: greeting.date) {
@@ -95,7 +89,7 @@ struct BubbleGreeting: View {
                     row("star", "\(greeting.allDayEvents.count - Self.maxAllDayShown) more today")
                 }
             }
-            .frame(maxWidth: 180, alignment: .leading)
+            .frame(maxWidth: 200, alignment: .leading) // room for "2 reminders, first at 11:30 AM"
 
             Text(moreCount > 0 ? "Click to close · \(moreCount) more" : "Click to close")
                 .font(.system(size: 10, weight: .medium, design: .rounded))

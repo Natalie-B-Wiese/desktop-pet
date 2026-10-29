@@ -466,6 +466,7 @@ struct BubbleView: View {
             BubbleGreeting(
                 greeting: greeting, todosLeft: todos.remainingCount,
                 doneYesterday: Calendar.current.date(byAdding: .day, value: -1, to: greeting.date).map(todos.finishedCount(on:)) ?? 0,
+                remindersToday: reminders.upcoming.filter { Calendar.current.isDateInToday($0.dueDate) },
                 moreCount: waitingAfterGreeting
             )
         } else if let line = chatter.line {

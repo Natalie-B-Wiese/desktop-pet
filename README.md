@@ -203,7 +203,7 @@ Some features need permission from macOS. Without it they just look empty or do 
 |---|---|---|
 | Clipboard history | Paste from Other Apps | System Settings → Privacy & Security → **Paste from Other Apps** |
 | Take screenshot | Screen Recording | System Settings → Privacy & Security → **Screen Recording** |
-| Pull meetings, meeting lines in the morning greeting | Calendars | System Settings → Privacy & Security → **Calendars** (see below) |
+| Pull meetings, all-day events in the morning greeting | Calendars | System Settings → Privacy & Security → **Calendars** (see below) |
 
 - **Clipboard:** the first time the app reads something you copied, macOS asks whether to allow pasting. Choose **Allow**. If you denied it, the Clipboard page says so; turn on **Desktop Pet** in the setting above.
 - **Screenshots:** the first time you click **Take screenshot**, macOS asks for Screen Recording and the Clipboard page shows a note. Turn on **Desktop Pet** in the setting above, then **quit and reopen the app**, because macOS only applies this permission after a restart.
