@@ -25,27 +25,21 @@ final class UpdateChecker {
     /// Called when the notice appears or is closed.
     @ObservationIgnored var onNoticeChange: (() -> Void)?
 
-    /// Checks once a day unless turned off in Settings. The only time the app goes online.
-    static let autoCheckKey = "settings.checkForUpdates"
+    /// Checks once a day, the only time the app goes online. Settings' button checks right away.
     private static let lastCheckKey = "updates.lastCheck"
     /// The version whose notice was clicked away, so it isn't shown again. A newer one still is.
     private static let dismissedKey = "updates.dismissed"
-
-    static var checksAutomatically: Bool {
-        UserDefaults.standard.object(forKey: autoCheckKey) as? Bool ?? true
-    }
 
     private static let latestRelease = URL(string: "https://api.github.com/repos/Natalie-B-Wiese/desktop-pet/releases/latest")!
 
     /// This app's version ("0.7"). `--pretend-version` overrides it for testing.
     var currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
 
-    /// The daily check: at most once a day, and only if it's on.
+    /// The daily check: at most once a day.
     @MainActor
     func checkIfDue() async {
         if let last = UserDefaults.standard.object(forKey: Self.lastCheckKey) as? Date,
            Calendar.current.isDateInToday(last) { return }
-        guard Self.checksAutomatically else { return }
         await check(showsNotice: true)
     }
 
