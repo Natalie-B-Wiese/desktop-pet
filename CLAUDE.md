@@ -195,7 +195,7 @@ The agent has no Screen Recording permission, so the app has test launch argumen
     - `--menu clipboard-item [--item <n>]` opens slot n (1 = top).
   - Reorder arrows sit outside the item on the left.
   - When the list is full, a red bold warning appears.
-  - The screenshot button uses `screencapture -i -c`.
+  - **Screenshot** and **Pick color** sit side by side in one row (2026-10-30, to save height), with **Delete all** full width under them. The screenshot button uses `screencapture -i -c`.
   - **Pick a color** (`AppController.pickColor()`) uses macOS's `NSColorSampler` magnifier and copies `#RRGGBB`, so it lands in the top slot. A text slot that's exactly `#RRGGBB` shows a color swatch, whoever copied it. (Colors briefly had their own page and main-menu tile; Natalie chose to fold them into Clipboard.)
   - It needs macOS's Paste permission and Screen Recording permission. Natalie grants these herself.
 - **Screen recording** (2026-10-29): the Clipboard page has `Clipboard | Record` tabs (`BubbleTabs`). The tab isn't saved: it's `ScreenRecorder.showsRecordTab`, so the page reopens on the last tab while the app runs, and switches to Clipboard when a video lands. (Where the Screenshot button goes is still to decide; Natalie put that off.)

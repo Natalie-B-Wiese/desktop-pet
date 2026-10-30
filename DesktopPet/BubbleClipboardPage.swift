@@ -77,10 +77,13 @@ struct BubbleClipboardPage: View {
                 if history.screenshotNeedsPermission {
                     note("To take screenshots, turn on Desktop Pet in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app.")
                 }
-                BubbleButton("Take screenshot", systemImage: "camera.viewfinder", action: onScreenshot)
-                    .help("Select part of the screen; it's copied into the top slot")
-                BubbleButton("Pick a color", systemImage: "eyedropper", action: onPickColor)
-                    .help("Click anywhere on screen; its hex code is copied into the top slot")
+                // Side by side, since both add a copy to the top slot.
+                HStack(spacing: 6) {
+                    BubbleButton("Screenshot", systemImage: "camera.viewfinder", centered: true, action: onScreenshot)
+                        .help("Select part of the screen; it's copied into the top slot")
+                    BubbleButton("Pick color", systemImage: "eyedropper", centered: true, action: onPickColor)
+                        .help("Click anywhere on screen; its hex code is copied into the top slot")
+                }
             }
             // Pins are kept (the line over the list says so), so with pins it only deletes the unpinned copies.
             if history.entries.count > history.pinnedCount {
