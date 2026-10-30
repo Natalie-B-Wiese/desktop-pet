@@ -41,6 +41,8 @@ enum ChatterMoment: Equatable {
     case colorPicked, ownColorPicked
     /// In the side bubble after taking a screenshot (Clipboard).
     case screenshot
+    /// In the side bubble after a screen recording is saved (Clipboard). She's left out of every video, so lines may play on that.
+    case recorded
 
     fileprivate var key: String {
         switch self {
@@ -55,6 +57,7 @@ enum ChatterMoment: Equatable {
         case .colorPicked: "colorPicked"
         case .ownColorPicked: "ownColorPicked"
         case .screenshot: "screenshot"
+        case .recorded: "recorded"
         }
     }
 }
@@ -375,6 +378,7 @@ enum Chatter {
         case .colorPicked: ["{COLOR}! Such a vibe!", "Whoa, {color}! Great pick!", "Nice! {Color} acquired."]
         case .ownColorPicked: ["Hey! That's MY color! Good pick!"]
         case .screenshot: ["Say cheese!", "Snap! Saved for later!", "Got it! Great shot!"]
+        case .recorded: ["That's a WRAP!!", "A whole MOVIE! When's the premiere?"]
         }
     }
 
@@ -405,6 +409,7 @@ enum Chatter {
         case .colorPicked: ["Ah, {color}. Bold choice.", "{Color}. I'd look stunning in it.", "{Color}? Approved."]
         case .ownColorPicked: ["My color. Obviously the best one."]
         case .screenshot: ["Did you get my good side?", "Captured. Hopefully I was in it.", "Stunning. I assume I was the inspiration."]
+        case .recorded: ["Cut! You may thank your creative consultant.", "Lovely. Next time, cast me."]
         }
     }
 
@@ -441,6 +446,7 @@ enum Chatter {
             "Saved for the quarterly report.",
             "Excellent. Put that in the meeting notes.",
         ]
+        case .recorded: ["That's a wrap! Reel-y great work.", "Director-level work, as always."]
         }
     }
 
@@ -469,6 +475,7 @@ enum Chatter {
         case .colorPicked: ["{Color}. Interesting choice.", "{Color}. I knew you'd pick that one.", "{Color}. Good color for a book cover."]
         case .ownColorPicked: ["That's my color. I'm flattered."]
         case .screenshot: ["A moment, saved. Like a bookmark.", "Got it. Some things are worth remembering.", "Saved. They'll never know."]
+        case .recorded: ["I wasn't in it. As planned.", "A lovely recording. The book is better, I hear."]
         }
     }
 
@@ -497,6 +504,7 @@ enum Chatter {
         case .colorPicked: ["{Color}. An excellent selection.", "Ah, {color}. Very refined.", "{Color}. Noted for the records."]
         case .ownColorPicked: ["The very shade of my coat. How flattering."]
         case .screenshot: ["Captured, and filed away.", "Preserved for posterity.", "A fine picture. It's on your clipboard."]
+        case .recorded: ["I remained discreetly out of frame.", "A fine production, if I may say so."]
         }
     }
 }

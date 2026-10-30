@@ -315,6 +315,7 @@ final class AppController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
             self?.recorder.showsRecordTab = false
             self?.showPage(.clipboard)
+            self?.cheer(.recorded)
         }
     }
 
@@ -669,7 +670,7 @@ final class AppController {
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
     /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|record|notes|settings|games|spinner|number|ask]` opens the cat's click menu (on that page);
     /// `--spin` spins the Spinner after 1s; `--roll` rolls the Number game after 1s; `--ask` asks Topsy after 1s;
-    /// `--chatter [lunch|todo|all-done|preview|screenshot|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
+    /// `--chatter [lunch|todo|all-done|preview|screenshot|recorded|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--say <text>` says that text in the small bubble beside her;
     /// `--click-line` clicks the small bubble beside her after 2s;
     /// `--convert-input <amount>` fills in the Math page's Convert tab;
@@ -744,6 +745,7 @@ final class AppController {
                 case "all-done": chatter.sayAbovePage(Chatter.line(.allTodosDone, personality))
                 case "preview": chatter.sayAbovePage(Chatter.line(.preview, personality))
                 case "screenshot": cheer(.screenshot)
+                case "recorded": cheer(.recorded)
                 case "reminder-due": chatter.sayAbovePage(Chatter.line(.reminderDue, personality))
                 case "repeating-due": chatter.sayAbovePage(Chatter.line(.repeatingDue, personality))
                 case "last-due": chatter.sayAbovePage(Chatter.line(.lastDue, personality))
