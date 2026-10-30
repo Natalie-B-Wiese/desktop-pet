@@ -117,7 +117,7 @@ Your pet can talk now and then, in a personality you pick in **Settings → Chat
 
 - **Butler:** formal and polite, with dry wit. Fond of tea.
 - **Upbeat:** excited about everything, with Gen-Z vibes.
-- **Boss:** a CEO who thinks you're the star employee.
+- **Boss:** a CEO who thinks you're the star employee, and can't resist a pun.
 - **Sassy:** dramatic and a little full of herself.
 - **Deadpan:** says odd things with a straight face.
 
