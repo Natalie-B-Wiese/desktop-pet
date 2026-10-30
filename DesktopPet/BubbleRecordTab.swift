@@ -88,7 +88,7 @@ struct BubbleRecordTab: View {
             VStack(spacing: 6) {
                 HStack(spacing: 4) {
                     label("Save as", width: labelWidth)
-                    TextField("Date and time", text: $recorder.fileName)
+                    TextField("Screen Recording", text: $recorder.fileName)
                         .bubbleFieldStyle()
                         .disabled(recorder.isRecording || recorder.isStarting)
                         .onChange(of: recorder.fileName) {
