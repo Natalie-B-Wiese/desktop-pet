@@ -11,7 +11,18 @@ struct BubbleRecordTab: View {
     @AppStorage(ScreenRecorder.folderKey) private var folderPath = ""
 
     var body: some View {
+        // Like macOS's Save dialog: the name and folder first, then the options, then the button at the bottom
+        // (as on the Clipboard tab).
         VStack(spacing: 6) {
+            saveBox
+            audioPicker
+            Toggle(isOn: $showsClicks) {
+                titled("Show clicks", detail: "A ring where you click")
+            }
+            .toggleStyle(BubbleSwitchStyle())
+            .disabled(recorder.isRecording)
+            .boxed()
+
             if let start = recorder.startDate {
                 BubbleButton("Stop recording", systemImage: "stop.circle", action: recorder.stop)
                     .overlay(alignment: .trailing) {
@@ -33,16 +44,6 @@ struct BubbleRecordTab: View {
             } else if let text = recorder.note {
                 note(text)
             }
-
-            audioPicker
-            Toggle(isOn: $showsClicks) {
-                titled("Show clicks", detail: "A ring where you click")
-            }
-            .toggleStyle(BubbleSwitchStyle())
-            .disabled(recorder.isRecording)
-            .boxed()
-            nameBox
-            folderRow
         }
         // Settings can't change mid-recording; they apply to the next one.
         .animation(nil, value: recorder.isRecording)
@@ -72,28 +73,72 @@ struct BubbleRecordTab: View {
         audio = all[(index + by + all.count) % all.count].rawValue
     }
 
-    /// The next video's name (optional). A name that's taken says what it'll be saved as instead; nothing is overwritten.
-    private var nameBox: some View {
+    /// "Save as [Demo] .mov / in 📁 Movies Change…", read as one sentence. The name is optional (empty uses the date
+    /// and time, like macOS's own recordings). A name that's taken says what it'll be saved as instead; nothing is
+    /// overwritten. A folder that's gone shows faint; the next video goes to Movies.
+    private var saveBox: some View {
         let name = ScreenRecorder.cleanName(recorder.fileName)
-        let folder = recorder.saveFolder
+        let folder = folderPath.isEmpty ? ScreenRecorder.moviesFolder : URL(fileURLWithPath: folderPath, isDirectory: true)
+        let exists = ScreenRecorder.folderExists(folder)
+        let saveFolder = recorder.saveFolder
         let problem = ScreenRecorder.nameProblem(name)
-        let free = name.isEmpty || problem != nil ? nil : ScreenRecorder.freeURL(named: name, in: folder)
+        let free = name.isEmpty || problem != nil ? nil : ScreenRecorder.freeURL(named: name, in: saveFolder)
+        let labelWidth: CGFloat = 50
         return VStack(spacing: 3) {
-            TextField("File name (optional)", text: $recorder.fileName)
-                .bubbleFieldStyle()
-                .disabled(recorder.isRecording || recorder.isStarting)
-                .onChange(of: recorder.fileName) {
-                    if recorder.fileName.count > ScreenRecorder.fileNameLimit {
-                        recorder.fileName = String(recorder.fileName.prefix(ScreenRecorder.fileNameLimit))
-                    }
+            VStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    label("Save as", width: labelWidth)
+                    TextField("Date and time", text: $recorder.fileName)
+                        .bubbleFieldStyle()
+                        .disabled(recorder.isRecording || recorder.isStarting)
+                        .onChange(of: recorder.fileName) {
+                            if recorder.fileName.count > ScreenRecorder.fileNameLimit {
+                                recorder.fileName = String(recorder.fileName.prefix(ScreenRecorder.fileNameLimit))
+                            }
+                        }
+                        .help("The video's file name. Leave it empty for the date and time, like macOS's own recordings.")
+                    Text(".mov")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .opacity(0.45)
+                        .fixedSize()
                 }
-                .help("Leave it empty for a name with the date and time, like macOS's own recordings")
+                HStack(spacing: 4) {
+                    label("in", width: labelWidth)
+                    HStack(spacing: 4) {
+                        Image(systemName: exists ? "folder" : "questionmark.folder")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(FileManager.default.displayName(atPath: folder.path))
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .opacity(exists ? 1 : 0.45)
+                    .help(exists ? folder.path : "\(folder.path) is missing, so videos go to Movies")
+                    Spacer(minLength: 0)
+                    Button("Change…", action: chooseFolder)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.black, lineWidth: 1.2))
+                        .contentShape(Rectangle())
+                        .help("Pick the folder videos are saved to")
+                        .disabled(recorder.isRecording)
+                }
+            }
+            .boxed()
             if let problem {
                 warning(problem)
             } else if let free, free.deletingPathExtension().lastPathComponent != name {
-                warning("\(FileManager.default.displayName(atPath: folder.path)) already has a video named \(name). This one will be \(free.deletingPathExtension().lastPathComponent).")
+                warning("\(FileManager.default.displayName(atPath: saveFolder.path)) already has a video named \(name). This one will be \(free.deletingPathExtension().lastPathComponent).")
             }
         }
+    }
+
+    private func label(_ text: String, width: CGFloat) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .frame(width: width, alignment: .leading)
     }
 
     /// Red and bold, like the Clipboard's full warning.
@@ -103,37 +148,6 @@ struct BubbleRecordTab: View {
             .foregroundStyle(.red)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// "Save to  📁 Movies  Change…". A folder that's gone shows faint; the next video goes to Movies.
-    private var folderRow: some View {
-        let folder = folderPath.isEmpty ? ScreenRecorder.moviesFolder : URL(fileURLWithPath: folderPath, isDirectory: true)
-        let exists = ScreenRecorder.folderExists(folder)
-        return HStack(spacing: 6) {
-            Text("Save to")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .fixedSize()
-            HStack(spacing: 4) {
-                Image(systemName: exists ? "folder" : "questionmark.folder")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(FileManager.default.displayName(atPath: folder.path))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .opacity(exists ? 1 : 0.45)
-            .help(exists ? folder.path : "\(folder.path) is missing, so videos go to Movies")
-            Spacer(minLength: 0)
-            Button("Change…", action: chooseFolder)
-                .buttonStyle(.plain)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.black, lineWidth: 1.2))
-                .contentShape(Rectangle())
-                .help("Pick the folder videos are saved to")
-        }
-        .boxed()
     }
 
     /// macOS's folder picker, starting in the current folder.
