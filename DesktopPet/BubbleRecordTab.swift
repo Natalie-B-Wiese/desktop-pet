@@ -73,7 +73,7 @@ struct BubbleRecordTab: View {
         audio = all[(index + by + all.count) % all.count].rawValue
     }
 
-    /// "Save as [Demo] .mov / in [📁 Movies]", read as one sentence. The name is optional (empty uses the date
+    /// "Save as [Demo] .mov / in [📁 Movies ⌄]", read as one sentence. The name is optional (empty uses the date
     /// and time, like macOS's own recordings). A name that's taken says what it'll be saved as instead; nothing is
     /// overwritten. A folder that's gone shows faint; the next video goes to Movies.
     private var saveBox: some View {
@@ -104,8 +104,17 @@ struct BubbleRecordTab: View {
                 }
                 HStack(spacing: 4) {
                     label("in", width: labelWidth)
-                    // The folder is the button (straight to the folder picker), as wide as the name box above it.
-                    Button(action: chooseFolder) {
+                    // The folder is a menu of the usual places plus Other… (the folder picker), as wide as the name box above it.
+                    Menu {
+                        ForEach(folderChoices, id: \.self) { choice in
+                            Toggle(FileManager.default.displayName(atPath: choice.path), isOn: Binding(
+                                get: { choice.standardizedFileURL == folder.standardizedFileURL },
+                                set: { _ in pick(choice) }
+                            ))
+                        }
+                        Divider()
+                        Button("Other…", action: chooseFolder)
+                    } label: {
                         HStack(spacing: 4) {
                             Image(systemName: exists ? "folder" : "questionmark.folder")
                                 .font(.system(size: 11, weight: .semibold))
@@ -113,19 +122,23 @@ struct BubbleRecordTab: View {
                                 .font(.system(size: 12, weight: .medium, design: .rounded))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
+                                .opacity(exists ? 1 : 0.45)
                             Spacer(minLength: 0)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
                         }
-                        .opacity(exists ? 1 : 0.45)
+                        .foregroundStyle(.black)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(RoundedRectangle(cornerRadius: 7).fill(.white))
                         .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
                         .contentShape(Rectangle())
                     }
+                    .menuStyle(.button)
                     .buttonStyle(.plain)
-                    .pointerStyle(.link)
+                    .menuIndicator(.hidden)
                     .disabled(recorder.isRecording)
-                    .help(exists ? "\(folder.path)\nClick to pick another folder" : "\(folder.path) is missing, so videos go to Movies. Click to pick another folder.")
+                    .help(exists ? folder.path : "\(folder.path) is missing, so videos go to Movies")
                     // Lines it up with the name box, which has ".mov" after it.
                     Text(".mov")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -157,6 +170,25 @@ struct BubbleRecordTab: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// Movies, Desktop and Downloads, plus the folder picked with Other… when it's somewhere else.
+    private var folderChoices: [URL] {
+        let fm = FileManager.default
+        var choices = [ScreenRecorder.moviesFolder] + [.desktopDirectory, .downloadsDirectory].compactMap {
+            fm.urls(for: $0, in: .userDomainMask).first
+        }
+        if !folderPath.isEmpty {
+            let picked = URL(fileURLWithPath: folderPath, isDirectory: true)
+            if !choices.contains(where: { $0.standardizedFileURL == picked.standardizedFileURL }) { choices.append(picked) }
+        }
+        return choices
+    }
+
+    private func pick(_ url: URL) {
+        // Movies is the default, so picking it just forgets the choice.
+        folderPath = url.standardizedFileURL == ScreenRecorder.moviesFolder.standardizedFileURL ? "" : url.path
+        recorder.note = nil
+    }
+
     /// macOS's folder picker, starting in the current folder.
     private func chooseFolder() {
         let panel = NSOpenPanel()
@@ -172,9 +204,7 @@ struct BubbleRecordTab: View {
         NSApp.activate()
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            // Movies is the default, so picking it again just forgets the choice.
-            folderPath = url.standardizedFileURL == ScreenRecorder.moviesFolder.standardizedFileURL ? "" : url.path
-            recorder.note = nil
+            pick(url)
         }
     }
 
