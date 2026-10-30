@@ -57,7 +57,7 @@ Each reminder is a time today plus an optional message and meeting link. With a 
 - **Add reminder:** type the hour, press Space, `:` or Tab, then type the minutes, and choose AM or PM. Typing works like a digital clock: the last two digits you type win. To change the hour, select it and type over it.
 - With **Settings → Military time** on, there's no AM/PM and the hour goes 00–23.
 - Click a reminder to edit it, or ✕ to delete it.
-- **Snooze** on a reminder that came due puts it off for a few minutes (5 unless you change it in **Settings → Snooze**). Snooze again for more. The list shows "Snoozed until…" under its time. A repeating reminder keeps its usual time on the next days.
+- **Snooze** on a reminder that came due puts it off for a few minutes (5 unless you change it in **Settings → Snooze**). Snooze again for more. Once snoozed, it shows how long in all ("snoozed 15 min") when it comes back. The list shows "Snoozed until…" under its time. A repeating reminder keeps its usual time on the next days.
 - **Pull meetings** adds reminders for today's calendar meetings. See [Google Calendar setup](#google-calendar-setup-for-reminders--pull-meetings).
 
 ### To-dos

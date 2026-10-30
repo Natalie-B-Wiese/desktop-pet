@@ -479,12 +479,21 @@ struct BubbleReminderAlert<Join: View>: View {
     /// The Join (for a reminder with a link) and Snooze buttons, under the message.
     @ViewBuilder var join: Join
 
+    /// " · snoozed 15 min" once it's been snoozed (all the snoozes added up), so you know you've put it off before.
+    private var snoozedText: String {
+        guard let minutes = reminder.snoozedMinutes, minutes > 0 else { return "" }
+        let time = minutes < 60 ? "\(minutes)\u{00A0}min"
+            : minutes % 60 == 0 ? "\(minutes / 60)\u{00A0}hr"
+            : "\(minutes / 60)\u{00A0}hr \(minutes % 60)\u{00A0}min"
+        return " · snoozed \(time)"
+    }
+
     var body: some View {
         VStack(spacing: 1) {
             HStack(spacing: 4) {
                 Image(systemName: "bell.fill")
                     .font(.system(size: 9, weight: .bold))
-                Text(AppPreferences.clockText(reminder.shownDate))
+                Text(AppPreferences.clockText(reminder.shownDate) + snoozedText)
                     .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
             }
             // Wraps at 180pt. The bubble measures itself with no width limit, which made a plain

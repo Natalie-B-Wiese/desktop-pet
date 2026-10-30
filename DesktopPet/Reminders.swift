@@ -23,6 +23,9 @@ struct Reminder: Codable, Identifiable, Equatable {
     /// (a daily 2:00 PM reminder snoozed once stays a 2:00 PM one, and a meeting's stays at its start).
     /// Cleared when it's closed or its time changes.
     var snoozedUntil: Date?
+    /// All the snoozes added up ("snoozed 15 min" on the due reminder), so you can tell you've put it off before.
+    /// Cleared with `snoozedUntil`. Optional, so reminders saved before it still load.
+    var snoozedMinutes: Int?
 
     /// The time to show for it: the meeting's start for a meeting, otherwise when it goes off.
     var shownDate: Date { meetingStart ?? date }
@@ -120,6 +123,7 @@ final class ReminderStore {
         reminders[index].message = message
         reminders[index].meetingLink = link
         reminders[index].snoozedUntil = nil
+        reminders[index].snoozedMinutes = nil
         skipHeadsUpIfSoon(reminders[index])
         reminders.sort { $0.dueDate < $1.dueDate }
         save()
@@ -138,7 +142,10 @@ final class ReminderStore {
                 guard reminders[index].meetingStart != meeting.start || reminders[index].message != message
                         || reminders[index].meetingLink != meeting.link else { continue }
                 // A meeting that moved makes its snooze meaningless; a rename keeps it.
-                if reminders[index].meetingStart != meeting.start { reminders[index].snoozedUntil = nil }
+                if reminders[index].meetingStart != meeting.start {
+                    reminders[index].snoozedUntil = nil
+                    reminders[index].snoozedMinutes = nil
+                }
                 reminders[index].date = meeting.start
                 reminders[index].meetingStart = meeting.start
                 reminders[index].message = message
@@ -206,6 +213,7 @@ final class ReminderStore {
         }
         reminders[index].date = Self.nextOccurrence(of: first.date, on: first.repeatDays)
         reminders[index].snoozedUntil = nil
+        reminders[index].snoozedMinutes = nil
         reminders.sort { $0.dueDate < $1.dueDate }
         save()
         refresh()
@@ -217,6 +225,7 @@ final class ReminderStore {
     func snoozeFirstDue(minutes: Int) {
         guard let first = due.first, let index = reminders.firstIndex(where: { $0.id == first.id }) else { return }
         reminders[index].snoozedUntil = Date().addingTimeInterval(60 * Double(minutes))
+        reminders[index].snoozedMinutes = (reminders[index].snoozedMinutes ?? 0) + minutes
         reminders.sort { $0.dueDate < $1.dueDate }
         save()
         refresh()
