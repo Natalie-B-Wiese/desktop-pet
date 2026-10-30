@@ -17,7 +17,7 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
   3. quits the running app and waits for it to exit
   4. installs to `/Applications/DesktopPet.app`
   5. relaunches, passing any args through
-- `./release.sh` publishes a download (bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first): it builds a universal (arm64 + x86_64) Release into `build/release/`, ad-hoc signed (there's no Developer ID, so it can't be notarized), zips it, and runs `gh release create v<MARKETING_VERSION>`. Bump `MARKETING_VERSION` in `project.yml` first. Ask before running it, since it publishes.
+- `./release.sh` publishes a download (bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first): it builds a universal (arm64 + x86_64) Release into `build/release/`, ad-hoc signed (there's no Developer ID, so it can't be notarized), zips it, and runs `gh release create v<MARKETING_VERSION>`. Bump `MARKETING_VERSION` in `project.yml` first. Ask before running it, since it publishes. Its notes are only a changelog link, so afterwards replace them (`gh release edit v<version> --notes-file …`) with a short "What's new" list in plain words plus the install line (as on 0.8).
 - Never edit the `.xcodeproj` directly. Change `project.yml` instead.
 - Settings in `project.yml`:
   - Swift 5 mode, macOS 15 target
