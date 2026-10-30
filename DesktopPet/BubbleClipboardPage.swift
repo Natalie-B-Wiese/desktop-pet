@@ -213,18 +213,11 @@ struct BubbleClipboardPage: View {
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
             }
         case .text(let text):
-            let flattened = Self.flatten(text)
-            VStack(alignment: .leading, spacing: 1) {
-                // Two lines at most, however much was copied; the full text is still kept.
-                Text(flattened)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-                    .multilineTextAlignment(.leading)
-                if flattened.count > 60 {
-                    caption("\(text.count.formatted()) characters")
-                }
-            }
+            // One line, however much was copied, so the list stays short; the up-close page shows all of it.
+            Text(Self.flatten(text))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .lineLimit(1)
+                .truncationMode(.tail)
         case .image(let width, let height):
             HStack(spacing: 8) {
                 Group {
@@ -236,17 +229,11 @@ struct BubbleClipboardPage: View {
                         Image(systemName: "photo")
                     }
                 }
-                .frame(width: 40, height: 40)
+                .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
                 .background(Color.black.opacity(0.05))
                 .clipShape(RoundedRectangle(cornerRadius: 4))
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.2), lineWidth: 1))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Image")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    caption("\(width)×\(height)")
-                }
-                // Keep "Image" on one line when "Copied!" appears beside it.
-                .fixedSize()
+                Self.titled("Image", detail: "\(width)×\(height)")
             }
         case .files where ClipboardVideo.url(in: entry) != nil:
             VideoRowPreview(url: ClipboardVideo.url(in: entry)!)
@@ -254,21 +241,29 @@ struct BubbleClipboardPage: View {
             HStack(spacing: 6) {
                 Image(systemName: urls.count == 1 ? "doc" : "doc.on.doc")
                     .font(.system(size: 14))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(urls.map(\.lastPathComponent).joined(separator: ", "))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                    if urls.count > 1 { caption("\(urls.count) files") }
-                }
+                Text(urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) files")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(urls.map(\.lastPathComponent).joined(separator: ", "))
             }
         }
     }
 
-    private func caption(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .opacity(0.5)
+    /// Image and video thumbnails, as tall as the copy button so every row is one line high.
+    static let thumbnailSize: CGFloat = 24
+
+    /// "Image  1280×800" on one line: the kind, then a grey detail.
+    static func titled(_ title: String, detail: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .fixedSize()
+            Text(detail)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .opacity(0.5)
+                .lineLimit(1)
+        }
     }
 
     /// Text, images, colors and videos open up close; other files don't.
@@ -323,22 +318,15 @@ private struct VideoRowPreview: View {
                         .aspectRatio(contentMode: .fit)
                 } else {
                     Image(systemName: isMissing ? "questionmark.square.dashed" : "film")
-                        .font(.system(size: 16))
+                        .font(.system(size: 12))
                         .opacity(0.5)
                 }
             }
-            .frame(width: 40, height: 40)
+            .frame(width: BubbleClipboardPage.thumbnailSize, height: BubbleClipboardPage.thumbnailSize)
             .background(Color.black.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 4))
             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.2), lineWidth: 1))
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Video")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                Text(isMissing ? "Moved or deleted" : video?.lengthText ?? " ")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .opacity(0.5)
-            }
-            .fixedSize()
+            BubbleClipboardPage.titled("Video", detail: isMissing ? "Moved or deleted" : video?.lengthText ?? "")
         }
         .opacity(isMissing ? 0.45 : 1)
         .help(url.lastPathComponent)
