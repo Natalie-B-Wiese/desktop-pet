@@ -15,6 +15,10 @@ Your pet appears on your desktop. Desktop Pet has no window or Dock icon. It liv
 
 Desktop Pet needs macOS 15 or later and runs on both Apple Silicon and Intel Macs.
 
+### Updates
+
+Once a day, Desktop Pet checks GitHub for a newer version. When there is one, your pet tells you in her bubble, with a **Download** button that opens the release page. Download it and replace the app in Applications the same way you installed it; your to-dos, notes and settings stay. You can check by hand, or turn the daily check off, at the bottom of **Settings**. This check is the only time the app goes online.
+
 ## Using the pet
 
 - **Click the pet** to open the menu of tools. Click her again, or click ✕, to close it.

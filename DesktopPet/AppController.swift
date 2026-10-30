@@ -14,6 +14,7 @@ final class AppController {
     let reminders = ReminderStore()
     let todos = TodoStore()
     let greetings = GreetingStore()
+    let updates = UpdateChecker()
     let chatter = ChatterStore()
     let clipboard = ClipboardHistory()
     let notes = NoteStore()
@@ -44,6 +45,7 @@ final class AppController {
         timer.onStateChange = { [weak self] in self?.timerStateChanged() }
         reminders.onChange = { [weak self] in self?.remindersChanged() }
         greetings.onChange = { [weak self] in self?.greetingChanged() }
+        updates.onNoticeChange = { [weak self] in self?.updateNoticeChanged() }
         chatter.onChange = { [weak self] in self?.bubble?.update() }
         todos.onCheckedOff = { [weak self] allDone in self?.cheerTodo(allDone: allDone) }
         recorder.onChange = { [weak self] in self?.recordingChanged() }
@@ -63,7 +65,7 @@ final class AppController {
         panel.menuProvider = { [weak self] in self?.makePetMenu() ?? NSMenu() }
         petPanel = panel
         let bubble = SpeechBubbleController(
-            timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter, notes: notes,
+            timer: timer, reminders: reminders, todos: todos, greetings: greetings, updates: updates, chatter: chatter, notes: notes,
             spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, wordGame: wordGame, groups: groups, clipboard: clipboard, recorder: recorder, settings: settings, pet: panel, actions: BubbleActions(
             startTimer: { [weak self] duration, label in self?.startTimer(duration: duration, label: label) },
             startPomodoro: { [weak self] work, rest in
@@ -475,6 +477,8 @@ final class AppController {
             await pullMeetingsIfNewDay()
             await greetIfNewDay()
             isRunningMorningCheck = false
+            // Last, so a new version's notice waits behind the greeting.
+            if !ProcessInfo.processInfo.arguments.contains("--check-updates") { await updates.checkIfDue() }
         }
     }
 
@@ -519,6 +523,12 @@ final class AppController {
                 chatter.sayAbovePage(Chatter.greetingLine(personality, at: greeting.date))
             }
         }
+    }
+
+    /// She hops when a new version's notice appears, unless she's hidden or hiding (it waits in the bubble until she's back).
+    private func updateNoticeChanged() {
+        bubble?.update()
+        if updates.notice != nil, isPetVisible, !hideSeek.isPlaying { petPanel?.hop() }
     }
 
     // MARK: - Hide and seek
@@ -730,6 +740,12 @@ final class AppController {
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
                 self?.reminders.snoozeFirstDue(minutes: AppPreferences.snoozeMinutes)
             }
+        }
+        // `--pretend-version 0.6` makes the app think it's that version; `--check-updates` checks right away,
+        // ignoring today's check and a clicked-away notice (it still saves `updates.lastCheck`).
+        if let version = value(after: "--pretend-version") { updates.currentVersion = version }
+        if args.contains("--check-updates") {
+            Task { @MainActor [weak self] in await self?.updates.check(showsNotice: true, evenIfDismissed: true) }
         }
         if args.contains("--greeting") {
             Task { @MainActor [weak self] in

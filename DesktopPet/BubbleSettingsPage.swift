@@ -95,6 +95,7 @@ enum AppPreferences {
 struct BubbleSettingsPage: View {
     /// Meeting reminders move as soon as the lead time changes.
     let reminders: ReminderStore
+    let updates: UpdateChecker
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
     @AppStorage(AppPreferences.headsUpKey) private var headsUp = AppPreferences.defaultHeadsUpMinutes
     @AppStorage(AppPreferences.snoozeKey) private var snooze = AppPreferences.defaultSnoozeMinutes
@@ -103,6 +104,7 @@ struct BubbleSettingsPage: View {
     /// Called after picking a Chatter personality, so she says a line in her new voice.
     var onChatterChange: (Personality?) -> Void = { _ in }
     @AppStorage(AppPreferences.hopSoundKey) private var hopSound = AppPreferences.defaultHopSound
+    @AppStorage(UpdateChecker.autoCheckKey) private var checksForUpdates = true
 
     var body: some View {
         // Reminders first, as the most used.
@@ -151,6 +153,9 @@ struct BubbleSettingsPage: View {
             hopSoundPicker
 
             chatterPicker
+
+            // Last: it's about the app, not her.
+            updatesBox
         }
     }
 }
@@ -184,6 +189,50 @@ extension BubbleSettingsPage {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    /// "Check for updates" (once a day, in her bubble) over a Check now button, which turns into Download
+    /// when a newer version is out. The grey line says how the last check went.
+    private var updatesBox: some View {
+        VStack(spacing: 6) {
+            Toggle(isOn: $checksForUpdates) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Check for updates")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Text(updatesStatusText)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.55)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .toggleStyle(BubbleSwitchStyle())
+            .help("Once a day, Topsy tells you when a new version is out")
+
+            if case .available(let release) = updates.status {
+                BubbleButton("Download \(release.version)", systemImage: "arrow.down.circle", centered: true) {
+                    updates.download(release)
+                }
+            } else {
+                BubbleButton(updates.status == .checking ? "Checking…" : "Check now", systemImage: "arrow.clockwise",
+                             style: .quiet, centered: true) {
+                    Task { await updates.check(showsNotice: false) }
+                }
+                .disabled(updates.status == .checking)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    private var updatesStatusText: String {
+        let current = updates.currentVersion
+        return switch updates.status {
+        case .idle, .checking: "You have version \(current)"
+        case .upToDate: "\(current) is the newest"
+        case .failed: "Couldn't check. Online?"
+        case .available(let release): "Version \(release.version) is out!"
+        }
     }
 
     /// "Chatter  ‹ Sassy ›", like the Notification row.

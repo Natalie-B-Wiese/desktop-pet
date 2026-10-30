@@ -57,6 +57,7 @@ final class SpeechBubbleController {
     private let reminders: ReminderStore
     private let todos: TodoStore
     private let greetings: GreetingStore
+    private let updates: UpdateChecker
     private let chatter: ChatterStore
     private let settings: PetSettings
     private let mathHistory = MathHistory()
@@ -86,12 +87,13 @@ final class SpeechBubbleController {
     private static let gap: CGFloat = 2
 
     init(
-        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, chatter: ChatterStore,
+        timer: PetTimer, reminders: ReminderStore, todos: TodoStore, greetings: GreetingStore, updates: UpdateChecker, chatter: ChatterStore,
         notes: NoteStore, spinner: SpinnerStore, numberGame: NumberGame, ask: AskGame, hideSeek: HideAndSeek, wordGame: WordGame, groups: GroupsStore, clipboard: ClipboardHistory, recorder: ScreenRecorder, settings: PetSettings, pet: PetPanel,
         actions: BubbleActions
     ) {
         self.timer = timer
         self.greetings = greetings
+        self.updates = updates
         self.chatter = chatter
         self.settings = settings
         self.notes = notes
@@ -121,7 +123,7 @@ final class SpeechBubbleController {
         )
 
         hostingView = FirstClickHostingView(rootView: BubbleView(
-            timer: timer, reminders: reminders, todos: todos, greetings: greetings, chatter: chatter,
+            timer: timer, reminders: reminders, todos: todos, greetings: greetings, updates: updates, chatter: chatter,
             mathHistory: mathHistory, timeHistory: timeHistory,
             notes: notes, spinner: spinner, numberGame: numberGame, ask: ask, hideSeek: hideSeek, groups: groups, wordGame: wordGame, clipboard: clipboard, recorder: recorder, settings: settings,
             layout: layout, menu: menu, actions: closingActions
@@ -159,10 +161,10 @@ final class SpeechBubbleController {
         lineClicks.onClick = { [weak chatter] in chatter?.clearPageLine() }
 
 
-        // Clicking the bubble closes a due reminder, stops a recording, closes the greeting, a chatter line or "Time's up!",
-        // or pauses/resumes a countdown.
-        container.onClick = { [weak timer, weak reminders, weak greetings, weak chatter, weak recorder] in
-            guard let timer, let reminders, let greetings, let chatter, let recorder else { return }
+        // Clicking the bubble closes a due reminder, stops a recording, closes the greeting, a new version's notice,
+        // a chatter line or "Time's up!", or pauses/resumes a countdown.
+        container.onClick = { [weak timer, weak reminders, weak greetings, weak updates, weak chatter, weak recorder] in
+            guard let timer, let reminders, let greetings, let updates, let chatter, let recorder else { return }
             if !reminders.due.isEmpty {
                 reminders.dismissFirstDue()
             } else if !reminders.headsUp.isEmpty {
@@ -171,6 +173,8 @@ final class SpeechBubbleController {
                 recorder.stop()
             } else if greetings.current != nil {
                 greetings.dismiss()
+            } else if updates.notice != nil {
+                updates.dismissNotice()
             } else if chatter.line != nil {
                 chatter.line = nil
             } else if timer.state == .finished {
@@ -220,7 +224,7 @@ final class SpeechBubbleController {
     /// Shows, hides or repositions the bubble to match the timer, the menu and the pet.
     func update() {
         guard let pet, pet.isVisible, timer.isActive || menu.isOpen || !reminders.due.isEmpty || !reminders.headsUp.isEmpty
-                || recorder.isRecording || greetings.current != nil || chatter.line != nil else {
+                || recorder.isRecording || greetings.current != nil || updates.notice != nil || chatter.line != nil else {
             if let parent = panel.parent { parent.removeChildWindow(panel) }
             panel.orderOut(nil)
             updatePageLine()
@@ -404,6 +408,7 @@ struct BubbleView: View {
     let reminders: ReminderStore
     let todos: TodoStore
     let greetings: GreetingStore
+    let updates: UpdateChecker
     let chatter: ChatterStore
     let mathHistory: MathHistory
     let timeHistory: MathHistory
@@ -482,6 +487,10 @@ struct BubbleView: View {
                 remindersToday: reminders.upcoming.filter { Calendar.current.isDateInToday($0.dueDate) },
                 moreCount: waitingAfterGreeting
             )
+        } else if let release = updates.notice {
+            // After the greeting, ahead of chatter and the timer: it isn't urgent.
+            BubbleUpdateNotice(release: release, currentVersion: updates.currentVersion, moreCount: waitingAfterUpdate,
+                               layout: layout) { updates.download(release) }
         } else if let line = chatter.line {
             BubbleChatterLine(text: line, start: chatter.lineStart)
         } else {
@@ -507,8 +516,11 @@ struct BubbleView: View {
         .passesBubbleClicks(layout, as: "snooze")
     }
 
-    /// What's queued behind the greeting: "Time's up!" or a finished Pomodoro period, which waits for a click.
-    private var waitingAfterGreeting: Int { timer.state == .finished ? 1 : 0 }
+    /// What's queued behind the greeting: a new version's notice, then "Time's up!" or a finished Pomodoro period.
+    private var waitingAfterGreeting: Int { (updates.notice != nil ? 1 : 0) + waitingAfterUpdate }
+
+    /// What's queued behind a new version's notice: "Time's up!" or a finished Pomodoro period, which waits for a click.
+    private var waitingAfterUpdate: Int { timer.state == .finished ? 1 : 0 }
 
     /// What's queued behind the due reminders and heads-ups: the greeting, then a finished timer. "· 2 more" counts them all.
     private var waitingAfterHeadsUps: Int { (greetings.current != nil ? 1 : 0) + waitingAfterGreeting }
@@ -675,7 +687,7 @@ struct BubbleView: View {
         case .customize:
             BubbleCustomizePage(settings: settings)
         case .settings:
-            BubbleSettingsPage(reminders: reminders) { personality in
+            BubbleSettingsPage(reminders: reminders, updates: updates) { personality in
                 if let personality {
                     chatter.sayAbovePage(Chatter.line(.preview, personality))
                 } else {
