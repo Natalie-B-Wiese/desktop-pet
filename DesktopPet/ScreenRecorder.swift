@@ -56,8 +56,47 @@ final class ScreenRecorder: NSObject {
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder) && isFolder.boolValue
     }
 
+    /// The folder the next video goes to: the chosen one, or Movies if it's missing.
+    var saveFolder: URL {
+        let folder = folderOverride ?? Self.chosenFolder
+        return Self.folderExists(folder) ? folder : Self.moviesFolder
+    }
+
+    /// The name typed on the Record tab for the next video (not saved; cleared once it's used).
+    /// Empty uses macOS's own kind of name, "Screen Recording 2026-10-29 at 2.31.05 PM".
+    var fileName = ""
+    static let fileNameLimit = 100
+
+    /// The typed name, trimmed and without a ".mov" someone added.
+    static func cleanName(_ name: String) -> String {
+        var name = name.trimmingCharacters(in: .whitespaces)
+        if name.lowercased().hasSuffix(".mov") { name = String(name.dropLast(4)).trimmingCharacters(in: .whitespaces) }
+        return name
+    }
+
+    /// Why a typed name can't be a file name, or nil if it can.
+    static func nameProblem(_ name: String) -> String? {
+        let name = cleanName(name)
+        if name.contains("/") || name.contains(":") { return "Names can't have / or :" }
+        if name.hasPrefix(".") { return "Names can't start with a dot" }
+        return nil
+    }
+
+    /// The file `name` would be saved as in `folder`: "Demo.mov", or "Demo 2.mov" when that's taken. Never overwrites.
+    static func freeURL(named name: String, in folder: URL) -> URL {
+        var url = folder.appendingPathComponent("\(name).mov")
+        var n = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = folder.appendingPathComponent("\(name) \(n).mov")
+            n += 1
+        }
+        return url
+    }
+
     /// When the recording started; nil when not recording.
     private(set) var startDate: Date?
+    /// The part of the screen being recorded (screen coordinates), shown with a red outline; nil for the whole screen.
+    private(set) var recordedArea: NSRect?
     var isRecording: Bool { startDate != nil }
     /// Between clicking Record and the video starting: choosing a region, asking for the mic, setting up.
     private(set) var isStarting = false
@@ -167,29 +206,28 @@ final class ScreenRecorder: NSObject {
         self.output = output
         fileURL = url
         try await stream.startCapture()
+        recordedArea = region
+        fileName = "" // used; the next recording starts fresh, so it can't land on the same name by accident
         startDate = Date()
     }
 
-    /// "Screen Recording 2026-10-29 at 2.31.05 PM.mov", like macOS names its own, in the chosen folder.
+    /// The typed name, or "Screen Recording 2026-10-29 at 2.31.05 PM" like macOS names its own, in the chosen folder.
     /// A folder that's gone falls back to Movies (and says so), so a recording is never lost.
     private func nextFileURL() throws -> URL {
-        var folder = folderOverride ?? Self.chosenFolder
-        if !Self.folderExists(folder) {
-            note = "Saved to Movies, since \(folder.lastPathComponent) is missing"
-            folder = Self.moviesFolder
+        let chosen = folderOverride ?? Self.chosenFolder
+        let folder = saveFolder
+        if folder != chosen {
+            note = "Saved to Movies, since \(chosen.lastPathComponent) is missing"
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+        let typed = Self.cleanName(fileName)
+        if !typed.isEmpty, Self.nameProblem(typed) == nil {
+            return Self.freeURL(named: typed, in: folder)
         }
         let now = Date()
         let day = now.formatted(.iso8601.year().month().day())
         let time = now.formatted(date: .omitted, time: .standard).replacingOccurrences(of: ":", with: ".")
-        let name = "Screen Recording \(day) at \(time)"
-        var url = folder.appendingPathComponent("\(name).mov")
-        var n = 2
-        while FileManager.default.fileExists(atPath: url.path) {
-            url = folder.appendingPathComponent("\(name) \(n).mov")
-            n += 1
-        }
-        return url
+        return Self.freeURL(named: "Screen Recording \(day) at \(time)", in: folder)
     }
 
     /// The recording ended (Stop, macOS's own stop button, or an error): the file is complete once the output finishes.
@@ -200,6 +238,7 @@ final class ScreenRecorder: NSObject {
             stream = nil
             output = nil
             startDate = nil
+            recordedArea = nil
             onChange?()
             if let url = fileURL, FileManager.default.fileExists(atPath: url.path) {
                 onFinished?(url)

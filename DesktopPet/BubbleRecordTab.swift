@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The Clipboard page's Record tab: the Record button and its options (sound, click rings, where videos are saved).
 struct BubbleRecordTab: View {
-    let recorder: ScreenRecorder
+    @Bindable var recorder: ScreenRecorder
     var onRecord: () -> Void
 
     @AppStorage(ScreenRecorder.audioKey) private var audio = ScreenRecorder.Audio.none.rawValue
@@ -22,7 +22,8 @@ struct BubbleRecordTab: View {
                     .help("Saves the video and puts it on the clipboard")
             } else {
                 BubbleButton("Record screen", systemImage: "record.circle", action: onRecord)
-                    .disabled(recorder.isStarting)
+                    .disabled(recorder.isStarting || ScreenRecorder.nameProblem(recorder.fileName) != nil)
+                    .opacity(ScreenRecorder.nameProblem(recorder.fileName) == nil ? 1 : 0.4)
                     .help("Drag over part of the screen, or click for all of it. Esc cancels.")
             }
             if recorder.needsScreenPermission {
@@ -40,6 +41,7 @@ struct BubbleRecordTab: View {
             .toggleStyle(BubbleSwitchStyle())
             .disabled(recorder.isRecording)
             .boxed()
+            nameBox
             folderRow
         }
         // Settings can't change mid-recording; they apply to the next one.
@@ -68,6 +70,39 @@ struct BubbleRecordTab: View {
         let all = ScreenRecorder.Audio.allCases
         let index = all.firstIndex(of: ScreenRecorder.Audio(rawValue: audio) ?? .none) ?? 0
         audio = all[(index + by + all.count) % all.count].rawValue
+    }
+
+    /// The next video's name (optional). A name that's taken says what it'll be saved as instead; nothing is overwritten.
+    private var nameBox: some View {
+        let name = ScreenRecorder.cleanName(recorder.fileName)
+        let folder = recorder.saveFolder
+        let problem = ScreenRecorder.nameProblem(name)
+        let free = name.isEmpty || problem != nil ? nil : ScreenRecorder.freeURL(named: name, in: folder)
+        return VStack(spacing: 3) {
+            TextField("File name (optional)", text: $recorder.fileName)
+                .bubbleFieldStyle()
+                .disabled(recorder.isRecording || recorder.isStarting)
+                .onChange(of: recorder.fileName) {
+                    if recorder.fileName.count > ScreenRecorder.fileNameLimit {
+                        recorder.fileName = String(recorder.fileName.prefix(ScreenRecorder.fileNameLimit))
+                    }
+                }
+                .help("Leave it empty for a name with the date and time, like macOS's own recordings")
+            if let problem {
+                warning(problem)
+            } else if let free, free.deletingPathExtension().lastPathComponent != name {
+                warning("\(FileManager.default.displayName(atPath: folder.path)) already has a video named \(name). This one will be \(free.deletingPathExtension().lastPathComponent).")
+            }
+        }
+    }
+
+    /// Red and bold, like the Clipboard's full warning.
+    private func warning(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .foregroundStyle(.red)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// "Save to  📁 Movies  Change…". A folder that's gone shows faint; the next video goes to Movies.

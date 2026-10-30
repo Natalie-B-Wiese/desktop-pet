@@ -157,3 +157,40 @@ private final class RegionView: NSView {
         hint.draw(at: NSPoint(x: box.minX + 14, y: box.minY + 8), withAttributes: attributes)
     }
 }
+
+/// A thin red frame just outside the region being recorded, so you can see what's in the video. Clicks pass
+/// through it, and it's outside the region (and one of this app's windows), so it never shows in the video.
+final class RecordingOutline {
+    private static let width: CGFloat = 2
+    private var window: NSWindow?
+
+    func show(around region: NSRect) {
+        hide()
+        let window = NSWindow(contentRect: region.insetBy(dx: -Self.width, dy: -Self.width),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        window.isReleasedWhenClosed = false
+        window.contentView = OutlineView()
+        window.orderFrontRegardless()
+        self.window = window
+    }
+
+    func hide() {
+        window?.orderOut(nil)
+        window = nil
+    }
+
+    private final class OutlineView: NSView {
+        override func draw(_ dirtyRect: NSRect) {
+            NSColor.systemRed.setStroke()
+            let frame = NSBezierPath(rect: bounds.insetBy(dx: RecordingOutline.width / 2, dy: RecordingOutline.width / 2))
+            frame.lineWidth = RecordingOutline.width
+            frame.stroke()
+        }
+    }
+}

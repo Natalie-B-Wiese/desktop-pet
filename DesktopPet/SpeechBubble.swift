@@ -239,7 +239,9 @@ final class SpeechBubbleController {
         // A clipboard item's page takes it once its text is clicked, so ⌘C copies a selected part.
         var opensItem = false
         if case .clipboardItem = menu.page { opensItem = true }
-        let allowsKeyboard = grabsKeyboard || opensItem || [.timerControls, .todos, .notes, .spinner, .number, .groups, .customize, .settings].contains(menu.page)
+        // The Record tab's Name box.
+        let namesRecording = menu.page == .clipboard && recorder.showsRecordTab
+        let allowsKeyboard = grabsKeyboard || opensItem || namesRecording || [.timerControls, .todos, .notes, .spinner, .number, .groups, .customize, .settings].contains(menu.page)
         if panel.isKeyWindow && !allowsKeyboard {
             // Ordering out hands the keyboard back to the app you were using; it's re-shown below.
             panel.orderOut(nil)

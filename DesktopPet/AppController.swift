@@ -269,6 +269,7 @@ final class AppController {
     // MARK: - Screen recording
 
     @ObservationIgnored private let regionPicker = RegionPicker()
+    @ObservationIgnored private let recordingOutline = RecordingOutline()
 
     /// Dims the screen to drag out a region (or click for the whole screen), then records it. Topsy and her bubbles
     /// stay out of the video, so she can show the time and stop it when you click her bubble.
@@ -299,6 +300,12 @@ final class AppController {
     }
 
     private func recordingChanged() {
+        // A red outline shows the part of the screen being recorded (none for the whole screen).
+        if recorder.isRecording, let area = recorder.recordedArea {
+            recordingOutline.show(around: area)
+        } else {
+            recordingOutline.hide()
+        }
         // Her bubble shows the time while recording, so she comes back if hidden.
         if recorder.isRecording && !isPetVisible {
             setPetVisible(true)
@@ -663,7 +670,8 @@ final class AppController {
     /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
     /// `--stopwatch` starts a stopwatch (add `--label <text>`);
-    /// `--record <seconds>` records a corner of the screen that long (`--record-rect x,y,w,h`, `--record-to <folder>`);
+    /// `--record <seconds>` records a corner of the screen that long (`--record-rect x,y,w,h`, `--record-to <folder>`,
+    /// `--record-name <name>`); `--record-name` alone fills in the Record tab's Name box (with `--menu record`);
     /// `--screen-snapshot <path.png>` takes a real screenshot of the app's windows (shows video), after `--snapshot-delay`;
     /// `--pick-region` opens the region picker after 1s (Record screen);
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first; `--snooze <seconds>` snoozes it that long after launch);
@@ -697,10 +705,11 @@ final class AppController {
         if let seconds = value(after: "--remind-in").flatMap(TimeInterval.init) {
             reminders.addForTesting(at: Date().addingTimeInterval(seconds), message: value(after: "--label"))
         }
+        if let name = value(after: "--record-name") { recorder.fileName = name }
+        recorder.folderOverride = value(after: "--record-to").map { URL(fileURLWithPath: $0, isDirectory: true) }
         if let seconds = value(after: "--record").flatMap(TimeInterval.init), let screen = NSScreen.main {
             // Records the screen's top-left 640×400 (or `--record-rect x,y,w,h` in screen coordinates) for that many
             // seconds, skipping the drag. `--record-to <folder>` saves there instead of the chosen folder.
-            recorder.folderOverride = value(after: "--record-to").map { URL(fileURLWithPath: $0, isDirectory: true) }
             let parts = value(after: "--record-rect")?.split(separator: ",").compactMap { Double($0) } ?? []
             let rect = parts.count == 4 ? NSRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
                 : NSRect(x: screen.frame.minX, y: screen.frame.maxY - 400, width: 640, height: 400)
