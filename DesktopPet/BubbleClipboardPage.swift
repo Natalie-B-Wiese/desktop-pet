@@ -54,11 +54,6 @@ struct BubbleClipboardPage: View {
                             .font(alert)
                             .foregroundStyle(.red)
                     }
-                    if pinned > 0 {
-                        Text("Pinned items stay when you delete all")
-                            .font(normal)
-                            .foregroundStyle(grey)
-                    }
                 }
                 .padding(.top, -4)
                 ForEach(history.entries) { entry in
@@ -85,9 +80,18 @@ struct BubbleClipboardPage: View {
                         .help("Click anywhere on screen; its hex code is copied into the top slot")
                 }
             }
-            // Pins are kept (the line over the list says so), so with pins it only deletes the unpinned copies.
+            // Pins are kept, so with pins it only deletes the unpinned copies, and says so on the button.
             if history.entries.count > history.pinnedCount {
                 BubbleButton("Delete all", systemImage: "trash", action: history.clear)
+                    .overlay(alignment: .trailing) {
+                        if history.pinnedCount > 0 {
+                            Label("Pins stay", systemImage: "pin")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .opacity(0.55)
+                                .padding(.trailing, 10)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .help(history.pinnedCount > 0 ? "Deletes every copy except the pinned ones" : "Deletes every copy")
             }
 
