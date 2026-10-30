@@ -1,6 +1,6 @@
 # Desktop Pet
 
-A macOS menu bar app that puts a small pixel-art pet on your desktop. She floats above your windows, and you can drag her anywhere. Click her to open a speech bubble of little tools: a timer and Pomodoro, reminders, to-dos, notes, a clipboard history, a calculator and unit converter, a few games, and a page for customizing how she looks.
+A macOS menu bar app that puts a small pixel-art pet on your desktop. She floats above your windows, and you can drag her anywhere. Click her to open a speech bubble of little tools: a timer and Pomodoro, reminders, to-dos, notes, a clipboard history with screenshots and screen recording, a calculator and unit converter, a few games, and a page for customizing how she looks.
 
 ![Desktop Pet's tools above a lineup of cats and dogs in different colors](screenshots/overview-with-pets.png)
 
@@ -20,7 +20,7 @@ Desktop Pet needs macOS 15 or later and runs on both Apple Silicon and Intel Mac
 - **Click the pet** to open the menu of tools. Click her again, or click ✕, to close it.
 - **Drag the pet** to move her anywhere. She remembers where you left her.
 - **Right-click the pet** to hide her. Bring her back from the menu bar icon.
-- **The menu bar icon** can show or hide the pet, start timers, turn on **Launch at Login**, or quit.
+- **The menu bar icon** can show or hide the pet, start timers, take a screenshot, record the screen, turn on **Launch at Login**, or quit.
 
 The main menu closes when you click somewhere else, but tool pages (Notes, Math, Clipboard and so on) stay open. That way you can look something up in another app without losing what you typed. Use ‹ to go back to the menu, or ✕ to close it.
 
@@ -69,16 +69,28 @@ Sticky notes you type on directly. There's no Save button: everything saves as y
 
 ### Clipboard
 
-Keeps the last 5 things you copied anywhere on your Mac: text, images and files.
+Keeps the last 5 things you copied anywhere on your Mac: text, images, videos and files, one line each.
 - The copy button on an item copies it again, ready to paste. The arrows on the left reorder items.
-- Click an item to see it up close: all of a long text (select part of it to copy just that), a bigger image, or a color as hex, rgb, hsl and hsv, each with its own copy button. Copying one of those formats doesn't add a new item.
+- Click an item to see it up close: all of a long text (select part of it to copy just that), a bigger image, a color as hex, rgb, hsl and hsv (each with its own copy button; copying one of those formats doesn't add a new item), or a video with a player, **Show in Finder** and **Open**.
 - New copies go on top. When the list is full, a red warning says the next copy will push out the bottom item.
+- **Pin** up to 3 items so new copies never push them out. Pinned items stay at the top, and **Delete all** keeps them ("Pins stay"). Unpin an item to delete it.
 - Copies that password managers mark as private aren't saved.
 - A copied color like `#FF8800` shows a small swatch.
-- **Take screenshot:** drag across part of the screen (or press Space to pick a window, Esc to cancel). It's copied and appears in the list.
-- **Pick a color:** click anywhere on the screen, and its hex code (`#RRGGBB`) is copied.
+- **Screenshot:** drag across part of the screen (or press Space to pick a window, Esc to cancel). It's copied and appears in the list.
+- **Pick color:** click anywhere on the screen, and its hex code (`#RRGGBB`) is copied.
 
 Clipboard and screenshots need macOS permissions. See [Permissions](#permissions).
+
+### Screen recording
+
+Open **Clipboard** and switch to the **Record** tab (or choose **Record Screen** in the menu bar).
+- **Save as:** type a name for the video, or leave it empty for a name with the date and time, like macOS's own recordings. If a video with that name is already there, a red note says the new one gets a number added; nothing is ever overwritten.
+- **in:** the folder it's saved to: Movies (to start), Desktop, Downloads, or **Other…** to pick any folder.
+- **Sound:** None, your mic, what your Mac plays, or both.
+- **Show clicks:** draws a ring wherever you click.
+- Click **Record screen**, then drag across the part of the screen to record, or just click for the whole screen. Esc cancels. A thin red outline shows the area while it records.
+
+The pet and her bubbles are never in the video, so you can keep using her while you record. Her bubble shows how long it's been recording: click it to stop (or choose **Stop Recording** in the menu bar). The video lands in your Clipboard list, where you can watch it, copy it, or show it in Finder.
 
 ## Games
 
@@ -202,11 +214,13 @@ Some features need permission from macOS. Without it they just look empty or do 
 | Feature | Permission | Where to turn it on |
 |---|---|---|
 | Clipboard history | Paste from Other Apps | System Settings → Privacy & Security → **Paste from Other Apps** |
-| Take screenshot | Screen Recording | System Settings → Privacy & Security → **Screen Recording** |
+| Screenshots and screen recording | Screen Recording | System Settings → Privacy & Security → **Screen Recording** |
+| Recording your mic | Microphone | System Settings → Privacy & Security → **Microphone** |
 | Pull meetings, all-day events in the morning greeting | Calendars | System Settings → Privacy & Security → **Calendars** (see below) |
 
 - **Clipboard:** the first time the app reads something you copied, macOS asks whether to allow pasting. Choose **Allow**. If you denied it, the Clipboard page says so; turn on **Desktop Pet** in the setting above.
-- **Screenshots:** the first time you click **Take screenshot**, macOS asks for Screen Recording and the Clipboard page shows a note. Turn on **Desktop Pet** in the setting above, then **quit and reopen the app**, because macOS only applies this permission after a restart.
+- **Screenshots and recording:** the first time you click **Screenshot** or **Record screen**, macOS asks for Screen Recording and the page shows a note. Turn on **Desktop Pet** in the setting above, then **quit and reopen the app**, because macOS only applies this permission after a restart.
+- **Microphone:** macOS asks the first time you record with Sound set to Mic or Both. Recording what your Mac plays needs only Screen Recording.
 - **Calendar:** see the next section.
 
 ## Google Calendar setup (for Reminders → Pull meetings)
