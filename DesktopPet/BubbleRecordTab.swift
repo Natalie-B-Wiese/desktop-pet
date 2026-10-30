@@ -73,7 +73,7 @@ struct BubbleRecordTab: View {
         audio = all[(index + by + all.count) % all.count].rawValue
     }
 
-    /// "Save as [Demo] .mov / in 📁 Movies Change…", read as one sentence. The name is optional (empty uses the date
+    /// "Save as [Demo] .mov / in [📁 Movies]", read as one sentence. The name is optional (empty uses the date
     /// and time, like macOS's own recordings). A name that's taken says what it'll be saved as instead; nothing is
     /// overwritten. A folder that's gone shows faint; the next video goes to Movies.
     private var saveBox: some View {
@@ -104,26 +104,33 @@ struct BubbleRecordTab: View {
                 }
                 HStack(spacing: 4) {
                     label("in", width: labelWidth)
-                    HStack(spacing: 4) {
-                        Image(systemName: exists ? "folder" : "questionmark.folder")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(FileManager.default.displayName(atPath: folder.path))
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .opacity(exists ? 1 : 0.45)
-                    .help(exists ? folder.path : "\(folder.path) is missing, so videos go to Movies")
-                    Spacer(minLength: 0)
-                    Button("Change…", action: chooseFolder)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.black, lineWidth: 1.2))
+                    // The folder is the button (straight to the folder picker), as wide as the name box above it.
+                    Button(action: chooseFolder) {
+                        HStack(spacing: 4) {
+                            Image(systemName: exists ? "folder" : "questionmark.folder")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(FileManager.default.displayName(atPath: folder.path))
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer(minLength: 0)
+                        }
+                        .opacity(exists ? 1 : 0.45)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+                        .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black, lineWidth: 1.5))
                         .contentShape(Rectangle())
-                        .help("Pick the folder videos are saved to")
-                        .disabled(recorder.isRecording)
+                    }
+                    .buttonStyle(.plain)
+                    .pointerStyle(.link)
+                    .disabled(recorder.isRecording)
+                    .help(exists ? "\(folder.path)\nClick to pick another folder" : "\(folder.path) is missing, so videos go to Movies. Click to pick another folder.")
+                    // Lines it up with the name box, which has ".mov" after it.
+                    Text(".mov")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .fixedSize()
+                        .hidden()
                 }
             }
             .boxed()
