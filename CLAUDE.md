@@ -17,7 +17,7 @@ The user is Natalie. She vibecodes this app: she describes what she wants, and t
   3. quits the running app and waits for it to exit
   4. installs to `/Applications/DesktopPet.app`
   5. relaunches, passing any args through
-- `./release.sh` publishes a download: it builds a universal (arm64 + x86_64) Release into `build/release/`, ad-hoc signed (there's no Developer ID, so it can't be notarized), zips it, and runs `gh release create v<MARKETING_VERSION>`. Bump `MARKETING_VERSION` in `project.yml` first. Ask before running it, since it publishes.
+- `./release.sh` publishes a download (bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` first): it builds a universal (arm64 + x86_64) Release into `build/release/`, ad-hoc signed (there's no Developer ID, so it can't be notarized), zips it, and runs `gh release create v<MARKETING_VERSION>`. Bump `MARKETING_VERSION` in `project.yml` first. Ask before running it, since it publishes.
 - Never edit the `.xcodeproj` directly. Change `project.yml` instead.
 - Settings in `project.yml`:
   - Swift 5 mode, macOS 15 target
@@ -230,4 +230,4 @@ The agent has no Screen Recording permission, so the app has test launch argumen
 - App icon and a real app name.
 - A global keyboard shortcut.
 - GitHub backup.
-- Releases so far: 0.7 (2026-10-30) added screen recording, videos in the clipboard and slim clipboard rows.
+- Releases so far: 0.7 (2026-10-30) added screen recording, videos in the clipboard and slim clipboard rows. 0.8 (2026-10-30) added the update check and the snoozed time on reminders; it's the first version that tells you about newer ones, so 0.7 users only hear about it by hand. `CURRENT_PROJECT_VERSION` (the build number) now goes up with each release too (8 for 0.8).
