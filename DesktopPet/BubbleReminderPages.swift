@@ -568,6 +568,9 @@ struct BubbleCalendarsPage: View {
                     .frame(height: min(listHeight, Self.maxListHeight))
                     .padding(.horizontal, -1)
                 }
+            } else if !CalendarMeetings.hasAccess {
+                // Only while macOS asks; with access they load at once, so nothing flashes.
+                note("Waiting for Calendar access…")
             }
         }
         .task { await load() }
