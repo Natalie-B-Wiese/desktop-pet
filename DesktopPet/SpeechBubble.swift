@@ -20,7 +20,7 @@ final class BubbleLayout {
 @Observable
 final class BubbleMenu {
     enum Page: Equatable {
-        case main, startTimer, timerControls, reminders, addReminder, todos, notes, math, clipboard, customize, settings
+        case main, startTimer, timerControls, reminders, addReminder, calendars, todos, notes, math, clipboard, customize, settings
         case games, spinner, number, groups, ask, hideSeek, word
         case editReminder(Reminder.ID)
         case clipboardItem(ClipboardEntry.ID)
@@ -540,7 +540,7 @@ struct BubbleView: View {
         case .ask, .hideSeek: 190
         case .word, .groups: 230
         case .startTimer: 228
-        case .timerControls, .reminders, .addReminder, .editReminder: 190
+        case .timerControls, .reminders, .addReminder, .editReminder, .calendars: 190
         case .settings: 206 // room for "Reminders ‹ 60 min early ›"
         case .todos: 225 // 210, plus the reorder arrows
         case .math: 260 // room for the Range boxes and long date answers
@@ -564,6 +564,7 @@ struct BubbleView: View {
             }
         case .reminders: "Reminders"
         case .addReminder: "Remind me at…"
+        case .calendars: "Calendars"
         case .editReminder(let id): reminders.reminders.first { $0.id == id }?.meetingID != nil ? "Meeting" : "Edit reminder"
         case .todos: "To-dos"
         case .notes: "Notes"
@@ -592,7 +593,7 @@ struct BubbleView: View {
     private func backDestination(for page: BubbleMenu.Page) -> BubbleMenu.Page? {
         switch page {
         case .main: nil
-        case .addReminder, .editReminder: .reminders
+        case .addReminder, .editReminder, .calendars: .reminders
         case .clipboardItem: .clipboard
         case .spinner, .number, .groups, .ask, .hideSeek, .word: .games
         default: .main
@@ -631,9 +632,13 @@ struct BubbleView: View {
             BubbleRemindersPage(
                 store: reminders,
                 onAdd: { menu.page = .addReminder },
-                onEdit: { menu.page = .editReminder($0) }
+                onEdit: { menu.page = .editReminder($0) },
+                onCalendars: { menu.page = .calendars }
             )
             .frame(width: 190)
+        case .calendars:
+            BubbleCalendarsPage(store: reminders)
+                .frame(width: 190)
         case .addReminder:
             BubbleAddReminderPage(
                 store: reminders,
@@ -1264,14 +1269,22 @@ struct BubbleButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                if let systemImage {
-                    Image(systemName: systemImage)
+                if title.isEmpty, let systemImage {
+                    // Icon only, sized to a line of text so it matches a titled button beside it.
+                    Text(" ")
+                        .hidden()
                         .frame(width: 16)
+                        .overlay(Image(systemName: systemImage))
+                } else {
+                    if let systemImage {
+                        Image(systemName: systemImage)
+                            .frame(width: 16)
+                    }
+                    Text(title)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
-                Text(title)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
             .font(.system(size: 12, weight: .semibold, design: .rounded))

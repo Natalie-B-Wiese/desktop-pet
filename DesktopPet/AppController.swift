@@ -686,7 +686,7 @@ final class AppController {
     /// `--pick-region` opens the region picker after 1s (Record screen);
     /// `--remind-in <seconds>` adds a one-time reminder due that many seconds from now (add `--label <text>`; it's saved, so back up first; `--snooze <seconds>` snoozes it that long after launch);
     /// `--greeting` shows the morning greeting now, without using up today's real one (`--greeting-date 2026-10-31` for another day);
-    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|todos|math|clipboard|record|notes|settings|games|spinner|number|ask]` opens the cat's click menu (on that page);
+    /// `--menu [start|controls|reminders|add-reminder|edit-reminder|calendars|todos|math|clipboard|record|notes|settings|games|spinner|number|ask]` opens the cat's click menu (on that page);
     /// `--spin` spins the Spinner after 1s; `--roll` rolls the Number game after 1s; `--ask` asks Topsy after 1s;
     /// `--chatter [lunch|todo|all-done|preview|screenshot|recorded|color|own-color|reminder-due|repeating-due|last-due]` says that line now (deck order is used up as normal; `color` is coral);
     /// `--say <text>` says that text in the small bubble beside her;
@@ -787,6 +787,7 @@ final class AppController {
             case "controls": .timerControls
             case "reminders": .reminders
             case "add-reminder": .addReminder
+            case "calendars": .calendars
             case "edit-reminder": reminders.upcoming.first(where: { $0.meetingID == nil }).map { .editReminder($0.id) } ?? .reminders
             case "meeting-reminder": reminders.upcoming.first(where: { $0.meetingID != nil }).map { .editReminder($0.id) } ?? .reminders
             case "todos": .todos
