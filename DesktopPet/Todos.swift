@@ -117,8 +117,19 @@ final class TodoStore {
         }
     }
 
-    func delete(_ id: Todo.ID) {
-        items.removeAll { $0.id == id }
+    /// Returns where it was, so Undo can put it back there.
+    @discardableResult
+    func delete(_ id: Todo.ID) -> Int? {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return nil }
+        items.remove(at: index)
+        changed()
+        return index
+    }
+
+    /// Undo: puts a deleted item back where it was.
+    func undoDelete(_ todo: Todo, at index: Int) {
+        guard !items.contains(where: { $0.id == todo.id }) else { return }
+        items.insert(todo, at: min(index, items.count))
         changed()
     }
 
@@ -152,6 +163,13 @@ final class TodoStore {
 
     func deleteArchived(_ id: Todo.ID) {
         archived.removeAll { $0.id == id }
+        changed()
+    }
+
+    /// Undo: puts a deleted archived item back, in its spot by when it was finished.
+    func undoDeleteArchived(_ todo: Todo) {
+        guard !archived.contains(where: { $0.id == todo.id }) else { return }
+        archived = (archived + [todo]).sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
         changed()
     }
 

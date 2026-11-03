@@ -147,9 +147,21 @@ final class SpinnerStore {
         }
     }
 
-    func delete(_ id: SpinnerOption.ID) {
-        custom.removeAll { $0.id == id }
+    /// Returns where it was, so Undo can put it back there.
+    @discardableResult
+    func delete(_ id: SpinnerOption.ID) -> Int? {
+        guard let index = custom.firstIndex(where: { $0.id == id }) else { return nil }
+        custom.remove(at: index)
         if picks[list] == id { setPick(nil, in: list) }
+        isShuffled = false
+        save()
+        return index
+    }
+
+    /// Undo: puts a deleted option back where it was in the Custom list showing.
+    func undoDelete(_ option: SpinnerOption, at index: Int) {
+        guard list.isCustom, !isSpinning, !isShuffling, !custom.contains(where: { $0.id == option.id }) else { return }
+        custom.insert(option, at: min(index, custom.count))
         isShuffled = false
         save()
     }

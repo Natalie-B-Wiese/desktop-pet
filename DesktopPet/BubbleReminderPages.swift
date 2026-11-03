@@ -10,6 +10,8 @@ struct BubbleRemindersPage: View {
     @State private var pullStatus: String?
     @State private var isPulling = false
     @State private var needsCalendarAccess = false
+    /// Reminders deleted with ✕, shown as Undo rows until the page closes.
+    @State private var deleted = DeletedRows<Reminder>()
 
     /// Past this many rows the list scrolls instead of making the bubble taller.
     private static let maxVisibleRows = 4
@@ -17,7 +19,7 @@ struct BubbleRemindersPage: View {
     private static let rowSpacing: CGFloat = 6
 
     var body: some View {
-        let upcoming = store.upcoming
+        let upcoming = deleted.merged(with: store.upcoming)
         VStack(spacing: 6) {
 
             if upcoming.isEmpty {
@@ -52,6 +54,17 @@ struct BubbleRemindersPage: View {
                 BubbleButton("Open Settings", systemImage: "gearshape", style: .quiet, action: CalendarMeetings.openPrivacySettings)
             }
         }
+        .testDeletes(delete: testDelete, undo: {
+            if let gone = deleted.all.first { store.undoDelete(gone.item); deleted.remove(gone.id) }
+        })
+    }
+
+    /// For testing (`--delete-row`, `--undo`).
+    private func testDelete(_ row: Int) {
+        let upcoming = store.upcoming
+        guard upcoming.indices.contains(row - 1) else { return }
+        deleted.add(upcoming[row - 1], index: 0, shown: deleted.merged(with: upcoming))
+        store.delete(upcoming[row - 1].id)
     }
 
     /// Adds a reminder for each of today's remaining meetings from the Calendar app (which syncs Google Calendar).
@@ -119,15 +132,28 @@ struct BubbleRemindersPage: View {
         .contentShape(Rectangle())
     }
 
-    private func rows(_ reminders: [Reminder]) -> some View {
+    private func rows(_ shown: [DeletedRows<Reminder>.Row]) -> some View {
         VStack(spacing: Self.rowSpacing) {
-            ForEach(reminders) { reminder in
-                row(reminder)
+            ForEach(shown) { row in
+                switch row {
+                case .item(let reminder):
+                    self.row(reminder, shown: shown)
+                case .deleted(let gone):
+                    UndoRow(text: Self.undoText(gone.item), minHeight: Self.rowHeight) {
+                        store.undoDelete(gone.item)
+                        deleted.remove(gone.id)
+                    }
+                }
             }
         }
     }
 
-    private func row(_ reminder: Reminder) -> some View {
+    /// "2:00 PM · Standup": the clock time and message, short enough to fit beside Undo.
+    private static func undoText(_ reminder: Reminder) -> String {
+        [AppPreferences.clockText(reminder.shownDate), reminder.message].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private func row(_ reminder: Reminder, shown: [DeletedRows<Reminder>.Row]) -> some View {
         HStack(spacing: 6) {
             // A meeting opens read-only, since the calendar decides its time and title.
             Button {
@@ -152,6 +178,8 @@ struct BubbleRemindersPage: View {
             }
 
             Button {
+                // Reminders stay sorted by time, so no index is needed to put it back.
+                deleted.add(reminder, index: 0, shown: shown)
                 store.delete(reminder.id)
             } label: {
                 Image(systemName: "xmark")

@@ -11,6 +11,8 @@ struct BubbleNotesPage: View {
     @State private var blankID = UUID()
     @FocusState private var focusedID: Note.ID?
     @State private var listHeight: CGFloat = 0
+    /// Notes deleted with ✕, shown as Undo rows until the page closes.
+    @State private var deleted = DeletedRows<Note>()
 
     /// Past this height the list scrolls instead of making the bubble taller.
     private static let maxListHeight: CGFloat = 260
@@ -20,8 +22,17 @@ struct BubbleNotesPage: View {
         // and never loses the keyboard when the list starts scrolling.
         ScrollView {
             VStack(spacing: 4) {
-                ForEach([Note(id: blankID, text: "")] + store.notes) { note in
-                    row(note)
+                ForEach(shownRows) { row in
+                    switch row {
+                    case .item(let note):
+                        self.row(note)
+                    case .deleted(let gone):
+                        UndoRow(text: Self.firstLine(gone.item.text)) {
+                            store.undoDelete(gone.item, at: gone.index)
+                            deleted.remove(gone.id)
+                        }
+                        .padding(.leading, 15) // lines up with the notes, past their reorder arrows
+                    }
                 }
             }
             .padding(1) // keeps the outlines from being clipped at the edges
@@ -36,6 +47,9 @@ struct BubbleNotesPage: View {
         .onDisappear {
             if let id = focusedID { store.tidy(id) }
         }
+        .testDeletes(delete: { row in
+            if store.notes.indices.contains(row - 1) { delete(store.notes[row - 1]) }
+        }, undo: { if let gone = deleted.all.first { store.undoDelete(gone.item, at: gone.index); deleted.remove(gone.id) } })
     }
 
     private func row(_ note: Note) -> some View {
@@ -60,10 +74,23 @@ struct BubbleNotesPage: View {
                 isBlank: note.id == blankID,
                 focusedID: $focusedID,
                 onType: { type($0, on: note.id) },
-                onDelete: { store.delete(note.id) },
+                onDelete: { delete(note) },
                 onClose: onClose
             )
         }
+    }
+
+    private var shownRows: [DeletedRows<Note>.Row] {
+        deleted.merged(with: [Note(id: blankID, text: "")] + store.notes)
+    }
+
+    private func delete(_ note: Note) {
+        let shown = shownRows
+        if let index = store.delete(note.id) { deleted.add(note, index: index, shown: shown) }
+    }
+
+    private static func firstLine(_ text: String) -> String {
+        text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
     }
 
     private func type(_ text: String, on id: Note.ID) {

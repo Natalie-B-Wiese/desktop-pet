@@ -59,8 +59,19 @@ final class NoteStore {
         save()
     }
 
-    func delete(_ id: Note.ID) {
-        notes.removeAll { $0.id == id }
+    /// Returns where it was, so Undo can put it back there.
+    @discardableResult
+    func delete(_ id: Note.ID) -> Int? {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return nil }
+        notes.remove(at: index)
+        save()
+        return index
+    }
+
+    /// Undo: puts a deleted note back where it was.
+    func undoDelete(_ note: Note, at index: Int) {
+        guard !notes.contains(where: { $0.id == note.id }) else { return }
+        notes.insert(note, at: min(index, notes.count))
         save()
     }
 

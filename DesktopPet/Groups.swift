@@ -97,8 +97,19 @@ final class GroupsStore {
         }
     }
 
-    func delete(_ id: SpinnerOption.ID) {
-        items.removeAll { $0.id == id }
+    /// Returns where it was, so Undo can put it back there.
+    @discardableResult
+    func delete(_ id: SpinnerOption.ID) -> Int? {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return nil }
+        items.remove(at: index)
+        save()
+        return index
+    }
+
+    /// Undo: puts a deleted item back where it was.
+    func undoDelete(_ item: SpinnerOption, at index: Int) {
+        guard !items.contains(where: { $0.id == item.id }) else { return }
+        items.insert(item, at: min(index, items.count))
         save()
     }
 

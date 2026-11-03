@@ -39,6 +39,8 @@ struct BubbleSpinnerPage: View {
     @State private var blankID = UUID()
     @FocusState private var focusedID: SpinnerOption.ID?
     @State private var listHeight: CGFloat = 0
+    /// Options deleted with ✕, shown as Undo rows until the page closes or the list changes.
+    @State private var deleted = DeletedRows<SpinnerOption>()
 
     /// Past this height (about 9 rows, for a long to-do list) the list scrolls instead of making the bubble taller.
     private static let maxListHeight: CGFloat = 300
@@ -51,20 +53,29 @@ struct BubbleSpinnerPage: View {
             ScrollViewReader { scroller in
             ScrollView {
             VStack(spacing: 4) {
-                ForEach(rows) { option in
-                    SpinnerOptionRow(
-                        option: option,
-                        number: store.isShuffled ? store.options.firstIndex(of: option).map { $0 + 1 } : nil,
-                        isBlank: option.id == blankID,
-                        isLocked: store.list.isLocked,
-                        isHighlighted: option.id == store.highlightedID,
-                        isSpinning: store.isSpinning || store.isShuffling,
-                        focusedID: $focusedID,
-                        onType: { type($0, on: option.id) },
-                        onSubmit: { focusedID = blankID },
-                        onDelete: { store.delete(option.id) },
-                        onClose: onClose
-                    )
+                ForEach(deleted.merged(with: rows)) { row in
+                    switch row {
+                    case .item(let option):
+                        SpinnerOptionRow(
+                            option: option,
+                            number: store.isShuffled ? store.options.firstIndex(of: option).map { $0 + 1 } : nil,
+                            isBlank: option.id == blankID,
+                            isLocked: store.list.isLocked,
+                            isHighlighted: option.id == store.highlightedID,
+                            isSpinning: store.isSpinning || store.isShuffling,
+                            focusedID: $focusedID,
+                            onType: { type($0, on: option.id) },
+                            onSubmit: { focusedID = blankID },
+                            onDelete: { delete(option) },
+                            onClose: onClose
+                        )
+                    case .deleted(let gone):
+                        UndoRow(text: gone.item.text) {
+                            store.undoDelete(gone.item, at: gone.index)
+                            deleted.remove(gone.id)
+                        }
+                        .allowsHitTesting(!store.isSpinning && !store.isShuffling)
+                    }
                 }
             }
             .padding(1) // keeps the outlines from being clipped at the edges
@@ -108,9 +119,18 @@ struct BubbleSpinnerPage: View {
         .onChange(of: focusedID) { old, _ in
             if let old { store.tidy(old) }
         }
+        .onChange(of: store.list) { deleted.removeAll() } // Undo only puts back into the list showing
         .onDisappear {
             if let id = focusedID { store.tidy(id) }
         }
+        .testDeletes(delete: { row in
+            if store.list.isCustom, store.options.indices.contains(row - 1) { delete(store.options[row - 1]) }
+        }, undo: { if let gone = deleted.all.first { store.undoDelete(gone.item, at: gone.index); deleted.remove(gone.id) } })
+    }
+
+    private func delete(_ option: SpinnerOption) {
+        let shown = deleted.merged(with: rows)
+        if let index = store.delete(option.id) { deleted.add(option, index: index, shown: shown) }
     }
 
     /// "List  ‹ Custom ›", like the ‹ › rows in Settings.
@@ -501,6 +521,8 @@ struct BubbleGroupsPage: View {
     @State private var blankID = UUID()
     @FocusState private var focusedID: SpinnerOption.ID?
     @State private var listHeight: CGFloat = 0
+    /// Items deleted with ✕, shown as Undo rows until the page closes.
+    @State private var deleted = DeletedRows<SpinnerOption>()
 
     /// Past this height (about 9 rows) the list, or the groups, scroll instead of making the bubble taller.
     private static let maxListHeight: CGFloat = 300
@@ -524,19 +546,30 @@ struct BubbleGroupsPage: View {
                 countPicker
                 capped {
                     VStack(spacing: 4) {
-                        ForEach(rows) { item in
-                            SpinnerOptionRow(
-                                option: item,
-                                isBlank: item.id == blankID,
-                                isLocked: false,
-                                placeholder: "Add item",
-                                isSpinning: false,
-                                focusedID: $focusedID,
-                                onType: { type($0, on: item.id) },
-                                onSubmit: { focusedID = blankID },
-                                onDelete: { store.delete(item.id) },
-                                onClose: onClose
-                            )
+                        ForEach(deleted.merged(with: rows)) { row in
+                            switch row {
+                            case .item(let item):
+                                SpinnerOptionRow(
+                                    option: item,
+                                    isBlank: item.id == blankID,
+                                    isLocked: false,
+                                    placeholder: "Add item",
+                                    isSpinning: false,
+                                    focusedID: $focusedID,
+                                    onType: { type($0, on: item.id) },
+                                    onSubmit: { focusedID = blankID },
+                                    onDelete: {
+                                        let shown = deleted.merged(with: rows)
+                                        if let index = store.delete(item.id) { deleted.add(item, index: index, shown: shown) }
+                                    },
+                                    onClose: onClose
+                                )
+                            case .deleted(let gone):
+                                UndoRow(text: gone.item.text) {
+                                    store.undoDelete(gone.item, at: gone.index)
+                                    deleted.remove(gone.id)
+                                }
+                            }
                         }
                     }
                 }
@@ -559,6 +592,12 @@ struct BubbleGroupsPage: View {
         .onDisappear {
             if let id = focusedID { store.tidy(id) }
         }
+        .testDeletes(delete: { row in
+            guard store.items.indices.contains(row - 1) else { return }
+            let item = store.items[row - 1]
+            let shown = deleted.merged(with: rows)
+            if let index = store.delete(item.id) { deleted.add(item, index: index, shown: shown) }
+        }, undo: { if let gone = deleted.all.first { store.undoDelete(gone.item, at: gone.index); deleted.remove(gone.id) } })
     }
 
     /// Always a ScrollView (like Notes), so the item being typed on is never rebuilt when it starts scrolling.

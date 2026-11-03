@@ -203,6 +203,16 @@ final class ReminderStore {
         onChange?()
     }
 
+    /// Undo: puts a deleted reminder back as it was. One whose time passed meanwhile comes due right away.
+    func undoDelete(_ reminder: Reminder) {
+        guard !reminders.contains(where: { $0.id == reminder.id }) else { return }
+        reminders.append(reminder)
+        reminders.sort { $0.dueDate < $1.dueDate }
+        save()
+        refresh()
+        onChange?()
+    }
+
     /// Closes the reminder the bubble is showing. A repeating one moves to its next day after now,
     /// so days missed while the Mac was off don't pile up.
     func dismissFirstDue() {

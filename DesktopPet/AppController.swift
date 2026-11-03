@@ -732,6 +732,17 @@ final class AppController {
             // Dims the screen to pick a region after a second, as clicking Record screen would.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.startRecording() }
         }
+        if let row = value(after: "--delete-row").flatMap(Int.init) {
+            // Deletes that row on the page showing after 1s (pair with `--menu`), and `--undo` clicks its Undo 1s later.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                NotificationCenter.default.post(name: .testDeleteRow, object: row)
+            }
+            if args.contains("--undo") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    NotificationCenter.default.post(name: .testUndo, object: nil)
+                }
+            }
+        }
         if args.contains("--archived") {
             BubbleTodoPage.opensOnArchive = true // pair it with `--menu todos`
         }

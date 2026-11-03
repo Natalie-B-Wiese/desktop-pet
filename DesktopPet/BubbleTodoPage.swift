@@ -16,6 +16,10 @@ struct BubbleTodoPage: View {
     @FocusState private var addFocused: Bool
     /// The to-do being edited in place, if any.
     @State private var editingID: Todo.ID?
+    /// To-dos deleted with ✕, shown as Undo rows until the page closes.
+    @State private var deleted = DeletedRows<Todo>()
+    /// The Archived tab's, kept here so switching tabs doesn't forget them.
+    @State private var deletedArchived = DeletedRows<Todo>()
 
     /// Past this many rows the list scrolls instead of making the bubble taller.
     private static let maxVisibleRows = 6
@@ -28,12 +32,32 @@ struct BubbleTodoPage: View {
             if tab == .todos {
                 todoList
             } else {
-                ArchivedTodos(store: store)
+                ArchivedTodos(store: store, deleted: $deletedArchived)
             }
         }
         .onDisappear {
             if let id = editingID { store.tidy(id) }
         }
+        .testDeletes(delete: { row in
+            if tab == .archived, store.archived.indices.contains(row - 1) {
+                let todo = store.archived[row - 1]
+                deletedArchived.add(todo, index: 0, shown: deletedArchived.merged(with: store.archived))
+                store.deleteArchived(todo.id)
+                return
+            }
+            guard tab == .todos, store.todos.indices.contains(row - 1) else { return }
+            let todo = store.todos[row - 1]
+            let shown = shownRows
+            if let index = store.delete(todo.id) { deleted.add(todo, index: index, shown: shown) }
+        }, undo: {
+            if tab == .archived, let gone = deletedArchived.all.first {
+                store.undoDeleteArchived(gone.item)
+                deletedArchived.remove(gone.id)
+            } else if let gone = deleted.all.first {
+                store.undoDelete(gone.item, at: gone.index)
+                deleted.remove(gone.id)
+            }
+        })
     }
 
     private var todoList: some View {
@@ -52,12 +76,12 @@ struct BubbleTodoPage: View {
             }
             .onExitCommand(perform: onClose) // Esc closes the menu
 
-            if store.todos.isEmpty {
+            if shownRows.isEmpty {
                 Text("Nothing to do!")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .opacity(0.55)
                     .padding(.vertical, 4)
-            } else if store.todos.count > Self.maxVisibleRows {
+            } else if shownRows.count > Self.maxVisibleRows {
                 ScrollView {
                     rows
                         .padding(1) // keeps the row outlines from being clipped at the edges
@@ -73,40 +97,60 @@ struct BubbleTodoPage: View {
 
     private var rows: some View {
         VStack(spacing: Self.rowSpacing) {
-            ForEach(store.todos) { todo in
-                HStack(spacing: 3) {
-                    // Reorder arrows sit outside the row on the far left, like Notes'. Checked items stay at the bottom.
-                    if todo.isDone {
-                        Color.clear.frame(width: 12)
-                    } else {
-                        CaretStepper(
-                            canIncrement: store.canMove(todo.id, by: -1),
-                            canDecrement: store.canMove(todo.id, by: 1),
-                            increment: { store.move(todo.id, by: -1) },
-                            decrement: { store.move(todo.id, by: 1) },
-                            repeatsWhenHeld: false, // one spot per click
-                            outlined: false
-                        )
-                        .help("Move up or down")
+            ForEach(shownRows) { row in
+                switch row {
+                case .item(let todo):
+                    todoRow(todo)
+                case .deleted(let gone):
+                    UndoRow(text: gone.item.text, minHeight: Self.rowHeight) {
+                        store.undoDelete(gone.item, at: gone.index)
+                        deleted.remove(gone.id)
                     }
-                    TodoRow(
-                        todo: todo,
-                        isEditing: editingID == todo.id,
-                        onEditingChanged: { editing in
-                            if editing {
-                                editingID = todo.id
-                            } else if editingID == todo.id {
-                                editingID = nil
-                                store.tidy(todo.id) // trims it, or deletes it if emptied
-                            }
-                        },
-                        onToggle: { store.toggle(todo.id) },
-                        onType: { store.update(todo.id, text: $0) },
-                        onDelete: { store.delete(todo.id) },
-                        onClose: onClose
-                    )
+                    .padding(.leading, 15) // lines up with the rows, past their reorder arrows
                 }
             }
+        }
+    }
+
+    private var shownRows: [DeletedRows<Todo>.Row] {
+        deleted.merged(with: store.todos)
+    }
+
+    private func todoRow(_ todo: Todo) -> some View {
+        HStack(spacing: 3) {
+            // Reorder arrows sit outside the row on the far left, like Notes'. Checked items stay at the bottom.
+            if todo.isDone {
+                Color.clear.frame(width: 12)
+            } else {
+                CaretStepper(
+                    canIncrement: store.canMove(todo.id, by: -1),
+                    canDecrement: store.canMove(todo.id, by: 1),
+                    increment: { store.move(todo.id, by: -1) },
+                    decrement: { store.move(todo.id, by: 1) },
+                    repeatsWhenHeld: false, // one spot per click
+                    outlined: false
+                )
+                .help("Move up or down")
+            }
+            TodoRow(
+                todo: todo,
+                isEditing: editingID == todo.id,
+                onEditingChanged: { editing in
+                    if editing {
+                        editingID = todo.id
+                    } else if editingID == todo.id {
+                        editingID = nil
+                        store.tidy(todo.id) // trims it, or deletes it if emptied
+                    }
+                },
+                onToggle: { store.toggle(todo.id) },
+                onType: { store.update(todo.id, text: $0) },
+                onDelete: {
+                    let shown = shownRows
+                    if let index = store.delete(todo.id) { deleted.add(todo, index: index, shown: shown) }
+                },
+                onClose: onClose
+            )
         }
     }
 }
@@ -116,6 +160,8 @@ struct BubbleTodoPage: View {
 private struct ArchivedTodos: View {
     let store: TodoStore
     @State private var listHeight: CGFloat = 0
+    /// Archived to-dos deleted with ✕, shown as Undo rows until the page closes.
+    @Binding var deleted: DeletedRows<Todo>
 
     /// Past this the list scrolls instead of making the bubble taller.
     private static let maxListHeight: CGFloat = 220
@@ -124,7 +170,7 @@ private struct ArchivedTodos: View {
         VStack(spacing: 6) {
             // On top, so it stays in sight however long the list gets.
             keptForPicker
-            if store.archived.isEmpty {
+            if store.archived.isEmpty && deleted.all.isEmpty {
                 Text("Nothing archived yet. Checked to-dos move here at the end of the day.")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .opacity(0.55)
@@ -146,11 +192,15 @@ private struct ArchivedTodos: View {
     }
 
     /// The archive split by the day each was finished, keeping its newest-first order.
-    private var groups: [(day: Date, todos: [Todo])] {
+    private var groups: [(day: Date, todos: [DeletedRows<Todo>.Row])] {
         let calendar = Calendar.current
-        var groups: [(day: Date, todos: [Todo])] = []
-        for todo in store.archived {
-            let day = calendar.startOfDay(for: todo.completedAt ?? Date())
+        var groups: [(day: Date, todos: [DeletedRows<Todo>.Row])] = []
+        for todo in deleted.merged(with: store.archived) {
+            let item = switch todo {
+            case .item(let item): item
+            case .deleted(let gone): gone.item
+            }
+            let day = calendar.startOfDay(for: item.completedAt ?? Date())
             if groups.last?.day == day {
                 groups[groups.count - 1].todos.append(todo)
             } else {
@@ -167,7 +217,17 @@ private struct ArchivedTodos: View {
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .opacity(0.55)
                     .padding(.top, group.day == groups.first?.day ? 0 : 4)
-                ForEach(group.todos) { row($0) }
+                ForEach(group.todos) { row in
+                    switch row {
+                    case .item(let todo):
+                        self.row(todo)
+                    case .deleted(let gone):
+                        UndoRow(text: gone.item.text, minHeight: BubbleTodoPage.rowHeight) {
+                            store.undoDeleteArchived(gone.item)
+                            deleted.remove(gone.id)
+                        }
+                    }
+                }
             }
         }
     }
@@ -204,6 +264,8 @@ private struct ArchivedTodos: View {
             .buttonStyle(.plain)
             .help("Put back on the list")
             Button {
+                // The archive keeps its own order (by day), so no index is needed to put it back.
+                deleted.add(todo, index: 0, shown: deleted.merged(with: store.archived))
                 store.deleteArchived(todo.id)
             } label: {
                 Image(systemName: "xmark")
