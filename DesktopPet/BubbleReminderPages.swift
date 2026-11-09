@@ -218,6 +218,8 @@ struct BubbleAddReminderPage: View {
     @State private var linkText: String
     /// Shown under the link box when saving finds it isn't a link.
     @State private var linkError = false
+    /// Shows a checkmark on the link's copy button for a moment.
+    @State private var linkCopied = false
     /// The weekdays it repeats on (1 = Sunday … 7 = Saturday); empty means once.
     @State private var repeatDays: Set<Int>
     private enum Field { case hour, minute }
@@ -313,10 +315,15 @@ struct BubbleAddReminderPage: View {
                 .onSubmit(save) // Return adds or saves it
 
                 VStack(spacing: 2) {
-                    TextField("Meeting link (optional)", text: $linkText)
-                        .bubbleFieldStyle()
-                        .onSubmit(save)
-                        .onChange(of: linkText) { linkError = false }
+                    HStack(spacing: 6) {
+                        // On the left, like the Clipboard's copy buttons. Always there (faint until the box
+                        // holds a link), so the box never changes width as you type.
+                        copyLinkButton(link)
+                        TextField("Meeting link (optional)", text: $linkText)
+                            .bubbleFieldStyle()
+                            .onSubmit(save)
+                            .onChange(of: linkText) { linkError = false }
+                    }
                     if linkError {
                         Text("That isn't a link")
                             .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -352,7 +359,10 @@ struct BubbleAddReminderPage: View {
                 .padding(.top, -4)
             readOnlyBox(editing?.message ?? "No title", faint: editing?.message == nil, wraps: true)
             if let link {
-                readOnlyBox(link.absoluteString, faint: false, wraps: false)
+                HStack(spacing: 6) {
+                    copyLinkButton(link) // on the left, like the Clipboard's
+                    readOnlyBox(link.absoluteString, faint: false, wraps: false)
+                }
                 joinButton(link)
             } else {
                 readOnlyBox("No meeting link", faint: true, wraps: false)
@@ -373,6 +383,29 @@ struct BubbleAddReminderPage: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
+    /// The small outlined copy button, like the Clipboard's. A normal copy, so the link also lands in Clipboard history.
+    private func copyLinkButton(_ link: URL?) -> some View {
+        Button {
+            guard let link else { return }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(link.absoluteString, forType: .string)
+            linkCopied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { linkCopied = false }
+        } label: {
+            Image(systemName: linkCopied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 22, height: 22)
+                .background(RoundedRectangle(cornerRadius: 5).fill(.white))
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(.black, lineWidth: 1.2))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(link == nil ? 0.3 : 1)
+        .disabled(link == nil)
+        .help("Copy link")
     }
 
     /// "Join Zoom" (or Meet, Teams, or "Join call" for any other link). Opens it and keeps the reminder,
