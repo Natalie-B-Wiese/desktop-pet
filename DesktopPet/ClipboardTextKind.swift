@@ -1,19 +1,17 @@
 import AppKit
 import Foundation
 
-/// What a copied text is, when it's just one recognizable thing: a color, a link, an email address,
-/// JSON, a sum, or a date or time. Anything else (or anything with more around it) is plain text.
-/// Each kind has its own up-close page and list row.
+/// What a copied text is, when it's just one recognizable thing: a color, a link, an email address or JSON.
+/// Anything else (or anything with more around it) is plain text. Each kind has its own up-close page and list row.
+/// Each is recognized by a clear rule (a `#`, `https://`, an `@`, valid JSON), never a guess.
 enum ClipboardTextKind {
     case color(NSColor)
     case link(URL)
     case email(String)
     case json(ClipboardJSON)
-    case math(answer: String, copy: String)
-    case date(ClipboardDate)
     case text
 
-    /// Checked in this order, so "#E8893A" is a color and "12/25" a date rather than 0.48.
+    /// Checked in this order.
     static func of(_ text: String) -> ClipboardTextKind {
         if let cached = cache[text] { return cached }
         let kind = classify(text)
@@ -30,8 +28,6 @@ enum ClipboardTextKind {
         if let url = BubbleClipboardPage.link(in: trimmed) { return .link(url) }
         if let email = email(in: trimmed) { return .email(email) }
         if let json = ClipboardJSON(trimmed) { return .json(json) }
-        if let math = math(in: trimmed) { return .math(answer: math.answer, copy: math.copy) }
-        if let date = ClipboardDate(trimmed) { return .date(date) }
         return .text
     }
 
@@ -43,30 +39,6 @@ enum ClipboardTextKind {
         guard address.count <= 254,
               address.wholeMatch(of: /[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/) != nil else { return nil }
         return address
-    }
-
-    // MARK: - Math
-
-    /// A sum the Math page can work out, like "1,240 * 15%" or "1:45 + 30 min". Plain numbers aren't sums,
-    /// and neither are things like "555-1234", "12/25/2026" or "2026-12-25" (only `-` or `/` with no spaces).
-    private static func math(in text: String) -> (answer: String, copy: String)? {
-        guard text.count <= 200, !text.contains(where: \.isNewline) else { return nil }
-        let operators = CharacterSet(charactersIn: "+-*/^×÷%√")
-        let afterFirst = text.unicodeScalars.dropFirst() // a leading minus is just a negative number
-        let used = Set(afterFirst.filter { operators.contains($0) }.map(Character.init))
-        let words = ["sqrt", "abs"].contains { text.lowercased().contains($0) }
-        guard !used.isEmpty || words || text.hasPrefix("√") else { return nil }
-        if used.isSubset(of: ["-", "/"]), !words, !text.contains(" ") { return nil }
-
-        if case .success(let value) = MathEvaluator.evaluate(text) {
-            // Shown with commas, copied without (like clicking an answer on the Math page), so it pastes as a number.
-            return (MathEvaluator.format(value, grouping: true), MathEvaluator.format(value))
-        }
-        // Times, only when there's a + or - between parts: "1:45 + 30 min", "5pm - 9:30am".
-        if text.contains(" + ") || text.contains(" - "), case .success(let answer) = TimeEvaluator.evaluate(text) {
-            return (answer.text, answer.text)
-        }
-        return nil
     }
 }
 
@@ -139,84 +111,5 @@ struct ClipboardJSON {
             }
         }
         return (tidied, oneLine)
-    }
-}
-
-// MARK: - Date
-
-/// A copied date or time on its own, like "Thursday at 2pm", "Dec 12, 2026" or "3:30 PM".
-struct ClipboardDate {
-    let date: Date
-    /// False for a date alone, like "Dec 12" (the detector puts those at noon).
-    let hasTime: Bool
-
-    init?(_ text: String) {
-        guard text.count <= 60, !text.contains(where: \.isNewline),
-              let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else { return nil }
-        let range = NSRange(text.startIndex..., in: text)
-        // The date has to be the whole text (a trailing "." is fine), not a date inside a sentence.
-        guard let match = detector.firstMatch(in: text, range: range), let found = match.date,
-              match.range.location == 0, range.length - match.range.length <= 1 else { return nil }
-        // A plain number like "2026" or "15" isn't worth a date page.
-        guard text.contains(where: \.isLetter) || text.contains("/") || text.contains(":") else { return nil }
-
-        let lower = text.lowercased()
-        hasTime = lower.contains(/\d\s*(am|pm|a\.m\.|p\.m\.)|\d:\d\d|noon|midnight/)
-        // A time alone ("9am") means the next 9 AM, even when today's has passed.
-        let timeAlone = lower.wholeMatch(of: /\s*(at\s+)?(\d{1,2}(:\d\d)?\s*(am|pm|a\.m\.|p\.m\.)?|noon|midnight)\.?\s*/) != nil
-        if timeAlone, found < Date(), let next = Calendar.current.date(byAdding: .day, value: 1, to: found) {
-            date = next
-        } else {
-            date = found
-        }
-    }
-
-    /// "Thursday, Nov 12, 2026": the year only when it isn't this year.
-    var dayText: String {
-        let thisYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
-        return thisYear ? date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
-                        : date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().year())
-    }
-
-    /// "Fri, Dec 25", or "Nov 10 · 2:30 PM" with a time (no weekday, so it fits the list's row), with the year
-    /// when it isn't this year.
-    var shortText: String {
-        let thisYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
-        let day = !thisYear ? date.formatted(.dateTime.month(.abbreviated).day().year())
-            : hasTime ? date.formatted(.dateTime.month(.abbreviated).day())
-            : date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-        return timeText.map { "\(day) · \($0)" } ?? day
-    }
-
-    var timeText: String? { hasTime ? AppPreferences.clockText(date) : nil }
-
-    /// "In 2 hr 15 min", "Tomorrow", "In 3 days", "5 days ago", "Today".
-    func relativeText(now: Date = Date()) -> String {
-        let calendar = Calendar.current
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
-        if hasTime, abs(date.timeIntervalSince(now)) < 12 * 3600 {
-            let minutes = Int((abs(date.timeIntervalSince(now)) / 60).rounded())
-            let length = minutes < 60 ? "\(minutes) min" : minutes % 60 == 0 ? "\(minutes / 60) hr" : "\(minutes / 60) hr \(minutes % 60) min"
-            if minutes == 0 { return "Now" }
-            return date > now ? "In \(length)" : "\(length) ago"
-        }
-        switch days {
-        case 0: return "Today"
-        case 1: return "Tomorrow"
-        case -1: return "Yesterday"
-        case 2...: return "In \(days.formatted()) days"
-        default: return "\((-days).formatted()) days ago"
-        }
-    }
-
-    /// A one-time reminder goes off at the next time its clock time comes round (today, or tomorrow if it's passed),
-    /// so Remind me only works when that's this date: within the next 24 hours.
-    var canRemind: Bool {
-        guard hasTime else { return false }
-        let calendar = Calendar.current
-        let parts = calendar.dateComponents([.hour, .minute], from: date)
-        guard let today = calendar.date(bySettingHour: parts.hour ?? 0, minute: parts.minute ?? 0, second: 0, of: Date()) else { return false }
-        let next = today > Date() ? today : calendar.date(byAdding: .day, value: 1, to: today) ?? today
-        return abs(next.timeIntervalSince(date)) < 60
     }
 }

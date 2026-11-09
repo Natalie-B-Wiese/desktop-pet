@@ -7,8 +7,6 @@ struct BubbleClipboardItemPage: View {
     let history: ClipboardHistory
     let entry: ClipboardEntry
     let notes: NoteStore
-    /// Opens Add reminder at this time (a copied date's Remind me).
-    var onRemind: (Date) -> Void
     /// Opens the Notes page (after Save as note).
     var onOpenNotes: () -> Void
 
@@ -30,8 +28,6 @@ struct BubbleClipboardItemPage: View {
                 case .link(let url): linkDetails(url)
                 case .email(let address): emailDetails(address)
                 case .json(let json): jsonDetails(json)
-                case .math(let answer, let copy): mathDetails(BubbleClipboardPage.trimmedText(of: entry), answer: answer, copy: copy)
-                case .date(let date): dateDetails(date)
                 case .text: textDetails(text)
                 }
             case .image(let width, let height):
@@ -138,7 +134,7 @@ struct BubbleClipboardItemPage: View {
         }
     }
 
-    /// Saves the text as a new note and opens Notes, like Remind me opens Add reminder. If a note already says it,
+    /// Saves the text as a new note and opens Notes. If a note already says it,
     /// it reads "In Notes" and just opens Notes, so clicking twice never makes two.
     private func saveAsNoteButton(_ text: String) -> some View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -167,41 +163,6 @@ struct BubbleClipboardItemPage: View {
                     if let url = URL(string: "mailto:" + address) { NSWorkspace.shared.open(url) }
                 }
                 .help("Opens your mail app with a new email to \(address)")
-            }
-        }
-    }
-
-    // MARK: - Date
-
-    /// "Thursday, Nov 12" big, the time, how far off it is, then Copy and Remind me.
-    private func dateDetails(_ date: ClipboardDate) -> some View {
-        VStack(spacing: 6) {
-            VStack(spacing: 1) {
-                Text(date.dayText)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                if let time = date.timeText {
-                    Text(time)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                }
-                caption(date.relativeText())
-            }
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
-
-            HStack(spacing: 6) {
-                copyItemButton(centered: true)
-                BubbleButton("Remind me", systemImage: "bell.badge", centered: true) {
-                    onRemind(date.date)
-                }
-                .disabled(!date.canRemind)
-                .opacity(date.canRemind ? 1 : 0.4)
-                .help(date.canRemind ? "Opens Add reminder at this time" : "")
-            }
-            if !date.canRemind {
-                caption(date.hasTime ? "Reminders can only be set for the next 24 hours" : "Reminders need a time, like 2pm")
-                    .multilineTextAlignment(.center)
             }
         }
     }
@@ -241,40 +202,6 @@ struct BubbleClipboardItemPage: View {
                     flash("oneLine")
                 }
                 .help("Copy it all on one line")
-            }
-        }
-    }
-
-    // MARK: - Math
-
-    /// The sum, its answer big and bold, and Copy answer (without commas, so it pastes as a number).
-    private func mathDetails(_ sum: String, answer: String, copy: String) -> some View {
-        VStack(spacing: 6) {
-            VStack(spacing: 2) {
-                Text(sum)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .opacity(0.6)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                Text("= " + answer)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.5)
-                    .textSelection(.enabled)
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity)
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
-
-            HStack(spacing: 6) {
-                copyItemButton(centered: true)
-                BubbleButton(justCopied == "answer" ? "Copied!" : "Copy answer", systemImage: justCopied == "answer" ? "checkmark" : "equal", centered: true) {
-                    history.copyWithoutSaving(copy)
-                    flash("answer")
-                }
-                .help("Copies \(copy)")
             }
         }
     }

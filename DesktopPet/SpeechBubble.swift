@@ -28,16 +28,10 @@ final class BubbleMenu {
 
     /// `nil` when the menu is closed.
     var page: Page? {
-        didSet {
-            if page != .addReminder { reminderDraft = nil }
-            if page != oldValue { onChange?() }
-        }
+        didSet { if page != oldValue { onChange?() } }
     }
 
     @ObservationIgnored var onChange: (() -> Void)?
-
-    /// The time Add reminder starts at when it's opened from a copied date's Remind me; used once.
-    @ObservationIgnored var reminderDraft: Date?
 
     var isOpen: Bool { page != nil }
 }
@@ -583,8 +577,6 @@ struct BubbleView: View {
                 case .link(let url): MeetingLink.service(of: url) != nil ? "Meeting" : "Link"
                 case .email: "Email"
                 case .json: "JSON"
-                case .math: "Math"
-                case .date(let date): date.hasTime ? "Date and time" : "Date"
                 case .text: "Text"
                 }
             case .image: "Image"
@@ -655,7 +647,6 @@ struct BubbleView: View {
         case .addReminder:
             BubbleAddReminderPage(
                 store: reminders,
-                start: menu.reminderDraft,
                 onAdded: { menu.page = .reminders },
                 onClose: { menu.page = nil }
             )
@@ -692,10 +683,6 @@ struct BubbleView: View {
             if let entry = clipboard.entries.first(where: { $0.id == id }) {
                 BubbleClipboardItemPage(
                     history: clipboard, entry: entry, notes: notes,
-                    onRemind: { time in
-                        menu.reminderDraft = time
-                        menu.page = .addReminder
-                    },
                     onOpenNotes: { menu.page = .notes }
                 )
                     .id(id)

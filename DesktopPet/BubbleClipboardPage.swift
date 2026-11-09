@@ -287,27 +287,6 @@ struct BubbleClipboardPage: View {
                 Self.iconBox("curlybraces")
                 Self.titled("JSON", detail: json.summary)
             }
-        case .math(let answer, _):
-            // "1,240 * 15%  = 186": the sum shortens first, so the answer always shows.
-            HStack(spacing: 8) {
-                Self.iconBox("plus.forwardslash.minus")
-                Text(Self.flatten(trimmed))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .lineLimit(1)
-                Text("= " + answer)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .lineLimit(1)
-                    .layoutPriority(1)
-            }
-        case .date(let date):
-            // "Nov 10 · 2:30 PM": the date itself, since copied words like "Tomorrow" go stale.
-            HStack(spacing: 8) {
-                Self.iconBox("calendar")
-                Text(date.shortText)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-            }
-            .help(trimmed)
         case .text:
             // One line, however much was copied, so the list stays short; the up-close page shows all of it.
             Text(Self.flatten(text))
@@ -351,8 +330,6 @@ struct BubbleClipboardPage: View {
             case .link(let url): MeetingLink.service(of: url) != nil ? "See the link and join the call" : "See the whole link and open it"
             case .email: "Write an email to it"
             case .json: "See it tidied"
-            case .math: "See the answer"
-            case .date: "See when it is, and set a reminder"
             case .text: "See all of it"
             }
         case .image: "See it bigger"

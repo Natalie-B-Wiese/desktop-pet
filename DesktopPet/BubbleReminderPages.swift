@@ -226,13 +226,12 @@ struct BubbleAddReminderPage: View {
     @FocusState private var focusedField: Field?
     @AppStorage(AppPreferences.militaryTimeKey) private var militaryTime = false
 
-    /// `start` is the time to begin at, from a copied date's Remind me (otherwise the next round time).
-    init(store: ReminderStore, editing: Reminder? = nil, start: Date? = nil, onAdded: @escaping () -> Void, onClose: @escaping () -> Void) {
+    init(store: ReminderStore, editing: Reminder? = nil, onAdded: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.store = store
         self.editing = editing
         self.onAdded = onAdded
         self.onClose = onClose
-        let start = Calendar.current.dateComponents([.hour, .minute], from: editing?.shownDate ?? start ?? ReminderStore.defaultTime())
+        let start = Calendar.current.dateComponents([.hour, .minute], from: editing?.shownDate ?? ReminderStore.defaultTime())
         _hour24 = State(initialValue: start.hour ?? 12)
         _hourText = State(initialValue: Self.hourText(for: start.hour ?? 12, military: AppPreferences.usesMilitaryTime))
         _minuteText = State(initialValue: String(format: "%02d", start.minute ?? 0))

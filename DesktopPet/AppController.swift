@@ -830,16 +830,6 @@ final class AppController {
                 menu.page = .notes
             }
         }
-        if args.contains("--remind-me") {
-            // Clicks Remind me after a second (pair it with `--menu clipboard-item --item <n>` on a copied date or time).
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-                guard let self, let menu = self.bubble?.menu, case .clipboardItem(let id) = menu.page,
-                      case .text(let text) = self.clipboard.entries.first(where: { $0.id == id })?.kind,
-                      case .date(let date) = ClipboardTextKind.of(text), date.canRemind else { return }
-                menu.reminderDraft = date.date
-                menu.page = .addReminder
-            }
-        }
         if args.contains("--spin") {
             // Spins the Spinner after a second, as clicking Spin would (pair it with `--menu spinner`).
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.spinner.spin() }
