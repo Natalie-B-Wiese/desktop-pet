@@ -10,6 +10,7 @@ enum NoteLinks {
     private static let identifier = NSUserInterfaceItemIdentifier("noteText")
     private static let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
     private static var monitor: Any?
+    private static var cursorMonitor: Any?
 
     /// The web links (and email addresses) in `text`.
     static func links(in text: String) -> [(range: NSRange, url: URL)] {
@@ -57,15 +58,29 @@ enum NoteLinks {
             MeetingLink.open(url) // call links go straight to the Zoom app, like everywhere else
             return nil
         }
+        // With ⌘ held over a link, the text view would put its I-beam back on every mouse move and cursor
+        // update, so the hand flickered. Those events are kept from it there, and the hand is set instead.
+        cursorMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .cursorUpdate, .flagsChanged]) { event in
+            guard NSEvent.modifierFlags.contains(.command), let window = event.window,
+                  link(at: window.mouseLocationOutsideOfEventStream, of: window) != nil else { return event }
+            NSCursor.pointingHand.set()
+            return event.type == .flagsChanged ? event : nil
+        }
     }
 
     private static func link(under event: NSEvent) -> URL? {
-        guard let contentView = event.window?.contentView,
-              let hit = contentView.hitTest(contentView.convert(event.locationInWindow, from: nil)) else { return nil }
+        guard let window = event.window else { return nil }
+        return link(at: event.locationInWindow, of: window)
+    }
+
+    /// The link under a point in a window, if it's in one of the notes' text views.
+    static func link(at windowPoint: NSPoint, of window: NSWindow) -> URL? {
+        guard let contentView = window.contentView,
+              let hit = contentView.hitTest(contentView.convert(windowPoint, from: nil)) else { return nil }
         var view: NSView? = hit
         while let v = view, !(v is NSTextView) { view = v.superview }
         guard let textView = view as? NSTextView, textView.identifier == identifier else { return nil }
-        return link(at: event.locationInWindow, in: textView)
+        return link(at: windowPoint, in: textView)
     }
 
     /// The link at a point in the window, in one of the notes' text views.
@@ -120,7 +135,7 @@ struct NoteLinkStyler: NSViewRepresentable {
         private func stopHover() {
             hoverTimer?.invalidate()
             hoverTimer = nil
-            if showsHand { NSCursor.arrow.set() }
+            if showsHand { window?.enableCursorRects(); NSCursor.arrow.set() }
             showsHand = false
         }
 
@@ -133,9 +148,13 @@ struct NoteLinkStyler: NSViewRepresentable {
             guard let window, let textView else { return }
             let overLink = NSEvent.modifierFlags.contains(.command)
                 && NoteLinks.link(at: window.mouseLocationOutsideOfEventStream, in: textView) != nil
-            if overLink {
-                NSCursor.pointingHand.set() // every tick, since the text view puts its I-beam back as the mouse moves
-            } else if showsHand {
+            if overLink && !showsHand {
+                window.disableCursorRects() // the text view's I-beam area would win otherwise
+                NSCursor.pointingHand.set()
+            } else if overLink && NSCursor.current != NSCursor.pointingHand {
+                NSCursor.pointingHand.set() // something else changed it; put the hand back
+            } else if !overLink && showsHand {
+                window.enableCursorRects()
                 NSCursor.iBeam.set()
             }
             showsHand = overLink
