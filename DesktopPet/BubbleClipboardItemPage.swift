@@ -6,6 +6,8 @@ import SwiftUI
 struct BubbleClipboardItemPage: View {
     let history: ClipboardHistory
     let entry: ClipboardEntry
+    /// Opens Add reminder at this time (a copied date's Remind me).
+    var onRemind: (Date) -> Void = { _ in }
 
     /// What was just copied ("item", or a color format's symbol), to show a checkmark on it for a moment.
     @State private var justCopied: String?
@@ -20,12 +22,14 @@ struct BubbleClipboardItemPage: View {
         VStack(spacing: 6) {
             switch entry.kind {
             case .text(let text):
-                if let color = BubbleClipboardPage.hexColor(in: text) {
-                    colorDetails(color)
-                } else if let url = BubbleClipboardPage.link(in: text) {
-                    linkDetails(url)
-                } else {
-                    textDetails(text)
+                switch ClipboardTextKind.of(text) {
+                case .color(let color): colorDetails(color)
+                case .link(let url): linkDetails(url)
+                case .email(let address): emailDetails(address)
+                case .json(let json): jsonDetails(json)
+                case .math(let answer, let copy): mathDetails(BubbleClipboardPage.trimmedText(of: entry), answer: answer, copy: copy)
+                case .date(let date): dateDetails(date)
+                case .text: textDetails(text)
                 }
             case .image(let width, let height):
                 imageDetails(width: width, height: height)
@@ -121,6 +125,156 @@ struct BubbleClipboardItemPage: View {
                     .help("Opens it in your browser")
                 }
             }
+        }
+    }
+
+    // MARK: - Email
+
+    /// The address big and bold, then Copy beside Write email (opens the Mac's mail app with it filled in).
+    private func emailDetails(_ address: String) -> some View {
+        let parts = address.split(separator: "@", maxSplits: 1).map(String.init)
+        return VStack(spacing: 6) {
+            header(icon: "envelope", title: parts.first ?? address, subtitle: "@" + (parts.last ?? ""))
+                .help(address)
+            HStack(spacing: 6) {
+                copyItemButton(centered: true)
+                BubbleButton("Write email", systemImage: "square.and.pencil", centered: true) {
+                    if let url = URL(string: "mailto:" + address) { NSWorkspace.shared.open(url) }
+                }
+                .help("Opens your mail app with a new email to \(address)")
+            }
+        }
+    }
+
+    // MARK: - Date
+
+    /// "Thursday, Nov 12" big, the time, how far off it is, then Copy and Remind me.
+    private func dateDetails(_ date: ClipboardDate) -> some View {
+        VStack(spacing: 6) {
+            VStack(spacing: 1) {
+                Text(date.dayText)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+                if let time = date.timeText {
+                    Text(time)
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                }
+                caption(date.relativeText())
+            }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity)
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            HStack(spacing: 6) {
+                copyItemButton(centered: true)
+                BubbleButton("Remind me", systemImage: "bell.badge", centered: true) {
+                    onRemind(date.date)
+                }
+                .disabled(!date.canRemind)
+                .opacity(date.canRemind ? 1 : 0.4)
+                .help(date.canRemind ? "Opens Add reminder at this time" : "")
+            }
+            if !date.canRemind {
+                caption(date.hasTime ? "Reminders can only be set for the next 24 hours" : "Reminders need a time, like 2pm")
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    // MARK: - JSON
+
+    /// Tidied, one item per line, in a box; copy it tidied or on one line.
+    private func jsonDetails(_ json: ClipboardJSON) -> some View {
+        let lines = json.tidied.split(separator: "\n", omittingEmptySubsequences: false).count
+        let shown = json.tidied.count > Self.maxShownCharacters ? String(json.tidied.prefix(Self.maxShownCharacters)) + "…" : json.tidied
+        return VStack(spacing: 6) {
+            ScrollView {
+                Text(shown)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { textHeight = $0 }
+            }
+            .scrollIndicators(.automatic)
+            .frame(height: min(textHeight, Self.maxTextHeight))
+            .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            caption("\(json.summary) · \(lines.formatted()) \(lines == 1 ? "line" : "lines")")
+            // Copying a layout doesn't add it to the history: it's the same JSON.
+            HStack(spacing: 6) {
+                BubbleButton(justCopied == "tidied" ? "Copied!" : "Tidied", systemImage: justCopied == "tidied" ? "checkmark" : "doc.on.doc", centered: true) {
+                    history.copyWithoutSaving(json.tidied)
+                    flash("tidied")
+                }
+                .help("Copy it tidied, one item per line")
+                BubbleButton(justCopied == "oneLine" ? "Copied!" : "One line", systemImage: justCopied == "oneLine" ? "checkmark" : "doc.on.doc", centered: true) {
+                    history.copyWithoutSaving(json.oneLine)
+                    flash("oneLine")
+                }
+                .help("Copy it all on one line")
+            }
+        }
+    }
+
+    // MARK: - Math
+
+    /// The sum, its answer big and bold, and Copy answer (without commas, so it pastes as a number).
+    private func mathDetails(_ sum: String, answer: String, copy: String) -> some View {
+        VStack(spacing: 6) {
+            VStack(spacing: 2) {
+                Text(sum)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .opacity(0.6)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                Text("= " + answer)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.5)
+                    .textSelection(.enabled)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            HStack(spacing: 6) {
+                copyItemButton(centered: true)
+                BubbleButton(justCopied == "answer" ? "Copied!" : "Copy answer", systemImage: justCopied == "answer" ? "checkmark" : "equal", centered: true) {
+                    history.copyWithoutSaving(copy)
+                    flash("answer")
+                }
+                .help("Copies \(copy)")
+            }
+        }
+    }
+
+    /// A big icon in a box beside a bold title and a grey line, like the Link page's.
+    private func header(icon: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 7).fill(Color.black.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.2), lineWidth: 1))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                Text(subtitle)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .opacity(0.5)
+            }
+            Spacer(minLength: 0)
         }
     }
 

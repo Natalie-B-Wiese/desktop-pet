@@ -28,10 +28,16 @@ final class BubbleMenu {
 
     /// `nil` when the menu is closed.
     var page: Page? {
-        didSet { if page != oldValue { onChange?() } }
+        didSet {
+            if page != .addReminder { reminderDraft = nil }
+            if page != oldValue { onChange?() }
+        }
     }
 
     @ObservationIgnored var onChange: (() -> Void)?
+
+    /// The time Add reminder starts at when it's opened from a copied date's Remind me; used once.
+    @ObservationIgnored var reminderDraft: Date?
 
     var isOpen: Bool { page != nil }
 }
@@ -571,10 +577,16 @@ struct BubbleView: View {
         case .clipboard: "Clipboard"
         case .clipboardItem(let id):
             switch clipboard.entries.first(where: { $0.id == id })?.kind {
-            case .text(let text) where BubbleClipboardPage.hexColor(in: text) != nil: "Color"
-            case .text(let text) where BubbleClipboardPage.link(in: text) != nil:
-                BubbleClipboardPage.link(in: text).flatMap(MeetingLink.service(of:)) != nil ? "Meeting" : "Link"
-            case .text: "Text"
+            case .text(let text):
+                switch ClipboardTextKind.of(text) {
+                case .color: "Color"
+                case .link(let url): MeetingLink.service(of: url) != nil ? "Meeting" : "Link"
+                case .email: "Email"
+                case .json: "JSON"
+                case .math: "Math"
+                case .date(let date): date.hasTime ? "Date and time" : "Date"
+                case .text: "Text"
+                }
             case .image: "Image"
             case .files(let urls) where urls.count > 1: "Files"
             case .files(let urls):
@@ -643,6 +655,7 @@ struct BubbleView: View {
         case .addReminder:
             BubbleAddReminderPage(
                 store: reminders,
+                start: menu.reminderDraft,
                 onAdded: { menu.page = .reminders },
                 onClose: { menu.page = nil }
             )
@@ -677,7 +690,10 @@ struct BubbleView: View {
         case .clipboardItem(let id):
             // A new copy may have pushed it out (or it was deleted elsewhere) while the page was open.
             if let entry = clipboard.entries.first(where: { $0.id == id }) {
-                BubbleClipboardItemPage(history: clipboard, entry: entry)
+                BubbleClipboardItemPage(history: clipboard, entry: entry) { time in
+                    menu.reminderDraft = time
+                    menu.page = .addReminder
+                }
                     .id(id)
                     .frame(width: 250)
             } else {

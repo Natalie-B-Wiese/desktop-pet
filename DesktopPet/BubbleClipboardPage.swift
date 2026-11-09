@@ -209,36 +209,8 @@ struct BubbleClipboardPage: View {
     @ViewBuilder
     private func preview(_ entry: ClipboardEntry) -> some View {
         switch entry.kind {
-        case .text(let text) where Self.hexColor(in: text) != nil:
-            // A hex color, like "#E8893A", gets a swatch.
-            HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(Color(nsColor: Self.hexColor(in: text)!))
-                    .frame(width: 22, height: 22)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.black.opacity(0.3), lineWidth: 1))
-                Text(text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-            }
-        case .text(let text) where Self.link(in: text) != nil:
-            // A link shows where it goes: "github.com  Natalie-B-Wiese/desktop-pet", or "Zoom  Meeting link" for a call.
-            let url = Self.link(in: text)!
-            let service = MeetingLink.service(of: url)
-            HStack(spacing: 8) {
-                Image(systemName: service != nil ? "video.fill" : "link")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
-                    .background(Color.black.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.2), lineWidth: 1))
-                Self.titled(service ?? Self.site(of: url), detail: service != nil ? "Meeting link" : Self.pathText(of: url))
-            }
-            .help(url.absoluteString)
         case .text(let text):
-            // One line, however much was copied, so the list stays short; the up-close page shows all of it.
-            Text(Self.flatten(text))
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .lineLimit(1)
-                .truncationMode(.tail)
+            textPreview(text)
         case .image(let width, let height):
             HStack(spacing: 8) {
                 Group {
@@ -278,6 +250,83 @@ struct BubbleClipboardPage: View {
         }
     }
 
+    /// A text slot's one line, by what the text is (`ClipboardTextKind`).
+    @ViewBuilder
+    private func textPreview(_ text: String) -> some View {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch ClipboardTextKind.of(text) {
+        case .color(let color):
+            // A hex color, like "#E8893A", gets a swatch.
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color(nsColor: color))
+                    .frame(width: 22, height: 22)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.black.opacity(0.3), lineWidth: 1))
+                Text(trimmed.uppercased())
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            }
+        case .link(let url):
+            // A link shows where it goes: "github.com  Natalie-B-Wiese/desktop-pet", or "Zoom  Meeting link" for a call.
+            let service = MeetingLink.service(of: url)
+            HStack(spacing: 8) {
+                Self.iconBox(service != nil ? "video.fill" : "link")
+                Self.titled(service ?? Self.site(of: url), detail: service != nil ? "Meeting link" : Self.pathText(of: url))
+            }
+            .help(url.absoluteString)
+        case .email(let address):
+            HStack(spacing: 8) {
+                Self.iconBox("envelope")
+                Text(address)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .help(address)
+        case .json(let json):
+            HStack(spacing: 8) {
+                Self.iconBox("curlybraces")
+                Self.titled("JSON", detail: json.summary)
+            }
+        case .math(let answer, _):
+            // "1,240 * 15%  = 186": the sum shortens first, so the answer always shows.
+            HStack(spacing: 8) {
+                Self.iconBox("plus.forwardslash.minus")
+                Text(Self.flatten(trimmed))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+                Text("= " + answer)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
+        case .date(let date):
+            // "Nov 10 · 2:30 PM": the date itself, since copied words like "Tomorrow" go stale.
+            HStack(spacing: 8) {
+                Self.iconBox("calendar")
+                Text(date.shortText)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+            }
+            .help(trimmed)
+        case .text:
+            // One line, however much was copied, so the list stays short; the up-close page shows all of it.
+            Text(Self.flatten(text))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    /// A small symbol in a faint box, as big as an image thumbnail, starting a row.
+    static func iconBox(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 12, weight: .semibold))
+            .frame(width: thumbnailSize, height: thumbnailSize)
+            .background(Color.black.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.2), lineWidth: 1))
+    }
+
     /// Image and video thumbnails, as tall as the copy button so every row is one line high.
     static let thumbnailSize: CGFloat = 24
 
@@ -296,10 +345,16 @@ struct BubbleClipboardPage: View {
 
     private static func openHelp(_ entry: ClipboardEntry) -> String {
         switch entry.kind {
-        case .text(let text) where hexColor(in: text) != nil: "See it as hex, rgb, hsl and hsv"
-        case .text(let text) where link(in: text).flatMap(MeetingLink.service(of:)) != nil: "See the link and join the call"
-        case .text(let text) where link(in: text) != nil: "See the whole link and open it"
-        case .text: "See all of it"
+        case .text(let text):
+            switch ClipboardTextKind.of(text) {
+            case .color: "See it as hex, rgb, hsl and hsv"
+            case .link(let url): MeetingLink.service(of: url) != nil ? "See the link and join the call" : "See the whole link and open it"
+            case .email: "Write an email to it"
+            case .json: "See it tidied"
+            case .math: "See the answer"
+            case .date: "See when it is, and set a reminder"
+            case .text: "See all of it"
+            }
         case .image: "See it bigger"
         case .files where ClipboardVideo.url(in: entry) != nil: "Watch it"
         case .files(let urls): urls.count == 1 ? "See its details" : "See them all"
