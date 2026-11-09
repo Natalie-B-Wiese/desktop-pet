@@ -6,8 +6,11 @@ import SwiftUI
 struct BubbleClipboardItemPage: View {
     let history: ClipboardHistory
     let entry: ClipboardEntry
+    let notes: NoteStore
     /// Opens Add reminder at this time (a copied date's Remind me).
-    var onRemind: (Date) -> Void = { _ in }
+    var onRemind: (Date) -> Void
+    /// Opens the Notes page (after Save as note).
+    var onOpenNotes: () -> Void
 
     /// What was just copied ("item", or a color format's symbol), to show a checkmark on it for a moment.
     @State private var justCopied: String?
@@ -66,7 +69,14 @@ struct BubbleClipboardItemPage: View {
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
 
             caption("\(text.count.formatted()) \(text.count == 1 ? "character" : "characters") · \(lines.formatted()) \(lines == 1 ? "line" : "lines")")
-            copyItemButton
+            HStack(spacing: 6) {
+                copyItemButton(centered: true)
+                saveAsNoteButton(text)
+            }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.count > NoteStore.maxLength && !notes.contains(trimmed) {
+                caption("Notes hold up to \(NoteStore.maxLength) characters")
+            }
         }
     }
 
@@ -126,6 +136,21 @@ struct BubbleClipboardItemPage: View {
                 }
             }
         }
+    }
+
+    /// Saves the text as a new note and opens Notes, like Remind me opens Add reminder. If a note already says it,
+    /// it reads "In Notes" and just opens Notes, so clicking twice never makes two.
+    private func saveAsNoteButton(_ text: String) -> some View {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let saved = notes.contains(trimmed)
+        let fits = trimmed.count <= NoteStore.maxLength
+        return BubbleButton(saved ? "In Notes" : "Save as note", systemImage: saved ? "checkmark" : "note.text.badge.plus", centered: true) {
+            notes.addCopied(trimmed)
+            onOpenNotes()
+        }
+        .disabled(!saved && !fits)
+        .opacity(saved || fits ? 1 : 0.4)
+        .help(saved ? "A note already says this; opens Notes" : fits ? "Adds it to the top of your notes, then opens Notes" : "")
     }
 
     // MARK: - Email

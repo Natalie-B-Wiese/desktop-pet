@@ -29,6 +29,19 @@ final class NoteStore {
         save()
     }
 
+    /// Whether a note already says exactly this (ignoring spaces around it).
+    func contains(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return notes.contains { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed }
+    }
+
+    /// A copied text saved from the Clipboard's Text page, as a new note at the top.
+    func addCopied(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= Self.maxLength, !contains(trimmed) else { return }
+        add(id: UUID(), text: trimmed)
+    }
+
     /// Saves edits as they're typed.
     func update(_ id: Note.ID, text: String) {
         guard let index = notes.firstIndex(where: { $0.id == id }) else { return }

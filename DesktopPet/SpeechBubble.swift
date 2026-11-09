@@ -690,10 +690,14 @@ struct BubbleView: View {
         case .clipboardItem(let id):
             // A new copy may have pushed it out (or it was deleted elsewhere) while the page was open.
             if let entry = clipboard.entries.first(where: { $0.id == id }) {
-                BubbleClipboardItemPage(history: clipboard, entry: entry) { time in
-                    menu.reminderDraft = time
-                    menu.page = .addReminder
-                }
+                BubbleClipboardItemPage(
+                    history: clipboard, entry: entry, notes: notes,
+                    onRemind: { time in
+                        menu.reminderDraft = time
+                        menu.page = .addReminder
+                    },
+                    onOpenNotes: { menu.page = .notes }
+                )
                     .id(id)
                     .frame(width: 250)
             } else {
