@@ -309,6 +309,7 @@ private struct NoteRow: View {
                     .scrollDisabled(true)
                     .focused(focusedID, equals: note.id)
                     .onExitCommand(perform: onClose) // Esc closes the menu
+                    .overlay { NoteLinkStyler(text: text).allowsHitTesting(false) } // underlines links; ⌘-click opens them
             }
             .overlay(alignment: .topLeading) {
                 if isBlank && text.isEmpty {
