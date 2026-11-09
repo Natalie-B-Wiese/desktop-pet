@@ -22,6 +22,8 @@ struct BubbleClipboardItemPage: View {
             case .text(let text):
                 if let color = BubbleClipboardPage.hexColor(in: text) {
                     colorDetails(color)
+                } else if let url = BubbleClipboardPage.link(in: text) {
+                    linkDetails(url)
                 } else {
                     textDetails(text)
                 }
@@ -58,6 +60,64 @@ struct BubbleClipboardItemPage: View {
 
             caption("\(text.count.formatted()) \(text.count == 1 ? "character" : "characters") · \(lines.formatted()) \(lines == 1 ? "line" : "lines")")
             copyItemButton
+        }
+    }
+
+    // MARK: - Link
+
+    /// The site big and bold over the whole link (selectable), then Copy and Open, or Join for a call link.
+    private func linkDetails(_ url: URL) -> some View {
+        let service = MeetingLink.service(of: url)
+        let shown = url.absoluteString.count > 2_000 ? String(url.absoluteString.prefix(2_000)) + "…" : url.absoluteString
+        return VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: service != nil ? "video.fill" : "globe")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 34, height: 34)
+                    .background(RoundedRectangle(cornerRadius: 7).fill(Color.black.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.2), lineWidth: 1))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(service.map { "\($0) meeting" } ?? BubbleClipboardPage.site(of: url))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(service != nil ? BubbleClipboardPage.site(of: url) : (url.scheme == "https" ? "Secure link" : "Not a secure link"))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .opacity(0.5)
+                }
+                Spacer(minLength: 0)
+            }
+
+            // The whole link, wrapping anywhere, in a box like Text's; long ones scroll.
+            ScrollView {
+                Text(shown)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { textHeight = $0 }
+            }
+            .scrollIndicators(.automatic)
+            .frame(height: min(textHeight, 120))
+            .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+
+            HStack(spacing: 6) {
+                copyItemButton(centered: true)
+                if let service {
+                    BubbleButton("Join \(service)", systemImage: "video.fill", centered: true) {
+                        MeetingLink.open(url)
+                    }
+                    .help(service == "Zoom" ? "Opens the call in Zoom" : "Opens the call")
+                } else {
+                    BubbleButton("Open", systemImage: "safari", centered: true) {
+                        NSWorkspace.shared.open(url)
+                    }
+                    .help("Opens it in your browser")
+                }
+            }
         }
     }
 
@@ -203,8 +263,10 @@ struct BubbleClipboardItemPage: View {
 
     // MARK: - Shared
 
-    private var copyItemButton: some View {
-        BubbleButton(justCopied == "item" ? "Copied!" : "Copy", systemImage: justCopied == "item" ? "checkmark" : "doc.on.doc") {
+    private var copyItemButton: some View { copyItemButton(centered: false) }
+
+    private func copyItemButton(centered: Bool) -> some View {
+        BubbleButton(justCopied == "item" ? "Copied!" : "Copy", systemImage: justCopied == "item" ? "checkmark" : "doc.on.doc", centered: centered) {
             history.copyToClipboard(entry)
             flash("item")
         }

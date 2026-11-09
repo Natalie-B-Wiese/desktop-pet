@@ -571,7 +571,10 @@ struct BubbleView: View {
         case .clipboard: "Clipboard"
         case .clipboardItem(let id):
             switch clipboard.entries.first(where: { $0.id == id })?.kind {
-            case .text(let text): BubbleClipboardPage.hexColor(in: text) != nil ? "Color" : "Text"
+            case .text(let text) where BubbleClipboardPage.hexColor(in: text) != nil: "Color"
+            case .text(let text) where BubbleClipboardPage.link(in: text) != nil:
+                BubbleClipboardPage.link(in: text).flatMap(MeetingLink.service(of:)) != nil ? "Meeting" : "Link"
+            case .text: "Text"
             case .image: "Image"
             case .files: "Video" // only videos open
             default: "Clipboard"

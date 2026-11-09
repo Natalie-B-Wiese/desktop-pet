@@ -219,6 +219,20 @@ struct BubbleClipboardPage: View {
                 Text(text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
             }
+        case .text(let text) where Self.link(in: text) != nil:
+            // A link shows where it goes: "github.com  Natalie-B-Wiese/desktop-pet", or "Zoom  Meeting link" for a call.
+            let url = Self.link(in: text)!
+            let service = MeetingLink.service(of: url)
+            HStack(spacing: 8) {
+                Image(systemName: service != nil ? "video.fill" : "link")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+                    .background(Color.black.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.black.opacity(0.2), lineWidth: 1))
+                Self.titled(service ?? Self.site(of: url), detail: service != nil ? "Meeting link" : Self.pathText(of: url))
+            }
+            .help(url.absoluteString)
         case .text(let text):
             // One line, however much was copied, so the list stays short; the up-close page shows all of it.
             Text(Self.flatten(text))
@@ -282,6 +296,8 @@ struct BubbleClipboardPage: View {
     private static func openHelp(_ entry: ClipboardEntry) -> String {
         switch entry.kind {
         case .text(let text) where hexColor(in: text) != nil: "See it as hex, rgb, hsl and hsv"
+        case .text(let text) where link(in: text).flatMap(MeetingLink.service(of:)) != nil: "See the link and join the call"
+        case .text(let text) where link(in: text) != nil: "See the whole link and open it"
         case .text: "See all of it"
         case .image: "See it bigger"
         case .files where ClipboardVideo.url(in: entry) != nil: "Watch it"
@@ -301,6 +317,32 @@ struct BubbleClipboardPage: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count == 7, trimmed.hasPrefix("#") else { return nil }
         return NSColor(hex: trimmed)
+    }
+
+    /// The link when the text is just one web address: `https://…`, `http://…`, `www.…`, or a call link
+    /// without `https://` (`zoom.us/j/123`). Other bare words with a dot, like "notes.txt", stay text.
+    static func link(in text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        guard let url = MeetingLink.parse(trimmed) else { return nil }
+        if lower.hasPrefix("https://") || lower.hasPrefix("http://") || lower.hasPrefix("www.") { return url }
+        return MeetingLink.service(of: url) != nil ? url : nil
+    }
+
+    /// "github.com" for "https://www.github.com/…".
+    static func site(of url: URL) -> String {
+        let host = url.host() ?? url.absoluteString
+        return host.lowercased().hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    /// The part after the site, "Natalie-B-Wiese/desktop-pet?tab=readme", or empty for a home page.
+    static func pathText(of url: URL) -> String {
+        var rest = url.path(percentEncoded: false)
+        if let query = url.query(percentEncoded: false) { rest += "?" + query }
+        if let fragment = url.fragment(percentEncoded: false) { rest += "#" + fragment }
+        rest = String(rest.drop { $0 == "/" })
+        if rest.hasSuffix("/") { rest.removeLast() }
+        return rest
     }
 
     /// Squeezes line breaks and runs of spaces so the two preview lines show real content.
