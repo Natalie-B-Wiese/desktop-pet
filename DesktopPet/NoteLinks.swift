@@ -65,7 +65,13 @@ enum NoteLinks {
         var view: NSView? = hit
         while let v = view, !(v is NSTextView) { view = v.superview }
         guard let textView = view as? NSTextView, textView.identifier == identifier else { return nil }
-        let point = textView.convert(event.locationInWindow, from: nil)
+        return link(at: event.locationInWindow, in: textView)
+    }
+
+    /// The link at a point in the window, in one of the notes' text views.
+    static func link(at windowPoint: NSPoint, in textView: NSTextView) -> URL? {
+        let point = textView.convert(windowPoint, from: nil)
+        guard textView.bounds.contains(point) else { return nil }
         let index = textView.characterIndexForInsertion(at: point)
         // characterIndexForInsertion rounds to the nearest gap, so a click on a link's last letter can land just past it.
         return links(in: textView.string).first { NSLocationInRange(index, $0.range) || index == NSMaxRange($0.range) && index > $0.range.location }?.url
@@ -89,6 +95,51 @@ struct NoteLinkStyler: NSViewRepresentable {
         private var baseColor: NSColor = .black
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil } // clicks go to the editor underneath
+
+        // MARK: The hand cursor while ⌘ is held over a link
+
+        /// Checks the mouse and ⌘ while the mouse is over this note (⌘ can be pressed without moving the mouse,
+        /// and the bubble rarely gets key events, so this looks instead of waiting for events).
+        private var hoverTimer: Timer?
+        private var showsHand = false
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            trackingAreas.forEach(removeTrackingArea)
+            addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            hoverTimer?.invalidate()
+            hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.updateCursor() }
+            updateCursor()
+        }
+
+        override func mouseExited(with event: NSEvent) { stopHover() }
+
+        private func stopHover() {
+            hoverTimer?.invalidate()
+            hoverTimer = nil
+            if showsHand { NSCursor.arrow.set() }
+            showsHand = false
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            super.viewWillMove(toWindow: newWindow)
+            if newWindow == nil { stopHover() }
+        }
+
+        private func updateCursor() {
+            guard let window, let textView else { return }
+            let overLink = NSEvent.modifierFlags.contains(.command)
+                && NoteLinks.link(at: window.mouseLocationOutsideOfEventStream, in: textView) != nil
+            if overLink {
+                NSCursor.pointingHand.set() // every tick, since the text view puts its I-beam back as the mouse moves
+            } else if showsHand {
+                NSCursor.iBeam.set()
+            }
+            showsHand = overLink
+        }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
