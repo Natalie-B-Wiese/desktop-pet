@@ -12,7 +12,8 @@ struct Note: Codable, Identifiable, Equatable {
 final class NoteStore {
     private(set) var notes: [Note] = []
 
-    static let maxLength = 200
+    /// Only a safety cap, far past anything typed by hand; the Notes page says so if it's reached.
+    static let maxLength = 10_000
     private static let storageKey = "notes"
 
     init() {

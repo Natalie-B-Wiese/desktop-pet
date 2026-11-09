@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The bubble's notes, typed on directly. A blank note sits at the top; typing on it makes it a
 /// real note and a new blank one appears above it. Clicking a note edits it in place. Everything
-/// saves as it's typed, and Return adds a line.
+/// saves as it's typed, and Return adds a line. Long notes fold to their first lines, each with its own ▾.
 struct BubbleNotesPage: View {
     let store: NoteStore
     var onClose: () -> Void
@@ -13,6 +13,9 @@ struct BubbleNotesPage: View {
     @State private var listHeight: CGFloat = 0
     /// Notes deleted with ✕, shown as Undo rows until the page closes.
     @State private var deleted = DeletedRows<Note>()
+    /// Long notes opened with ▾ (or by typing on them). Each opens and folds on its own, and they stay open
+    /// until folded with ▴ or the page closes, so the list doesn't jump when you click away.
+    @State private var unfolded: Set<Note.ID> = []
 
     /// Past this height the list scrolls instead of making the bubble taller.
     private static let maxListHeight: CGFloat = 260
@@ -41,8 +44,17 @@ struct BubbleNotesPage: View {
         .scrollIndicators(.never)
         .frame(height: min(listHeight, Self.maxListHeight))
         .padding(.horizontal, -1)
-        .onChange(of: focusedID) { old, _ in
+        .onChange(of: focusedID) { old, new in
             if let old { store.tidy(old) }
+            if let new { unfolded.insert(new) } // typing on a folded note opens it
+        }
+        .onAppear {
+            // `--unfold-note <n>` opens note n (1 = top), since clicks can't be posted from the shell.
+            let args = CommandLine.arguments
+            if let i = args.firstIndex(of: "--unfold-note"), args.indices.contains(i + 1), let n = Int(args[i + 1]),
+               store.notes.indices.contains(n - 1) {
+                unfolded.insert(store.notes[n - 1].id)
+            }
         }
         .onDisappear {
             if let id = focusedID { store.tidy(id) }
@@ -54,10 +66,24 @@ struct BubbleNotesPage: View {
 
     private func row(_ note: Note) -> some View {
         HStack(spacing: 3) {
-            // Reorder arrows sit outside the note on the far left, like the clipboard's.
-            if note.id == blankID {
-                Color.clear.frame(width: 12) // the blank note always stays on top
-            } else {
+            // Room for the reorder arrows, which sit outside the note on the far left, like the clipboard's.
+            Color.clear.frame(width: 12)
+
+            NoteRow(
+                note: note,
+                isBlank: note.id == blankID,
+                focusedID: $focusedID,
+                isUnfolded: unfolded.contains(note.id),
+                onToggleFold: { if unfolded.remove(note.id) == nil { unfolded.insert(note.id) } },
+                onType: { type($0, on: note.id) },
+                onDelete: { delete(note) },
+                onClose: onClose
+            )
+        }
+        // An overlay, so the arrows never make a row taller: centered on a short note, and by the first lines
+        // of a tall one rather than drifting down its middle. The blank note always stays on top, so it has none.
+        .overlay(alignment: .topLeading) {
+            if note.id != blankID {
                 CaretStepper(
                     canIncrement: store.canMove(note.id, by: -1),
                     canDecrement: store.canMove(note.id, by: 1),
@@ -67,16 +93,9 @@ struct BubbleNotesPage: View {
                     outlined: false
                 )
                 .help("Move up or down")
+                .frame(width: 12)
+                .frame(maxHeight: 44)
             }
-
-            NoteRow(
-                note: note,
-                isBlank: note.id == blankID,
-                focusedID: $focusedID,
-                onType: { type($0, on: note.id) },
-                onDelete: { delete(note) },
-                onClose: onClose
-            )
         }
     }
 
@@ -109,6 +128,8 @@ private struct NoteRow: View {
     let note: Note
     let isBlank: Bool
     var focusedID: FocusState<Note.ID?>.Binding
+    let isUnfolded: Bool
+    var onToggleFold: () -> Void
     var onType: (String) -> Void
     var onDelete: () -> Void
     var onClose: () -> Void
@@ -121,11 +142,21 @@ private struct NoteRow: View {
     /// TextEditor's own inset before the text starts, matched by the sizing text.
     private static let editorInset: CGFloat = 5
 
-    init(note: Note, isBlank: Bool, focusedID: FocusState<Note.ID?>.Binding,
+    /// The text's full height and one line's, to fold long notes and count their lines.
+    @State private var fullHeight: CGFloat = 0
+    @State private var lineHeight: CGFloat = 0
+
+    /// A note longer than this many lines folds to `foldedLines`. Folding only kicks in two lines past it,
+    /// so ▾ never hides just a line.
+    private static let foldedLines = 6
+
+    init(note: Note, isBlank: Bool, focusedID: FocusState<Note.ID?>.Binding, isUnfolded: Bool, onToggleFold: @escaping () -> Void,
          onType: @escaping (String) -> Void, onDelete: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.note = note
         self.isBlank = isBlank
         self.focusedID = focusedID
+        self.isUnfolded = isUnfolded
+        self.onToggleFold = onToggleFold
         self.onType = onType
         self.onDelete = onDelete
         self.onClose = onClose
@@ -135,7 +166,16 @@ private struct NoteRow: View {
     var body: some View {
         let isFocused = focusedID.wrappedValue == note.id
         HStack(alignment: .top, spacing: 4) {
-            editor
+            VStack(spacing: 2) {
+                editor
+                if isLong && !isBlank { foldButton }
+                if text.count >= NoteStore.maxLength {
+                    // The only time the cap shows: say why typing stopped.
+                    Text("Notes stop at \(NoteStore.maxLength.formatted()) characters")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.red)
+                }
+            }
 
             if isBlank {
                 Color.clear.frame(width: 18, height: 18) // lines up with the ✕ on real notes
@@ -156,7 +196,7 @@ private struct NoteRow: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 7)
-                .fill(Color(red: 1, green: 0.97, blue: 0.8)) // sticky-note yellow
+                .fill(Self.yellow)
                 .onTapGesture { focusedID.wrappedValue = note.id } // clicking the note's margin types on it too
         )
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(
@@ -173,13 +213,47 @@ private struct NoteRow: View {
         }
     }
 
+    /// How many lines the text takes, as wrapped.
+    private var lineCount: Int {
+        lineHeight > 0 ? Int((fullHeight / lineHeight).rounded()) : 0
+    }
+
+    private var isLong: Bool { lineCount > Self.foldedLines + 1 }
+
+    private var isFolded: Bool { isLong && !isUnfolded && !isBlank }
+
+    /// "▾ 12 lines" under a folded note, "▴ Fold" under an open one.
+    private var foldButton: some View {
+        Button(action: onToggleFold) {
+            HStack(spacing: 4) {
+                Image(systemName: isFolded ? "chevron.down" : "chevron.up")
+                    .font(.system(size: 8, weight: .heavy))
+                Text(isFolded ? "\(lineCount) lines" : "Fold")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+            }
+            .opacity(0.55)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isFolded ? "Show all of it" : "Fold it to its first lines")
+    }
+
     /// A TextEditor exactly as tall as its text: an invisible copy of the text sets the height.
+    /// A folded note shows only its first lines, fading out at the bottom.
     private var editor: some View {
         Text(sizingText)
             .font(Self.font)
+            .fixedSize(horizontal: false, vertical: true) // its full height, even while the note is folded
             .padding(.horizontal, Self.editorInset)
             .frame(maxWidth: .infinity, alignment: .leading)
             .hidden()
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+            .background {
+                Text("X").font(Self.font).fixedSize().hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { lineHeight = $0 }
+            }
             .overlay {
                 TextEditor(text: $text)
                     .font(Self.font)
@@ -197,7 +271,18 @@ private struct NoteRow: View {
                         .allowsHitTesting(false)
                 }
             }
+            .frame(height: isFolded ? lineHeight * CGFloat(Self.foldedLines) : nil, alignment: .top)
+            .clipped()
+            .overlay(alignment: .bottom) {
+                if isFolded {
+                    LinearGradient(colors: [Self.yellow.opacity(0), Self.yellow], startPoint: .top, endPoint: .bottom)
+                        .frame(height: lineHeight * 1.5)
+                        .allowsHitTesting(false)
+                }
+            }
     }
+
+    static let yellow = Color(red: 1, green: 0.97, blue: 0.8) // sticky-note yellow
 
     /// The text that sizes the editor. A trailing empty line (or no text at all) still takes a line.
     private var sizingText: String {

@@ -75,7 +75,7 @@ struct BubbleClipboardItemPage: View {
             }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.count > NoteStore.maxLength && !notes.contains(trimmed) {
-                caption("Notes hold up to \(NoteStore.maxLength) characters")
+                caption("Notes hold up to \(NoteStore.maxLength.formatted()) characters")
             }
         }
     }
