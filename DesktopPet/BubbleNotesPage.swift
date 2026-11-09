@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The bubble's notes, typed on directly. A blank note sits at the top; typing on it makes it a
@@ -137,6 +138,8 @@ private struct NoteRow: View {
     /// The editor's own copy of the text. Feeding the editor straight from the store makes
     /// macOS move the cursor to the end after every keystroke.
     @State private var text: String
+    /// Shows a checkmark on the copy button for a moment after copying.
+    @State private var justCopied = false
 
     private static let font = Font.system(size: 12, weight: .medium, design: .rounded)
     /// TextEditor's own inset before the text starts, matched by the sizing text.
@@ -165,30 +168,15 @@ private struct NoteRow: View {
 
     var body: some View {
         let isFocused = focusedID.wrappedValue == note.id
-        HStack(alignment: .top, spacing: 4) {
-            VStack(spacing: 2) {
-                editor
-                if isLong && !isBlank { foldButton }
-                if text.count >= NoteStore.maxLength {
-                    // The only time the cap shows: say why typing stopped.
-                    Text("Notes stop at \(NoteStore.maxLength.formatted()) characters")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(.red)
-                }
-            }
-
-            if isBlank {
-                Color.clear.frame(width: 18, height: 18) // lines up with the ✕ on real notes
-            } else {
-                Button(action: onDelete) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .heavy))
-                        .opacity(0.5)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Delete note")
+        VStack(spacing: 2) {
+            if !isBlank { topLine }
+            editor
+            if isLong && !isBlank { foldButton }
+            if text.count >= NoteStore.maxLength {
+                // The only time the cap shows: say why typing stopped.
+                Text("Notes stop at \(NoteStore.maxLength.formatted()) characters")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.red)
             }
         }
         .padding(.leading, 3)
@@ -211,6 +199,66 @@ private struct NoteRow: View {
         .onChange(of: note.text) { _, saved in
             if saved != text { text = saved } // e.g. trimmed after typing stopped
         }
+    }
+
+    /// The note's top line: a small copy button, when it was last edited (`Today 2:30 PM`) in grey, and ✕ on the right.
+    private var topLine: some View {
+        HStack(spacing: 5) {
+            Button {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text.trimmingCharacters(in: .whitespacesAndNewlines), forType: .string)
+                justCopied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { justCopied = false }
+            } label: {
+                Image(systemName: justCopied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 9, weight: .semibold))
+                    .frame(width: 18, height: 18)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(.white))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(.black, lineWidth: 1))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Copy note")
+
+            Text(Self.dateText(note.shownDate))
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .opacity(0.45)
+                .help(Self.dateHelp(note))
+            Spacer(minLength: 0)
+            Button(action: onDelete) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .heavy))
+                    .opacity(0.5)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Delete note")
+        }
+        .padding(.leading, Self.editorInset)
+    }
+
+    /// `Today 2:30 PM`, `Yesterday 9:05 AM`, `Mon, Nov 2`, or `Nov 2, 2025` from another year.
+    static func dateText(_ date: Date, now: Date = Date()) -> String {
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) { return "Today \(AppPreferences.clockText(date))" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
+            return "Yesterday \(AppPreferences.clockText(date))"
+        }
+        if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
+            return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day().year())
+    }
+
+    /// On hover: when it was edited and written, with times.
+    private static func dateHelp(_ note: Note) -> String {
+        func full(_ date: Date) -> String {
+            date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year()) + " at " + AppPreferences.clockText(date)
+        }
+        guard let edited = note.editedAt else { return "Written \(full(note.createdAt))" }
+        return "Edited \(full(edited))\nWritten \(full(note.createdAt))"
     }
 
     /// How many lines the text takes, as wrapped.

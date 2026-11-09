@@ -5,6 +5,11 @@ struct Note: Codable, Identifiable, Equatable {
     var id = UUID()
     var text: String
     var createdAt = Date()
+    /// When its text last changed. Nil for notes not edited since this was added; they show `createdAt`.
+    var editedAt: Date?
+
+    /// The date shown under the note: when it was last edited, or written.
+    var shownDate: Date { editedAt ?? createdAt }
 }
 
 /// Short notes, newest first, saved across launches.
@@ -46,7 +51,10 @@ final class NoteStore {
     /// Saves edits as they're typed.
     func update(_ id: Note.ID, text: String) {
         guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
-        notes[index].text = String(text.prefix(Self.maxLength))
+        let limited = String(text.prefix(Self.maxLength))
+        guard limited != notes[index].text else { return }
+        notes[index].text = limited
+        notes[index].editedAt = Date()
         save()
     }
 
