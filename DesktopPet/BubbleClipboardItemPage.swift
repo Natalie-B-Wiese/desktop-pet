@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// One clipboard item up close, opened by clicking it in the list: all of a text, an image bigger,
-/// a color's hex, rgb, hsl and hsv, or a video to play. Other files don't open one.
+/// a color's hex, rgb, hsl and hsv, a link to open, a video to play, or a file's details (`ClipboardFileDetails`).
 struct BubbleClipboardItemPage: View {
     let history: ClipboardHistory
     let entry: ClipboardEntry
@@ -29,9 +29,12 @@ struct BubbleClipboardItemPage: View {
                 }
             case .image(let width, let height):
                 imageDetails(width: width, height: height)
-            case .files:
-                // Only videos open; the list copies other files.
-                if let url = ClipboardVideo.url(in: entry) { videoDetails(url) }
+            case .files(let urls):
+                if let url = ClipboardVideo.url(in: entry) {
+                    videoDetails(url)
+                } else {
+                    ClipboardFileDetails(urls: urls) { AnyView(copyItemButton(centered: $0)) }
+                }
             }
         }
     }

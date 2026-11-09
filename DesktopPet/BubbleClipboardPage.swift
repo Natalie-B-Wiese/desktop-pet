@@ -140,10 +140,10 @@ struct BubbleClipboardPage: View {
             .buttonStyle(.plain)
             .help("Copy")
 
-            // The whole middle, from the copy button to the pin, opens the item (files just copy, having nothing more to show).
+            // The whole middle, from the copy button to the pin, opens the item.
             // Short text and colors fill it with empty space, so they're as easy to click as long ones.
             Button {
-                if Self.opens(entry) { onOpen(entry.id) } else { copy(entry) }
+                onOpen(entry.id)
             } label: {
                 HStack(spacing: 8) {
                     preview(entry)
@@ -260,8 +260,15 @@ struct BubbleClipboardPage: View {
             VideoRowPreview(url: ClipboardVideo.url(in: entry)!)
         case .files(let urls):
             HStack(spacing: 6) {
-                Image(systemName: urls.count == 1 ? "doc" : "doc.on.doc")
-                    .font(.system(size: 14))
+                // One file shows its Finder icon; several, a stack.
+                Group {
+                    if urls.count == 1 {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: urls[0].path)).resizable()
+                    } else {
+                        Image(systemName: "doc.on.doc").font(.system(size: 14))
+                    }
+                }
+                .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
                 Text(urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) files")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .lineLimit(1)
@@ -287,12 +294,6 @@ struct BubbleClipboardPage: View {
         }
     }
 
-    /// Text, images, colors and videos open up close; other files don't.
-    static func opens(_ entry: ClipboardEntry) -> Bool {
-        if case .files = entry.kind { return ClipboardVideo.url(in: entry) != nil }
-        return true
-    }
-
     private static func openHelp(_ entry: ClipboardEntry) -> String {
         switch entry.kind {
         case .text(let text) where hexColor(in: text) != nil: "See it as hex, rgb, hsl and hsv"
@@ -301,7 +302,7 @@ struct BubbleClipboardPage: View {
         case .text: "See all of it"
         case .image: "See it bigger"
         case .files where ClipboardVideo.url(in: entry) != nil: "Watch it"
-        case .files: "Copy again"
+        case .files(let urls): urls.count == 1 ? "See its details" : "See them all"
         }
     }
 

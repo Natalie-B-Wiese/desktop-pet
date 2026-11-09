@@ -576,7 +576,10 @@ struct BubbleView: View {
                 BubbleClipboardPage.link(in: text).flatMap(MeetingLink.service(of:)) != nil ? "Meeting" : "Link"
             case .text: "Text"
             case .image: "Image"
-            case .files: "Video" // only videos open
+            case .files(let urls) where urls.count > 1: "Files"
+            case .files(let urls):
+                ClipboardVideo.url(in: clipboard.entries.first { $0.id == id }!) != nil ? "Video"
+                    : ClipboardFileInfo(urls[0]).isAudio ? "Audio" : ClipboardFileInfo(urls[0]).isFolder ? "Folder" : "File"
             default: "Clipboard"
             }
         case .customize: "Customize"
