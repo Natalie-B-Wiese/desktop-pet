@@ -114,14 +114,14 @@ final class PetTimer {
         schedule(end: Date().addingTimeInterval(workLength))
     }
 
-    /// Starts counting up from 0:00.
-    func startStopwatch(label: String? = nil) {
+    /// Starts counting up from `startingAt` (0:00 by default), as if it started that long ago.
+    func startStopwatch(label: String? = nil, startingAt offset: TimeInterval = 0) {
         timer?.invalidate()
         timer = nil
         self.label = label
         pomodoro = nil
         isStopwatch = true
-        setState(.running(end: Date()))
+        setState(.running(end: Date().addingTimeInterval(-max(0, offset))))
     }
 
     /// After a Pomodoro period ends: starts the break, or the next work session.
@@ -166,17 +166,24 @@ final class PetTimer {
         return "\(verb) \(unit)"
     }
 
-    /// Whether adding `seconds` (negative to subtract) would leave time on the clock.
+    /// Whether adding `seconds` (negative to subtract) would leave time on the clock,
+    /// or for a stopwatch, keep the time counted at 0:00 or more.
     func canAdjust(bySeconds seconds: Int) -> Bool {
+        if isStopwatch {
+            return hasCountdown && displayTime() + TimeInterval(seconds) >= 0
+        }
         guard let remaining else { return false }
         return remaining + TimeInterval(seconds) > 0
     }
 
-    /// Adds or subtracts time from the current countdown, keeping it running or paused.
+    /// Adds or subtracts time from the current countdown (or stopwatch), keeping it running or paused.
     func adjust(bySeconds seconds: Int) {
         guard canAdjust(bySeconds: seconds) else { return }
         let delta = TimeInterval(seconds)
         switch state {
+        case .running(let end) where isStopwatch:
+            // A stopwatch's `end` is when it started, so adding time moves that earlier.
+            setState(.running(end: end.addingTimeInterval(-delta)))
         case .running(let end): schedule(end: end.addingTimeInterval(delta))
         case .paused(let remaining): setState(.paused(remaining: remaining + delta))
         case .idle, .finished: break

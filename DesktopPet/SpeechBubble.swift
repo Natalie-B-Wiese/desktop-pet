@@ -40,7 +40,7 @@ final class BubbleMenu {
 struct BubbleActions {
     var startTimer: (_ duration: TimeInterval, _ label: String?) -> Void
     var startPomodoro: (_ work: TimeInterval, _ rest: TimeInterval) -> Void
-    var startStopwatch: (_ label: String?) -> Void
+    var startStopwatch: (_ label: String?, _ startingAt: TimeInterval) -> Void
     var stopTimer: () -> Void
     var togglePause: () -> Void
     var startNextPomodoroPeriod: () -> Void
@@ -113,7 +113,7 @@ final class SpeechBubbleController {
         let closingActions = BubbleActions(
             startTimer: { duration, label in menu.page = nil; actions.startTimer(duration, label) },
             startPomodoro: { work, rest in menu.page = nil; actions.startPomodoro(work, rest) },
-            startStopwatch: { label in menu.page = nil; actions.startStopwatch(label) },
+            startStopwatch: { label, offset in menu.page = nil; actions.startStopwatch(label, offset) },
             stopTimer: { menu.page = nil; actions.stopTimer() },
             togglePause: actions.togglePause, // stays on the Timer page so you can see it change
             startNextPomodoroPeriod: { menu.page = nil; actions.startNextPomodoroPeriod() },
@@ -896,7 +896,7 @@ struct BubbleView: View {
         VStack(spacing: 6) {
             bigReadout
 
-            if !timer.isStopwatch { // a stopwatch just counts; there's nothing to add or subtract
+            if timer.hasCountdown {
                 // Redraws every quarter second so the greyed-out buttons stay current.
                 TimelineView(.periodic(from: .now, by: 0.25)) { _ in
                     HStack(spacing: 4) {
@@ -945,25 +945,48 @@ struct BubbleView: View {
             onStartStopwatch: actions.startStopwatch,
             onClose: { menu.page = nil }
         )
-        .frame(width: 228) // a little wider than other pages, to fit three tabs
+        .frame(width: 228)
     }
 }
 
-/// The Start page: a plain timer (minutes and label) or Pomodoro (work and break lengths).
+/// The Start page: a timer counting down or up (hours, minutes and label), or Pomodoro (work and break lengths).
 private struct BubbleTimerPage: View {
+    /// Saved as `startPage.mode`. The Timer tab is `.timer` (counting down) or `.stopwatch` (counting up),
+    /// so values saved before the two tabs were merged still load.
     enum Mode: String { case timer, pomodoro, stopwatch }
 
     var onStart: (_ duration: TimeInterval, _ label: String?) -> Void
     var onStartPomodoro: (_ work: TimeInterval, _ rest: TimeInterval) -> Void
-    var onStartStopwatch: (_ label: String?) -> Void
+    var onStartStopwatch: (_ label: String?, _ startingAt: TimeInterval) -> Void
     var onClose: () -> Void
 
     @AppStorage("startPage.mode") private var mode = Mode.timer
     @AppStorage(TimerDraft.minutesKey) private var minutes = TimerDraft.defaultMinutes
     @AppStorage(TimerDraft.pomodoroWorkKey) private var workMinutes = TimerDraft.defaultWorkMinutes
     @AppStorage(TimerDraft.pomodoroBreakKey) private var breakMinutes = TimerDraft.defaultBreakMinutes
+    /// Where counting up starts, in minutes. Not saved: an offset is a one-off, so it's back to 0:00 next time.
+    @State private var startFromMinutes = 0
     @State private var label = ""
     @FocusState private var firstFieldFocused: Bool
+
+    private var countsUp: Bool { mode == .stopwatch }
+
+    /// "Start", or "Start at 0:25" when counting up from a set time, so the boxes' meaning is clear.
+    private var startTitle: String {
+        guard countsUp, startFromMinutes > 0 else { return "Start" }
+        return String(format: "Start at %d:%02d", startFromMinutes / 60, startFromMinutes % 60)
+    }
+
+    /// The Timer and Pomodoro tabs; counting up still shows the Timer tab.
+    private var tab: Binding<Mode> {
+        Binding(get: { mode == .pomodoro ? .pomodoro : .timer },
+                set: { mode = $0 == .pomodoro ? .pomodoro : (countsUp ? .stopwatch : .timer) })
+    }
+
+    /// The minutes the hours and minutes boxes show: the timer's length, or where counting up starts.
+    private var boxMinutes: Binding<Int> {
+        countsUp ? $startFromMinutes : $minutes
+    }
 
     private var duration: TimeInterval { TimeInterval(minutes * 60) }
     private var canStart: Bool {
@@ -976,15 +999,11 @@ private struct BubbleTimerPage: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            BubbleTabs(selection: $mode, options: [(.timer, "Timer"), (.stopwatch, "Stopwatch"), (.pomodoro, "Pomodoro")])
+            BubbleTabs(selection: tab, options: [(.timer, "Timer"), (.pomodoro, "Pomodoro")])
 
-            switch mode {
-            case .timer: timerForm
-            case .stopwatch: stopwatchForm
-            case .pomodoro: pomodoroForm
-            }
+            if mode == .pomodoro { pomodoroForm } else { timerForm }
 
-            BubbleButton("Start", systemImage: "play.fill", action: start)
+            BubbleButton(startTitle, systemImage: "play.fill", action: start)
                 .disabled(!canStart)
                 .opacity(canStart ? 1 : 0.4)
         }
@@ -998,6 +1017,8 @@ private struct BubbleTimerPage: View {
 
     @ViewBuilder
     private var timerForm: some View {
+        directionPicker
+
         HStack(alignment: .top, spacing: 4) {
             timeColumn("hours", hoursPart, range: 0...TimerDraft.maxHours, step: 60)
                 .focused($firstFieldFocused)
@@ -1012,13 +1033,33 @@ private struct BubbleTimerPage: View {
             .onSubmit(start) // Return starts the timer
     }
 
+    /// Count up (a stopwatch, starting from the boxes' time) or down (a timer), a switch like Settings' Military time.
+    private var directionPicker: some View {
+        Toggle(isOn: Binding(get: { countsUp }, set: { mode = $0 ? .stopwatch : .timer })) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Count up")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                Text(countsUp ? "Counts 1, 2, 3" : "Counts 3, 2, 1")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .toggleStyle(BubbleSwitchStyle())
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.black.opacity(0.25), lineWidth: 1.5))
+    }
+
     /// The saved draft is total minutes (shared with the Set Timer window); the boxes split it.
     private var hoursPart: Binding<Int> {
-        Binding(get: { minutes / 60 }, set: { minutes = $0 * 60 + minutes % 60 })
+        let total = boxMinutes
+        return Binding(get: { total.wrappedValue / 60 }, set: { total.wrappedValue = $0 * 60 + total.wrappedValue % 60 })
     }
 
     private var minutesPart: Binding<Int> {
-        Binding(get: { minutes % 60 }, set: { minutes = minutes / 60 * 60 + $0 })
+        let total = boxMinutes
+        return Binding(get: { total.wrappedValue % 60 }, set: { total.wrappedValue = total.wrappedValue / 60 * 60 + $0 })
     }
 
     /// A number box with its carets beside it and a caption under it.
@@ -1027,11 +1068,12 @@ private struct BubbleTimerPage: View {
         VStack(spacing: 1) {
             HStack(spacing: 4) {
                 numberBox(value, range: range, width: 52, fontSize: 22)
+                let total = boxMinutes
                 CaretStepper(
-                    canIncrement: minutes + step <= TimerDraft.minuteRange.upperBound,
-                    canDecrement: minutes - step >= TimerDraft.minuteRange.lowerBound,
-                    increment: { minutes += step },
-                    decrement: { minutes -= step }
+                    canIncrement: total.wrappedValue + step <= TimerDraft.minuteRange.upperBound,
+                    canDecrement: total.wrappedValue - step >= TimerDraft.minuteRange.lowerBound,
+                    increment: { total.wrappedValue += step },
+                    decrement: { total.wrappedValue -= step }
                 )
             }
             Text(caption)
@@ -1049,13 +1091,6 @@ private struct BubbleTimerPage: View {
             pomodoroRow("Break", $breakMinutes)
         }
         .padding(.vertical, 2)
-    }
-
-    private var stopwatchForm: some View {
-        TextField("Label (optional)", text: TimerDraft.limited($label))
-            .bubbleFieldStyle()
-            .focused($firstFieldFocused)
-            .onSubmit(start) // Return starts the stopwatch
     }
 
     private func pomodoroRow(_ title: String, _ value: Binding<Int>) -> some View {
@@ -1094,7 +1129,7 @@ private struct BubbleTimerPage: View {
         case .pomodoro:
             onStartPomodoro(TimeInterval(workMinutes * 60), TimeInterval(breakMinutes * 60))
         case .stopwatch:
-            onStartStopwatch(TimerDraft.cleanLabel(label))
+            onStartStopwatch(TimerDraft.cleanLabel(label), TimeInterval(startFromMinutes * 60))
         }
     }
 }

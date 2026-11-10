@@ -71,7 +71,7 @@ final class AppController {
             startPomodoro: { [weak self] work, rest in
                 self?.timer.startPomodoro(workLength: work, breakLength: rest)
             },
-            startStopwatch: { [weak self] label in self?.timer.startStopwatch(label: label) },
+            startStopwatch: { [weak self] label, offset in self?.timer.startStopwatch(label: label, startingAt: offset) },
             stopTimer: { [weak self] in self?.timer.stop() },
             togglePause: { [weak self] in self?.timer.togglePause() },
             startNextPomodoroPeriod: { [weak self] in self?.timer.startNextPomodoroPeriod() },
@@ -679,7 +679,7 @@ final class AppController {
     /// Launch arguments that let Claude check windows without screen-recording permission:
     /// `--customize` opens that bubble page; `--set-timer` opens that window; `--timer <seconds>` starts a timer (add `--label <text>` and/or `--pause`);
     /// `--pomodoro <workSeconds> <breakSeconds>` starts Pomodoro mode; `--flip-start-mode` switches the Start page tab;
-    /// `--stopwatch` starts a stopwatch (add `--label <text>`);
+    /// `--stopwatch` starts a stopwatch (add `--label <text>`, and `--from <sec>` to start it that far in);
     /// `--record <seconds>` records a corner of the screen that long (`--record-rect x,y,w,h`, `--record-to <folder>`,
     /// `--record-name <name>`); `--record-name` alone fills in the Record tab's Name box (with `--menu record`);
     /// `--screen-snapshot <path.png>` takes a real screenshot of the app's windows (shows video), after `--snapshot-delay`;
@@ -707,7 +707,12 @@ final class AppController {
            let work = TimeInterval(args[i + 1]), let rest = TimeInterval(args[i + 2]) {
             timer.startPomodoro(workLength: work, breakLength: rest)
         }
-        if args.contains("--stopwatch") { timer.startStopwatch(label: value(after: "--label")) }
+        if args.contains("--stopwatch") {
+            timer.startStopwatch(
+                label: value(after: "--label"),
+                startingAt: value(after: "--from").flatMap(TimeInterval.init) ?? 0
+            )
+        }
         if let seconds = value(after: "--timer").flatMap(TimeInterval.init) {
             startTimer(duration: seconds, label: value(after: "--label"))
         }

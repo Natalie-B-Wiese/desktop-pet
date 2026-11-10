@@ -76,8 +76,8 @@ struct MenuContent: View {
             }
         }
 
-        if controller.timer.hasCountdown && !controller.timer.isStopwatch {
-            Menu("Edit Timer") {
+        if controller.timer.hasCountdown {
+            Menu("Edit \(controller.timer.kindTitle)") {
                 ForEach(AppController.editMenuSteps, id: \.self) { step in
                     Button(PetTimer.editTitle(step)) {
                         controller.timer.adjust(bySeconds: step)
