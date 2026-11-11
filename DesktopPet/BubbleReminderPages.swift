@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// The bubble's "Reminders" page: every upcoming reminder (click one to edit it, or see a meeting's), Add, and Pull meetings.
+/// The bubble's "Reminders" page: every upcoming reminder (click one to edit it, or see a meeting's), Add, Pull meetings,
+/// and Choose calendars.
 struct BubbleRemindersPage: View {
     let store: ReminderStore
     var onAdd: () -> Void
     var onEdit: (Reminder.ID) -> Void
+    var onCalendars: () -> Void
 
     /// What the last pull did, like "Added 2 meetings".
     @State private var pullStatus: String?
@@ -40,8 +42,13 @@ struct BubbleRemindersPage: View {
             }
 
             BubbleButton("Add reminder", systemImage: "plus", action: onAdd)
-            BubbleButton(isPulling ? "Pulling…" : "Pull meetings", systemImage: "calendar.badge.plus", action: pullMeetings)
-                .disabled(isPulling)
+            HStack(spacing: 6) {
+                BubbleButton(isPulling ? "Pulling…" : "Pull meetings", systemImage: "calendar.badge.plus", action: pullMeetings)
+                    .disabled(isPulling)
+                BubbleButton("", systemImage: "slider.horizontal.3", centered: true, action: onCalendars)
+                    .frame(width: 32)
+                    .help("Choose calendars")
+            }
 
             if let pullStatus {
                 Text(pullStatus)
@@ -585,5 +592,121 @@ struct WrappingWidth: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
+}
+
+/// The "Calendars" page, from Reminders: a checklist of the Mac's calendars by account. Unchecked ones are skipped
+/// by Pull meetings, the greeting's all-day events and the in-a-meeting check that keeps chatter quiet.
+struct BubbleCalendarsPage: View {
+    let store: ReminderStore
+
+    /// Nil until they've loaded.
+    @State private var calendars: [MeetingCalendar]?
+    @State private var hiddenIDs: Set<MeetingCalendar.ID> = []
+    @State private var needsCalendarAccess = false
+    @State private var listHeight: CGFloat = 0
+
+    /// Past this the list scrolls instead of making the bubble taller.
+    private static let maxListHeight: CGFloat = 220
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if needsCalendarAccess {
+                note("Topsy can't see your calendar. Turn on Desktop Pet under Calendars.")
+                BubbleButton("Open Settings", systemImage: "gearshape", style: .quiet, action: CalendarMeetings.openPrivacySettings)
+            } else if let calendars {
+                if calendars.isEmpty {
+                    note("No calendars on this Mac")
+                } else {
+                    note("Meetings come from the checked calendars.")
+                    // Always a ScrollView, sized to its rows up to the cap, like the Archived to-dos.
+                    ScrollView {
+                        accounts(calendars)
+                            .padding(1)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+                    }
+                    .scrollIndicators(.never)
+                    .frame(height: min(listHeight, Self.maxListHeight))
+                    .padding(.horizontal, -1)
+                }
+            } else if !CalendarMeetings.hasAccess {
+                // Only while macOS asks; with access they load at once, so nothing flashes.
+                note("Waiting for Calendar access…")
+            }
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        do {
+            let loaded = try await CalendarMeetings.calendars()
+            hiddenIDs = Set(loaded.filter(CalendarMeetings.isHidden).map(\.id))
+            calendars = loaded
+        } catch {
+            needsCalendarAccess = true
+        }
+    }
+
+    /// The calendars under a grey heading for each account, keeping their sorted order.
+    private func accounts(_ calendars: [MeetingCalendar]) -> some View {
+        var groups: [(account: String, calendars: [MeetingCalendar])] = []
+        for calendar in calendars {
+            if groups.last?.account == calendar.account {
+                groups[groups.count - 1].calendars.append(calendar)
+            } else {
+                groups.append((calendar.account, [calendar]))
+            }
+        }
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(groups, id: \.account) { group in
+                Text(group.account)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .opacity(0.55)
+                    .padding(.top, group.account == groups.first?.account ? 0 : 4)
+                ForEach(group.calendars) { row($0) }
+            }
+        }
+    }
+
+    private func row(_ calendar: MeetingCalendar) -> some View {
+        let shown = !hiddenIDs.contains(calendar.id)
+        return Button {
+            toggle(calendar)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: shown ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 18, height: 18)
+                Circle()
+                    .fill(Color(nsColor: calendar.color))
+                    .frame(width: 8, height: 8)
+                Text(calendar.title)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(shown ? "Skip its meetings" : "Pull its meetings")
+    }
+
+    /// Pulls again right away, so a hidden calendar's reminders go (and come back when it's checked again).
+    private func toggle(_ calendar: MeetingCalendar) {
+        let hide = !hiddenIDs.contains(calendar.id)
+        CalendarMeetings.setHidden(calendar, hide)
+        if hide { hiddenIDs.insert(calendar.id) } else { hiddenIDs.remove(calendar.id) }
+        Task { @MainActor in
+            if let meetings = try? await CalendarMeetings.todaysUpcoming() { store.syncMeetings(meetings) }
+        }
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .opacity(0.55)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
